@@ -3382,8 +3382,13 @@ class Game {
             forward: false,
             backward: false,
             left: false,
-            right: false,
-            jump: false
+            right: false
+        };
+        
+        // Initialize camera angles
+        this.cameraAngles = {
+            vertical: 0,
+            horizontal: 0
         };
         
         // Mouse state
@@ -3416,8 +3421,20 @@ class Game {
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Update player rotation based on mouse X movement
+                // Horizontal rotation (left/right)
                 this.playerState.rotation.y -= e.movementX * 0.002;
+                
+                // Vertical rotation (up/down) - positive movementY means mouse moved down
+                this.cameraAngles.vertical += e.movementY * 0.002; // Note: removed the negative sign
+                
+                // Clamp vertical rotation to prevent over-rotation
+                this.cameraAngles.vertical = Math.max(
+                    -Math.PI / 3, // Look up limit
+                    Math.min(
+                        Math.PI / 3,  // Look down limit
+                        this.cameraAngles.vertical
+                    )
+                );
             }
         });
         
@@ -3726,17 +3743,20 @@ class Game {
         const playerPosition = this.playerState.position.clone();
         playerPosition.y += 1.5; // Look at head height
         
-        // Calculate camera position
+        // Calculate base camera position behind player
+        const horizontalDist = Math.cos(this.cameraAngles.vertical) * cameraDistance;
+        const verticalDist = Math.sin(this.cameraAngles.vertical) * cameraDistance;
+        
         const cameraPosition = new THREE.Vector3(
-            -Math.sin(this.playerState.rotation.y) * cameraDistance,
-            cameraHeight,
-            -Math.cos(this.playerState.rotation.y) * cameraDistance
+            -Math.sin(this.playerState.rotation.y) * horizontalDist,
+            cameraHeight + verticalDist,
+            -Math.cos(this.playerState.rotation.y) * horizontalDist
         );
         
         // Set camera position relative to player
         this.camera.position.copy(playerPosition).add(cameraPosition);
         
-        // Look directly at player - no tilting allowed
+        // Look directly at player
         this.camera.lookAt(playerPosition);
         
         // Force camera up vector to be exactly vertical - this prevents any tilting
