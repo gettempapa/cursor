@@ -1,142 +1,97 @@
 import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
-import { Player } from './modules/Player.js';
 
-import { Enemy } from './modules/Enemy.js';
-import { Environment } from './modules/Environment.js';
-import { UI } from './modules/UI.js';
-
-export class Game {
+class Game {
     constructor() {
-        this.container = document.getElementById('gameContainer');
-        
-        // Scene setup
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87ceeb);
-        
-        // Camera setup
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 2, 5);
-        
-        // Renderer setup
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        this.container.appendChild(this.renderer.domElement);
-        
-        // Player setup
-        this.playerHeight = 2;
-        this.playerPosition = new THREE.Vector3(0, this.playerHeight, 0);
-        this.playerRotation = new THREE.Euler(0, 0, 0, 'YXZ');
-        this.moveSpeed = 0.1;
-        this.mouseSensitivity = 0.002;
-        
-        // Movement state
-        this.moveState = {
-            forward: false,
-            backward: false,
-            left: false,
-            right: false
-        };
-        
-        // Create ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
-        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5a27 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-        
-        // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        this.scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 5, 5);
-        directionalLight.castShadow = true;
-        this.scene.add(directionalLight);
-        
-        // Event listeners
-        this.setupEventListeners();
-        
-        // Start animation loop
-        this.animate();
-    }
-    
-    setupEventListeners() {
-        // Mouse lock on click
-        this.container.addEventListener('click', () => {
-            this.container.requestPointerLock();
-        });
-        
-        // Mouse movement
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement === this.container) {
-                this.playerRotation.y -= e.movementX * this.mouseSensitivity;
-                this.playerRotation.x -= e.movementY * this.mouseSensitivity;
-                this.playerRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.playerRotation.x));
-            }
-        });
-        
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
-            switch(e.code) {
-                case 'KeyW': this.moveState.forward = true; break;
-                case 'KeyS': this.moveState.backward = true; break;
-                case 'KeyA': this.moveState.left = true; break;
-                case 'KeyD': this.moveState.right = true; break;
-            }
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            switch(e.code) {
-                case 'KeyW': this.moveState.forward = false; break;
-                case 'KeyS': this.moveState.backward = false; break;
-                case 'KeyA': this.moveState.left = false; break;
-                case 'KeyD': this.moveState.right = false; break;
-            }
-        });
-        
-        // Window resize
-        window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
+        // Debug mode
+        this.debug = document.getElementById('debug');
+        this.debug.style.display = 'block';
+        this.debug.textContent = 'Initializing...';
+
+        try {
+            // Get container
+            this.container = document.getElementById('gameContainer');
+            if (!this.container) throw new Error('No game container found');
+            
+            // Create scene
+            this.scene = new THREE.Scene();
+            
+            // Create camera
+            this.camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            this.camera.position.set(0, 2, 5);
+            
+            // Create renderer
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    }
-    
-    updateMovement() {
-        // Calculate movement direction
-        const moveDirection = new THREE.Vector3(0, 0, 0);
-        
-        if (this.moveState.forward) moveDirection.z -= 1;
-        if (this.moveState.backward) moveDirection.z += 1;
-        if (this.moveState.left) moveDirection.x -= 1;
-        if (this.moveState.right) moveDirection.x += 1;
-        
-        if (moveDirection.length() > 0) {
-            moveDirection.normalize();
+            this.renderer.setClearColor(0x87ceeb); // Sky blue
+            this.container.appendChild(this.renderer.domElement);
             
-            // Apply player rotation to movement
-            moveDirection.applyEuler(new THREE.Euler(0, this.playerRotation.y, 0));
+            // Add a simple cube to test rendering
+            const geometry = new THREE.BoxGeometry();
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            this.cube = new THREE.Mesh(geometry, material);
+            this.scene.add(this.cube);
             
-            // Update position
-            this.playerPosition.add(moveDirection.multiplyScalar(this.moveSpeed));
+            // Add ground
+            const groundGeometry = new THREE.PlaneGeometry(10, 10);
+            const groundMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x2d5a27,
+                side: THREE.DoubleSide
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = Math.PI / 2;
+            this.scene.add(ground);
+            
+            // Add basic lighting
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(1, 1, 1);
+            this.scene.add(light);
+            
+            // Add ambient light
+            const ambient = new THREE.AmbientLight(0x404040);
+            this.scene.add(ambient);
+            
+            // Hide loading screen
+            const loadingScreen = document.getElementById('loadingScreen');
+            if (loadingScreen) loadingScreen.style.display = 'none';
+            
+            // Start animation loop
+            this.animate();
+            
+            this.debug.textContent = 'Game running';
+        } catch (error) {
+            console.error('Game initialization failed:', error);
+            this.debug.textContent = `Error: ${error.message}`;
         }
-        
-        // Update camera position and rotation
-        this.camera.position.copy(this.playerPosition);
-        this.camera.rotation.copy(this.playerRotation);
     }
     
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        this.updateMovement();
+        // Rotate cube to show something is happening
+        if (this.cube) {
+            this.cube.rotation.x += 0.01;
+            this.cube.rotation.y += 0.01;
+        }
+        
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Start the game when the page loads
+// Create game instance when page loads
 window.addEventListener('DOMContentLoaded', () => {
-    new Game();
+    try {
+        new Game();
+    } catch (error) {
+        console.error('Failed to start game:', error);
+        const debug = document.getElementById('debug');
+        if (debug) {
+            debug.style.display = 'block';
+            debug.textContent = `Failed to start game: ${error.message}`;
+        }
+    }
 }); 

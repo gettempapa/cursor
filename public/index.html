@@ -3,20 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D First-Person Shooter</title>
+    <title>3D Game</title>
     <style>
-        body {
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
             overflow: hidden;
             background-color: #000;
         }
+        
         #gameContainer {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #87ceeb;
         }
+        
         #loadingScreen {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
@@ -30,21 +40,33 @@
             font-size: 24px;
             z-index: 1000;
         }
+        
+        .debug {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            z-index: 100;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div id="gameContainer">
-        <div id="loadingScreen">Loading game assets...</div>
-    </div>
-    <script type="module" src="js/game.js"></script>
-    <script>
-        // Hide loading screen when game is ready
-        window.addEventListener('DOMContentLoaded', () => {
-            const loadingScreen = document.getElementById('loadingScreen');
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-            }, 1000);
-        });
+    <div id="gameContainer"></div>
+    <div id="loadingScreen">Loading game assets...</div>
+    <div id="debug" class="debug"></div>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+        }
+    }
     </script>
+    <script type="module" src="js/game.js"></script>
 </body>
 </html> 
