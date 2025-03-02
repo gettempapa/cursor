@@ -121,6 +121,8 @@ export class Player {
     }
     
     updateMovement(collisionSystem) {
+        if (this.isDead) return;
+        
         // Update vertical movement (jumping/falling)
         if (!this.isGrounded) {
             this.velocity.y += this.gravity;
@@ -133,15 +135,20 @@ export class Player {
             const collisionResult = collisionSystem.checkCollisions(newPosition);
             
             if (collisionResult.hasCollision) {
+                // Hit something from the side or bottom
                 this.velocity.y = 0;
+                this.isGrounded = true;
             } else {
+                // Update position, might be adjusted by collision detection
                 this.object.position.y = collisionResult.newY;
                 
+                // Check if landed on ground or crate
                 if (this.object.position.y <= 1) {
                     this.object.position.y = 1;
                     this.velocity.y = 0;
                     this.isGrounded = true;
                 } else if (collisionResult.newY !== newPosition.y) {
+                    // Landed on a crate or other surface
                     this.velocity.y = 0;
                     this.isGrounded = true;
                 }

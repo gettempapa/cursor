@@ -61,7 +61,12 @@ export class Game {
                 case 'KeyS': this.player.moveState.backward = true; break;
                 case 'KeyA': this.player.moveState.left = true; break;
                 case 'KeyD': this.player.moveState.right = true; break;
-                case 'Space': this.player.moveState.jump = true; break;
+                case 'Space': 
+                    if (this.player.isGrounded) {
+                        this.player.velocity.y = this.player.jumpForce;
+                        this.player.isGrounded = false;
+                    }
+                    break;
                 case 'KeyR':
                     this.player.weaponSystem.reload();
                     this.ui.showReloadIndicator();
@@ -96,7 +101,6 @@ export class Game {
                 case 'KeyS': this.player.moveState.backward = false; break;
                 case 'KeyA': this.player.moveState.left = false; break;
                 case 'KeyD': this.player.moveState.right = false; break;
-                case 'Space': this.player.moveState.jump = false; break;
             }
         });
         
