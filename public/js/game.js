@@ -29,7 +29,7 @@ class SkiingGame {
 
         const mountain = new THREE.Mesh(
             new THREE.CylinderGeometry(4000, 4000, 8000, 32, 1, true),
-            new THREE.MeshStandardMaterial({ map: mountainTexture, side: THREE.DoubleSide })
+            new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide })
         );
         mountain.rotation.x = Math.PI / 2;
         mountain.receiveShadow = true;
