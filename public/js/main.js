@@ -174,167 +174,356 @@ function createHumanoidMesh() {
     playerAimHelper.position.y = 1.2; // Position at shoulder height
     playerGroup.add(playerAimHelper);
     
-    // Military camo colors
-    const camoColors = {
-        darkGreen: 0x4B5320,
-        lightGreen: 0x6B8E23,
-        tan: 0x8B7E66,
-        brown: 0x654321
+    // Modern tactical color scheme
+    const tacticalColors = {
+        black: 0x111111,         // Deep black for tactical gear
+        darkGrey: 0x333333,      // Dark grey for some equipment
+        oliveGreen: 0x556B2F,    // Modern military olive
+        desertTan: 0xC2B280,     // Modern desert camo base
+        foliageGreen: 0x4F7942,  // Foliage green for woodland camo
+        gunmetal: 0x2C3539,      // Gunmetal for weapons and accessories
+        khaki: 0xBDB76B,         // Khaki for some uniform elements
+        navy: 0x000080           // Navy for special forces elements
     };
     
-    // Body parts
-    // Head (sphere)
-    const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow face
+    // Create a more detailed face with features instead of a yellow sphere
+    // Head with proper skin tone
+    const headGeometry = new THREE.SphereGeometry(0.22, 24, 24);
+    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xE0BEAC }); // Realistic skin tone
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.y = 1.5;
     playerGroup.add(head);
     
-    // Helmet
-    const helmetGeometry = new THREE.SphereGeometry(0.27, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const helmetMaterial = new THREE.MeshBasicMaterial({ color: camoColors.darkGreen }); // Camo green
+    // Eyes
+    const eyeGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Black eyes
+    
+    // Left eye
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.07, 1.53, 0.18);
+    playerGroup.add(leftEye);
+    
+    // Right eye
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.07, 1.53, 0.18);
+    playerGroup.add(rightEye);
+    
+    // Modern combat helmet with NVG mount
+    const helmetGeometry = new THREE.SphereGeometry(0.27, 24, 24, 0, Math.PI * 2, 0, Math.PI * 0.6);
+    const helmetMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
     const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
-    helmet.position.y = 1.55; // Slightly above head
+    helmet.position.y = 1.55;
     playerGroup.add(helmet);
     
-    // Body (box) - camo torso
-    const bodyGeometry = new THREE.BoxGeometry(0.5, 0.7, 0.25);
-    const bodyMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 1.0;
-    playerGroup.add(body);
+    // Helmet accessories - NVG mount
+    const nvgMountGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.05);
+    const nvgMountMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const nvgMount = new THREE.Mesh(nvgMountGeometry, nvgMountMaterial);
+    nvgMount.position.set(0, 1.65, 0.2);
+    playerGroup.add(nvgMount);
+    
+    // Tactical headset/comms
+    const headsetGeometry = new THREE.TorusGeometry(0.25, 0.04, 8, 16, Math.PI);
+    const headsetMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const headset = new THREE.Mesh(headsetGeometry, headsetMaterial);
+    headset.rotation.x = Math.PI / 2;
+    headset.position.set(0, 1.5, 0);
+    playerGroup.add(headset);
+    
+    // Mic on headset
+    const micGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.1, 8);
+    const micMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const mic = new THREE.Mesh(micGeometry, micMaterial);
+    mic.rotation.x = Math.PI / 4;
+    mic.position.set(0.2, 1.45, 0.1);
+    playerGroup.add(mic);
+    
+    // Modern tactical vest rather than simple box
+    // Main vest body
+    const vestGeometry = new THREE.BoxGeometry(0.54, 0.65, 0.3);
+    const vestMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    const vest = new THREE.Mesh(vestGeometry, vestMaterial);
+    vest.position.y = 1.0;
+    playerGroup.add(vest);
+    
+    // Add MOLLE pouches to vest
+    // Ammo pouches
+    const pouchGeometry = new THREE.BoxGeometry(0.12, 0.15, 0.08);
+    const pouchMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    
+    // Left ammo pouch
+    const leftPouch = new THREE.Mesh(pouchGeometry, pouchMaterial);
+    leftPouch.position.set(-0.2, 0.95, 0.18);
+    playerGroup.add(leftPouch);
+    
+    // Right ammo pouch
+    const rightPouch = new THREE.Mesh(pouchGeometry, pouchMaterial);
+    rightPouch.position.set(0.2, 0.95, 0.18);
+    playerGroup.add(rightPouch);
+    
+    // Center admin pouch
+    const adminPouchGeometry = new THREE.BoxGeometry(0.2, 0.12, 0.1);
+    const adminPouch = new THREE.Mesh(adminPouchGeometry, pouchMaterial);
+    adminPouch.position.set(0, 1.1, 0.18);
+    playerGroup.add(adminPouch);
     
     // Create left arm group for positioning
     const leftArmGroup = new THREE.Group();
-    leftArmGroup.position.set(-0.3, 1.1, 0.05);
+    leftArmGroup.position.set(-0.32, 1.1, 0.05);
     // Rotate left arm slightly to support the gun
-    leftArmGroup.rotation.x = Math.PI * 0.1; // Tilt forward
+    leftArmGroup.rotation.x = Math.PI * 0.12; // Tilt forward
     leftArmGroup.rotation.z = -Math.PI * 0.1; // Angle inward
     playerGroup.add(leftArmGroup);
     
-    // Left arm - match the camo pattern
-    const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.5, 0.15);
-    const leftArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
-    const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
-    leftArm.position.set(0, -0.2, 0); // Position within the group
-    leftArmGroup.add(leftArm);
+    // Left arm - tactical uniform
+    const upperArmGeometry = new THREE.BoxGeometry(0.14, 0.3, 0.14);
+    const upperArmMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    const leftUpperArm = new THREE.Mesh(upperArmGeometry, upperArmMaterial);
+    leftUpperArm.position.set(0, -0.1, 0);
+    leftArmGroup.add(leftUpperArm);
+    
+    // Left forearm with tactical glove
+    const forearmGeometry = new THREE.BoxGeometry(0.13, 0.3, 0.13);
+    const forearmMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    const leftForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
+    leftForearm.position.set(0, -0.35, 0);
+    leftArmGroup.add(leftForearm);
+    
+    // Left tactical glove
+    const gloveGeometry = new THREE.BoxGeometry(0.14, 0.08, 0.14);
+    const gloveMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const leftGlove = new THREE.Mesh(gloveGeometry, gloveMaterial);
+    leftGlove.position.set(0, -0.5, 0);
+    leftArmGroup.add(leftGlove);
     
     // Create right arm group for positioning
     const rightArmGroup = new THREE.Group();
-    rightArmGroup.position.set(0.3, 1.1, 0.1);
+    rightArmGroup.position.set(0.32, 1.1, 0.1);
     // Rotate right arm to hold the gun
-    rightArmGroup.rotation.x = Math.PI * 0.1; // Tilt forward
+    rightArmGroup.rotation.x = Math.PI * 0.12; // Tilt forward
     rightArmGroup.rotation.z = Math.PI * 0.1; // Angle inward
     playerAimHelper.add(rightArmGroup);
     
-    // Right arm (will hold the gun) - match the camo pattern
-    const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.5, 0.15);
-    const rightArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
-    const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
-    rightArm.position.set(0, -0.2, 0); // Position within the group
-    rightArmGroup.add(rightArm);
+    // Right upper arm
+    const rightUpperArm = new THREE.Mesh(upperArmGeometry, upperArmMaterial);
+    rightUpperArm.position.set(0, -0.1, 0);
+    rightArmGroup.add(rightUpperArm);
     
-    // Legs - camo pants
+    // Right forearm
+    const rightForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
+    rightForearm.position.set(0, -0.35, 0);
+    rightArmGroup.add(rightForearm);
+    
+    // Right tactical glove
+    const rightGlove = new THREE.Mesh(gloveGeometry, gloveMaterial);
+    rightGlove.position.set(0, -0.5, 0);
+    rightArmGroup.add(rightGlove);
+    
+    // Tactical pants
+    const pantsGeometry = new THREE.BoxGeometry(0.5, 0.2, 0.25);
+    const pantsMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    const pants = new THREE.Mesh(pantsGeometry, pantsMaterial);
+    pants.position.set(0, 0.65, 0);
+    playerGroup.add(pants);
+    
+    // Legs - tactical cargo pants
     const legGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
-    const legMaterial = new THREE.MeshBasicMaterial({ color: camoColors.tan }); // Tan camo
+    const legMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
     
     // Left leg
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
     leftLeg.position.set(-0.15, 0.45, 0);
     playerGroup.add(leftLeg);
     
+    // Left cargo pocket
+    const cargoPocketGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.22);
+    const cargoPocketMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+    const leftCargoPocket = new THREE.Mesh(cargoPocketGeometry, cargoPocketMaterial);
+    leftCargoPocket.position.set(-0.2, 0.45, 0);
+    playerGroup.add(leftCargoPocket);
+    
     // Right leg
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
     rightLeg.position.set(0.15, 0.45, 0);
     playerGroup.add(rightLeg);
     
-    // Boots
-    const bootGeometry = new THREE.BoxGeometry(0.22, 0.2, 0.25); // Slightly larger than legs
-    const bootMaterial = new THREE.MeshBasicMaterial({ color: 0x271A0A }); // Dark brown
+    // Right cargo pocket
+    const rightCargoPocket = new THREE.Mesh(cargoPocketGeometry, cargoPocketMaterial);
+    rightCargoPocket.position.set(0.2, 0.45, 0);
+    playerGroup.add(rightCargoPocket);
+    
+    // Tactical boots
+    const bootGeometry = new THREE.BoxGeometry(0.22, 0.2, 0.28);
+    const bootMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
     
     // Left boot
     const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-    leftBoot.position.set(-0.15, 0.1, 0.02); // Position at bottom of leg
+    leftBoot.position.set(-0.15, 0.1, 0.02);
     playerGroup.add(leftBoot);
     
     // Right boot
     const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-    rightBoot.position.set(0.15, 0.1, 0.02); // Position at bottom of leg
+    rightBoot.position.set(0.15, 0.1, 0.02);
     playerGroup.add(rightBoot);
     
-    // Add camo details (patches/spots) to make the outfit more visually interesting
-    addCamoPatches(body, camoColors);
-    addCamoPatches(leftArm, camoColors);
-    addCamoPatches(rightArm, camoColors);
-    addCamoPatches(leftLeg, camoColors);
-    addCamoPatches(rightLeg, camoColors);
+    // Add tactical combat belt
+    const beltGeometry = new THREE.TorusGeometry(0.28, 0.05, 8, 16);
+    const beltMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+    belt.rotation.x = Math.PI / 2;
+    belt.position.set(0, 0.75, 0);
+    playerGroup.add(belt);
     
-    // Create a realistic rifle
+    // Create a tactical modern rifle
     const gunGroup = new THREE.Group();
     gunGroup.name = "gunGroup"; // Add name for reference
     
-    // Main rifle body (longer and thinner)
-    const rifleBodyGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.8);
-    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x111111 }); // Dark gray/black
+    // Main rifle body - more detailed
+    const rifleBodyGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.7);
+    const gunMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
     const rifleBody = new THREE.Mesh(rifleBodyGeometry, gunMaterial);
     gunGroup.add(rifleBody);
     
-    // Rifle stock (behind the main body)
-    const stockGeometry = new THREE.BoxGeometry(0.05, 0.1, 0.2);
-    const stockMaterial = new THREE.MeshBasicMaterial({ color: 0x3D2817 }); // Brown wood color
+    // Rifle stock - modern polymer
+    const stockGeometry = new THREE.BoxGeometry(0.05, 0.12, 0.25);
+    const stockMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
     const stock = new THREE.Mesh(stockGeometry, stockMaterial);
-    stock.position.set(0, -0.02, 0.4); // Position behind the main body
+    stock.position.set(0, -0.03, 0.45);
     gunGroup.add(stock);
     
-    // Rifle grip near the trigger
-    const gripGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.06);
-    const grip = new THREE.Mesh(gripGeometry, stockMaterial);
-    grip.position.set(0, -0.1, 0.2); // Position under the rifle
+    // Rail system on top of rifle
+    const railGeometry = new THREE.BoxGeometry(0.04, 0.02, 0.5);
+    const railMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
+    const topRail = new THREE.Mesh(railGeometry, railMaterial);
+    topRail.position.set(0, 0.035, -0.1);
+    gunGroup.add(topRail);
+    
+    // Tactical foregrip
+    const foregrip = new THREE.BoxGeometry(0.04, 0.1, 0.04);
+    const foregrip_mesh = new THREE.Mesh(foregrip, gunMaterial);
+    foregrip_mesh.position.set(0, -0.07, -0.2);
+    gunGroup.add(foregrip_mesh);
+    
+    // Pistol grip
+    const gripGeometry = new THREE.BoxGeometry(0.05, 0.15, 0.05);
+    const grip = new THREE.Mesh(gripGeometry, gunMaterial);
+    grip.position.set(0, -0.1, 0.2);
     gunGroup.add(grip);
     
-    // Rifle magazine
-    const magazineGeometry = new THREE.BoxGeometry(0.06, 0.12, 0.08);
-    const magazineMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 }); // Slightly lighter black
+    // Modern magazine
+    const magazineGeometry = new THREE.BoxGeometry(0.05, 0.18, 0.08);
+    const magazineMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
     const magazine = new THREE.Mesh(magazineGeometry, magazineMaterial);
-    magazine.position.set(0, -0.09, 0.1); // Position under the rifle
+    magazine.position.set(0, -0.13, 0.1);
     gunGroup.add(magazine);
     
-    // Small barrel detail at the front
-    const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8);
+    // Barrel with flash hider
+    const barrelGeometry = new THREE.CylinderGeometry(0.025, 0.03, 0.2, 8);
     const barrel = new THREE.Mesh(barrelGeometry, gunMaterial);
-    barrel.rotation.x = Math.PI / 2; // Rotate to align with rifle
-    barrel.position.set(0, 0, -0.45); // Position at front of rifle
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0, -0.45);
     gunGroup.add(barrel);
+    
+    // Flash hider
+    const flashHiderGeometry = new THREE.CylinderGeometry(0.04, 0.03, 0.08, 8);
+    const flashHider = new THREE.Mesh(flashHiderGeometry, gunMaterial);
+    flashHider.rotation.x = Math.PI / 2;
+    flashHider.position.set(0, 0, -0.55);
+    gunGroup.add(flashHider);
+    
+    // Add a tactical red dot sight
+    const sightBaseGeometry = new THREE.BoxGeometry(0.07, 0.05, 0.1);
+    const sightBaseMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const sightBase = new THREE.Mesh(sightBaseGeometry, sightBaseMaterial);
+    sightBase.position.set(0, 0.07, -0.15);
+    gunGroup.add(sightBase);
+    
+    // Red dot emitter
+    const emitterGeometry = new THREE.BoxGeometry(0.03, 0.03, 0.06);
+    const emitterMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const emitter = new THREE.Mesh(emitterGeometry, emitterMaterial);
+    emitter.position.set(0, 0.1, -0.13);
+    gunGroup.add(emitter);
+    
+    // Add tactical sling attachment points
+    const slingPointGeometry = new THREE.TorusGeometry(0.015, 0.005, 8, 16);
+    const slingPointMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
+    
+    // Front sling point
+    const frontSlingPoint = new THREE.Mesh(slingPointGeometry, slingPointMaterial);
+    frontSlingPoint.rotation.y = Math.PI / 2;
+    frontSlingPoint.position.set(0.03, 0, -0.3);
+    gunGroup.add(frontSlingPoint);
+    
+    // Rear sling point
+    const rearSlingPoint = new THREE.Mesh(slingPointGeometry, slingPointMaterial);
+    rearSlingPoint.rotation.y = Math.PI / 2;
+    rearSlingPoint.position.set(0.03, 0, 0.3);
+    gunGroup.add(rearSlingPoint);
     
     // Position the entire gun between the hands
     gunGroup.position.set(0, -0.1, 0.3);
     // Rotate gun to point forward
     gunGroup.rotation.y = Math.PI;
     
+    // Add a tactical sling from gun to player
+    const slingGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.6, 8);
+    const slingMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const sling = new THREE.Mesh(slingGeometry, slingMaterial);
+    sling.rotation.z = Math.PI / 2;
+    sling.rotation.y = Math.PI / 8;
+    sling.position.set(0.2, 0.1, 0);
+    gunGroup.add(sling);
+    
     // Create a connector between left arm and gun
     leftArmGroup.add(gunGroup);
     
-    // Add visual aim indicator
-    const aimGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.4);
-    const aimMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Red
+    // Add visual aim indicator (laser sight from gun)
+    const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.6);
+    const aimMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xFF0000,
+        transparent: true,
+        opacity: 0.7
+    });
     const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
     aimIndicator.name = "aimIndicator"; // Add name for reference
-    aimIndicator.position.set(0, 0, -0.6); // Position in front of gun
+    aimIndicator.position.set(0, 0.02, -0.8); // Position in front of gun
     gunGroup.add(aimIndicator);
+    
+    // Add a tactical knife on the belt
+    const knifeHandleGeometry = new THREE.BoxGeometry(0.03, 0.03, 0.12);
+    const knifeHandleMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
+    const knifeHandle = new THREE.Mesh(knifeHandleGeometry, knifeHandleMaterial);
+    knifeHandle.position.set(-0.25, 0.75, 0.15);
+    knifeHandle.rotation.x = Math.PI / 2.5;
+    playerGroup.add(knifeHandle);
+    
+    const knifeBladeGeometry = new THREE.BoxGeometry(0.02, 0.01, 0.15);
+    const knifeBladeMaterial = new THREE.MeshBasicMaterial({ color: 0xC0C0C0 }); // Silver
+    const knifeBlade = new THREE.Mesh(knifeBladeGeometry, knifeBladeMaterial);
+    knifeBlade.position.set(-0.25, 0.85, 0.23);
+    knifeBlade.rotation.x = Math.PI / 2.5;
+    playerGroup.add(knifeBlade);
     
     return playerGroup;
 }
 
-// Function to add camo patches to an object
-function addCamoPatches(object, camoColors) {
-    // Can't actually add detailed camo texture in this simple setup,
-    // but we can at least change the color to simulate the effect
-    const randomCamo = Math.random();
-    if (randomCamo > 0.5) {
-        object.material.color.setHex(
-            randomCamo > 0.75 ? camoColors.brown : camoColors.darkGreen
-        );
-    }
+// Utility function to add tactical details to objects
+function addTacticalDetails(object, colors) {
+    // This function adds visual elements to make objects look more tactical
+    // For example, attaching small accessories, reflectors, or patches
+    if (!object || !object.material) return;
+    
+    // We could add details in more advanced implementations
+    // For now, this is a placeholder for future enhancements
+    // such as normal maps, textures, or additional geometry
+    
+    // In a more advanced implementation, this would add:
+    // - Velcro patches
+    // - Unit insignias
+    // - Tactical accessories
+    // - Wear patterns
+    // - Reflective elements for night operations
 }
 
 // Add setupEventListeners function to handle keyboard and mouse input
