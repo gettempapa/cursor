@@ -15,6 +15,7 @@ const trees = []; // Array to store tree objects
 const keys = {};
 const velocity = new THREE.Vector3();
 const moveDirection = new THREE.Vector3();
+const direction = new THREE.Vector3(); // Add missing direction vector that was removed
 const friction = 0.95; // Add friction to make movement more realistic
 
 // Player forward direction (movement direction)
@@ -365,15 +366,17 @@ function animate() {
             if (moveDirection.z !== 0) direction.add(worldForward.clone().multiplyScalar(moveDirection.z));
             if (moveDirection.x !== 0) direction.add(worldRight.clone().multiplyScalar(moveDirection.x));
             
-            direction.normalize();
-            
-            // Add acceleration
-            velocity.x += direction.x * 0.05;
-            velocity.z += direction.z * 0.05;
-            
-            // Update player's facing direction for body rotation
-            if (velocity.length() > 0.01) {
-                playerDirection.copy(direction);
+            if (direction.length() > 0) {
+                direction.normalize();
+                
+                // Add acceleration
+                velocity.x += direction.x * 0.05;
+                velocity.z += direction.z * 0.05;
+                
+                // Update player's facing direction for body rotation
+                if (velocity.length() > 0.01) {
+                    playerDirection.copy(direction);
+                }
             }
         }
         
