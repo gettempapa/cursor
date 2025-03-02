@@ -12,47 +12,32 @@ export class Environment {
     }
     
     setupEnvironment() {
-        this.createGround();
-        this.createLighting();
-        this.createTrees();
-        this.createBushes();
-        this.createBunker();
-        this.createCrates();
-    }
-    
-    createGround() {
-        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
+        // Create ground first
+        const groundGeometry = new THREE.PlaneGeometry(200, 200);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2d5a27,
-            roughness: 1.0,
-            metalness: 0.0,
-            emissive: 0x1a3819,
-            emissiveIntensity: 0.2
+            color: 0x2d5a27, // Rich grass green
+            roughness: 0.8,
+            metalness: 0.0
         });
         
-        // Create terrain undulation
-        const vertices = groundGeometry.attributes.position.array;
-        for (let i = 0; i < vertices.length; i += 3) {
-            const x = vertices[i];
-            const z = vertices[i + 2];
-            vertices[i + 1] = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 0.5;
-        }
-        
-        groundGeometry.attributes.position.needsUpdate = true;
-        groundGeometry.computeVertexNormals();
-        
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
+        ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+        ground.position.y = 0; // Place at y=0
         this.scene.add(ground);
-    }
-    
-    createLighting() {
+
+        // Add lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
         directionalLight.position.set(1, 2, 1);
         
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
+
+        // Add other environment elements
+        this.createTrees();
+        this.createBushes();
+        this.createBunker();
+        this.createCrates();
     }
     
     createPineTree(x, z, scale = 1, type = 'pine') {
