@@ -271,6 +271,7 @@ function createHumanoidMesh() {
     
     // Create a realistic rifle
     const gunGroup = new THREE.Group();
+    gunGroup.name = "gunGroup"; // Add name for reference
     
     // Main rifle body (longer and thinner)
     const rifleBodyGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.8);
@@ -317,6 +318,7 @@ function createHumanoidMesh() {
     const aimGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.4);
     const aimMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Red
     const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
+    aimIndicator.name = "aimIndicator"; // Add name for reference
     aimIndicator.position.set(0, 0, -0.6); // Position in front of gun
     gunGroup.add(aimIndicator);
     
@@ -485,15 +487,32 @@ function shoot() {
         const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
         const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
         
-        // Position bullet at gun tip
-        // Use the player's position + offset for gun position
-        bullet.position.copy(player.position);
-        bullet.position.y += 1.2; // Shoulder height
+        // Find the gun barrel position and direction
+        // First, get a reference to the gun group and aim indicator
+        const gunGroup = findObjectByName(player, "gunGroup");
+        const aimIndicator = findObjectByName(player, "aimIndicator");
         
-        // Set bullet direction based on player and aim direction
-        const bulletDirection = new THREE.Vector3(0, 0, -1);
-        bulletDirection.applyQuaternion(playerAimHelper.quaternion);
-        bulletDirection.applyQuaternion(player.quaternion);
+        if (!gunGroup || !aimIndicator) {
+            console.error("Cannot find gun or aim indicator");
+            return;
+        }
+        
+        // Get the world position of the gun barrel (use the aim indicator's position)
+        const barrelPosition = new THREE.Vector3();
+        aimIndicator.getWorldPosition(barrelPosition);
+        
+        // Get the forward direction of the gun (normalized direction from gun to aim indicator)
+        const bulletDirection = new THREE.Vector3();
+        aimIndicator.getWorldPosition(bulletDirection);
+        
+        const gunPosition = new THREE.Vector3();
+        gunGroup.getWorldPosition(gunPosition);
+        
+        // Calculate direction from gun to aim indicator
+        bulletDirection.sub(gunPosition).normalize();
+        
+        // Position bullet at the barrel
+        bullet.position.copy(barrelPosition);
         
         // Store bullet data
         const bulletData = {
@@ -504,13 +523,10 @@ function shoot() {
             maxDistance: 100
         };
         
-        // Move bullet slightly forward to avoid collision with player
-        bullet.position.add(bulletDirection.clone().multiplyScalar(0.6));
-        
         scene.add(bullet);
         bullets.push(bulletData);
         
-        // Add muzzle flash effect
+        // Add muzzle flash effect at the barrel
         const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
         const flashMaterial = new THREE.MeshBasicMaterial({ 
             color: 0xFFFF00,
@@ -518,7 +534,7 @@ function shoot() {
             opacity: 1
         });
         const flash = new THREE.Mesh(flashGeometry, flashMaterial);
-        flash.position.copy(bullet.position);
+        flash.position.copy(barrelPosition);
         scene.add(flash);
         
         // Remove flash after short time
@@ -529,6 +545,26 @@ function shoot() {
     } catch (error) {
         console.error('Error in shoot function:', error);
     }
+}
+
+// Utility function to find an object by name in the hierarchy
+function findObjectByName(root, name) {
+    let found = null;
+    
+    // If this object has the name we're looking for, return it
+    if (root.name === name) {
+        return root;
+    }
+    
+    // Otherwise, search its children
+    if (root.children && root.children.length > 0) {
+        for (let i = 0; i < root.children.length; i++) {
+            found = findObjectByName(root.children[i], name);
+            if (found) return found;
+        }
+    }
+    
+    return found;
 }
 
 function updateBullets() {
