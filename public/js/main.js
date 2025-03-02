@@ -536,15 +536,15 @@ function createHumanoidMesh() {
     leftArmGroup.rotation.z -= Math.PI * 0.1;
     
     // Add visual aim indicator (laser sight from gun)
-    const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.8);
-    const aimMaterial = new THREE.MeshBasicMaterial({ 
+    const aimIndicatorGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.4, 8);
+    const aimIndicatorMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xFF0000,
         transparent: true,
         opacity: 0.5
     });
-    const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
-    aimIndicator.name = "aimIndicator"; // Add name for reference
-    aimIndicator.position.set(0, 0.02, -0.9); // Position in front of gun
+    const aimIndicator = new THREE.Mesh(aimIndicatorGeometry, aimIndicatorMaterial);
+    aimIndicator.rotation.x = Math.PI / 2;
+    aimIndicator.position.set(0, 0, -0.75); // Position in front of gun barrel
     gunGroup.add(aimIndicator);
     
     // Add a tactical knife on the belt
@@ -777,95 +777,61 @@ function onWindowResize() {
 }
 
 function shoot() {
-    const now = Date.now();
-    if (now - lastShootTime < shootCooldown) return;
-    lastShootTime = now;
+    const currentTime = Date.now();
+    if (currentTime - lastShootTime < shootCooldown) return;
+    lastShootTime = currentTime;
     
-    try {
-        console.log('Shooting!');
-        
-        // Play the badass gunshot sound
-        if (gunshotSoundLoaded) {
-            // Stop and reset if it's already playing
-            if (gunshotSound.isPlaying) {
-                gunshotSound.stop();
-            }
-            // Clone the sound for overlapping shots
-            const gunshotInstance = gunshotSound.clone();
-            gunshotInstance.play();
-            
-            // Add slight random variation to each shot for realism
-            gunshotInstance.setPlaybackRate(0.95 + Math.random() * 0.1);
-            
-            // Remove the sound instance after it finishes
-            setTimeout(() => {
-                gunshotInstance.disconnect();
-            }, 2000);
-        }
-        
-        // Create bullet
-        const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
-        const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-        
-        // Find the gun barrel position and direction
-        // First, get a reference to the gun group and aim indicator
-        const gunGroup = findObjectByName(player, "gunGroup");
-        const aimIndicator = findObjectByName(player, "aimIndicator");
-        
-        if (!gunGroup || !aimIndicator) {
-            console.error("Cannot find gun or aim indicator");
-            return;
-        }
-        
-        // Get the world position of the gun barrel (use the aim indicator's position)
-        const barrelPosition = new THREE.Vector3();
-        aimIndicator.getWorldPosition(barrelPosition);
-        
-        // Get the forward direction of the gun (normalized direction from gun to aim indicator)
-        const bulletDirection = new THREE.Vector3();
-        aimIndicator.getWorldPosition(bulletDirection);
-        
-        const gunPosition = new THREE.Vector3();
-        gunGroup.getWorldPosition(gunPosition);
-        
-        // Calculate direction from gun to aim indicator
-        bulletDirection.sub(gunPosition).normalize();
-        
-        // Position bullet at the barrel
-        bullet.position.copy(barrelPosition);
-        
-        // Store bullet data
-        const bulletData = {
-            mesh: bullet,
-            direction: bulletDirection,
-            speed: 0.5,
-            distance: 0,
-            maxDistance: 100
-        };
-        
-        scene.add(bullet);
-        bullets.push(bulletData);
-        
-        // Add muzzle flash effect at the barrel
-        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const flashMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xFFFF00,
-            transparent: true,
-            opacity: 1
-        });
-        const flash = new THREE.Mesh(flashGeometry, flashMaterial);
-        flash.position.copy(barrelPosition);
-        scene.add(flash);
-        
-        // Remove flash after short time
-        setTimeout(() => {
-            scene.remove(flash);
-        }, 50);
-        
-    } catch (error) {
-        console.error('Error in shoot function:', error);
+    // Play gunshot sound
+    if (gunshotSoundLoaded) {
+        // Clone the sound for overlapping shots
+        const gunshotInstance = gunshotSound.clone();
+        gunshotInstance.setVolume(0.5);
+        // Add slight random pitch variation for realism
+        gunshotInstance.setPlaybackRate(0.95 + Math.random() * 0.1);
+        gunshotInstance.play();
+    } else {
+        // Use fallback procedural sound if the audio file isn't loaded
+        createFallbackGunshotSound();
     }
+    
+    // Get gun position and aim direction from playerAimHelper
+    const gunGroup = findObjectByName(playerAimHelper, "gunGroup");
+    if (!gunGroup) return;
+    
+    // Calculate gun position in world space
+    const gunPosition = new THREE.Vector3();
+    gunGroup.getWorldPosition(gunPosition);
+    
+    // Use playerAimHelper direction for accurate aiming
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyEuler(playerAimHelper.rotation);
+    
+    // Add slight random spread
+    direction.x += (Math.random() - 0.5) * 0.02;
+    direction.y += (Math.random() - 0.5) * 0.02;
+    direction.z += (Math.random() - 0.5) * 0.02;
+    direction.normalize();
+    
+    // Create bullet
+    const bulletGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+    const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+    
+    // Position bullet at gun barrel
+    bullet.position.copy(gunPosition);
+    // Offset slightly to appear from barrel
+    bullet.position.add(direction.clone().multiplyScalar(0.5));
+    
+    scene.add(bullet);
+    
+    // Add bullet data for movement
+    bullets.push({
+        mesh: bullet,
+        direction: direction,
+        speed: 1.5,
+        distance: 0,
+        maxDistance: 100
+    });
 }
 
 // Utility function to find an object by name in the hierarchy
@@ -1024,14 +990,24 @@ function animate() {
         player.rotation.y += rotationDiff * rotationSpeed;
     }
     
+    // IMPORTANT: Detach the playerAimHelper from player rotation
+    // This ensures the gun aim follows camera exactly
+    player.remove(playerAimHelper);
+    scene.add(playerAimHelper);
+
     // Update player aim direction based on mouse movement
+    playerAimHelper.position.copy(player.position);
+    playerAimHelper.position.y = player.position.y + 1.2; // Maintain shoulder height
     playerAimHelper.rotation.y = mouseX;
-    
+
     // Limit vertical aim to avoid weird angles
     mouseY = Math.max(-Math.PI/3, Math.min(Math.PI/6, mouseY));
-    
+
     // Apply vertical aiming only to the playerAimHelper 
     playerAimHelper.rotation.x = mouseY;
+
+    // Reset player body rotation for aiming independently of movement
+    playerAimHelper.rotation.order = 'YXZ'; // Set rotation order to prevent gimbal lock
     
     // Update camera position relative to player
     camera.position.x = player.position.x - Math.sin(mouseX) * cameraOffset.z;
