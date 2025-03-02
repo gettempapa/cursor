@@ -22,7 +22,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      'three': 'three'
+      'three': resolve(__dirname, 'node_modules/three/build/three.module.js')
     }
   }
 }); 
