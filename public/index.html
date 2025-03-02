@@ -5,11 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Third Person Shooter</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    <div id="instructions">
+        <h3>Navy SEAL Shooter</h3>
+        <p>Click to start and lock mouse</p>
+        <p>WASD - Move</p>
+        <p>Mouse - Look around</p>
+    </div>
     <script type="module" src="./js/main.js"></script>
 </body>
 </html> 
