@@ -3,15 +3,23 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 8080;
 
-// Serve static files from the public directory
-app.use(express.static('public'));
+// In production, serve the built files from dist
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static('dist'));
+} else {
+    // In development, serve from public
+    app.use(express.static('public'));
+}
 
 // Serve node_modules (for Three.js)
 app.use('/node_modules', express.static('node_modules'));
 
-// Serve the game at the root URL
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    if (process.env.NODE_ENV === 'production') {
+        res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    } else {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
 });
 
 app.listen(port, () => {
