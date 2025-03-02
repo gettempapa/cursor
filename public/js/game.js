@@ -742,18 +742,25 @@ class Game {
     }
     
     createEnvironment() {
-        // Create ground with better material
+        // Create ground with better material and grass texture
         const groundSize = Constants.GAME.GROUND_SIZE;
+        const groundTexture = this.createGrassTexture();
+        
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: Constants.COLORS.GROUND,
             roughness: 0.8,
-            metalness: 0.2
+            metalness: 0.2,
+            map: groundTexture
         });
+        
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
         this.ground.rotation.x = -Math.PI / 2;
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
+        
+        // Add 3D grass to the ground
+        this.addGrassToGround();
         
         // Add scenic hill with path
         this.createScenicHill();
@@ -767,6 +774,87 @@ class Game {
         
         // Add improved lighting
         this.createSimpleLighting();
+    }
+    
+    // Add 3D grass to the ground
+    addGrassToGround() {
+        const groundSize = Constants.GAME.GROUND_SIZE;
+        const grassCount = 5000; // Number of grass patches
+        
+        // Create grass geometry - a simple cross of planes
+        const grassGeometry = new THREE.PlaneGeometry(0.5, 0.8);
+        
+        // Create grass materials with different shades
+        const grassMaterials = [
+            new THREE.MeshStandardMaterial({
+                color: 0x4a5d32, // Dark green
+                roughness: 1.0,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            }),
+            new THREE.MeshStandardMaterial({
+                color: 0x5a6b3c, // Medium green
+                roughness: 1.0,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            }),
+            new THREE.MeshStandardMaterial({
+                color: 0x6b7a45, // Light green
+                roughness: 1.0,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            })
+        ];
+        
+        // Create grass instances
+        for (let i = 0; i < grassCount; i++) {
+            // Generate random position on the ground
+            const x = (Math.random() - 0.5) * (groundSize - 5);
+            const z = (Math.random() - 0.5) * (groundSize - 5);
+            
+            // Skip grass near the cabin
+            if (x > -25 && x < -15 && z > -15 && z < -5) {
+                continue;
+            }
+            
+            // Skip grass near the hill
+            const distToHill = Math.sqrt(Math.pow(x - 50, 2) + Math.pow(z - (-30), 2));
+            if (distToHill < 30) {
+                continue;
+            }
+            
+            // Create a cross of two planes for 3D grass
+            const grassPatch = new THREE.Group();
+            
+            // Randomly select a grass material
+            const materialIndex = Math.floor(Math.random() * grassMaterials.length);
+            
+            // First plane
+            const blade1 = new THREE.Mesh(grassGeometry, grassMaterials[materialIndex]);
+            
+            // Second plane rotated 90 degrees
+            const blade2 = new THREE.Mesh(grassGeometry, grassMaterials[materialIndex]);
+            blade2.rotation.y = Math.PI / 2;
+            
+            grassPatch.add(blade1);
+            grassPatch.add(blade2);
+            
+            // Random scale for variety
+            const scale = 0.5 + Math.random() * 0.5;
+            grassPatch.scale.set(scale, scale, scale);
+            
+            // Random rotation for natural look
+            grassPatch.rotation.y = Math.random() * Math.PI * 2;
+            
+            // Position grass on ground
+            grassPatch.position.set(x, 0.2, z);
+            
+            // Add slight random tilt
+            grassPatch.rotation.x = (Math.random() * 0.2 - 0.1);
+            grassPatch.rotation.z = (Math.random() * 0.2 - 0.1);
+            
+            this.scene.add(grassPatch);
+        }
     }
     
     createScenicHill() {
@@ -832,12 +920,18 @@ class Game {
         // Update geometry
         hillGeometry.computeVertexNormals();
         
-        // Create materials
+        // Create hill texture with grass detail
+        const textureLoader = new THREE.TextureLoader();
+        const grassTexture = this.createGrassTexture();
+        
+        // Create materials with proper textures
         const hillMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a5d32, // Slightly darker green for hill
+            color: 0x4a5d32, // Base green for hill
             roughness: 0.8,
             metalness: 0.1,
-            flatShading: true
+            map: grassTexture,
+            displacementScale: 0.5,
+            displacementBias: -0.2
         });
         
         // Create hill mesh
@@ -886,7 +980,7 @@ class Game {
         pathGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pathVertices, 3));
         pathGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(pathNormals, 3));
         
-        // Create path material
+        // Create path material with dirt texture
         const pathMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B4513, // Dirt brown
             roughness: 1,
@@ -900,8 +994,149 @@ class Game {
         path.receiveShadow = true;
         this.scene.add(path);
         
+        // Add 3D grass on the hill
+        this.addGrassToHill(hill, pathCurve, hillSize, hillHeight);
+        
         // Add trees on the hill
         this.createHillTrees(hill, pathCurve, hillSize, hillHeight);
+    }
+    
+    // Create a procedural grass texture
+    createGrassTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
+        // Base green color
+        ctx.fillStyle = '#4a5d32';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Add grass texture details
+        const grassColors = [
+            '#4a5d32', // Dark green
+            '#5a6b3c', // Medium green
+            '#6b7a45', // Light green
+            '#3c4f28', // Very dark green
+            '#7d8a50'  // Yellow-green
+        ];
+        
+        // Draw grass blades
+        for (let i = 0; i < 5000; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const width = 1 + Math.random() * 2;
+            const height = 3 + Math.random() * 10;
+            const colorIndex = Math.floor(Math.random() * grassColors.length);
+            
+            ctx.fillStyle = grassColors[colorIndex];
+            ctx.beginPath();
+            
+            // Draw a blade of grass (slightly curved)
+            const controlX = x + (Math.random() * 4 - 2);
+            ctx.moveTo(x, y + height);
+            ctx.quadraticCurveTo(controlX, y + height/2, x, y);
+            ctx.lineTo(x + width, y);
+            ctx.quadraticCurveTo(controlX + width, y + height/2, x + width, y + height);
+            ctx.fill();
+        }
+        
+        // Add some soil/dirt patches
+        for (let i = 0; i < 50; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const radius = 3 + Math.random() * 8;
+            
+            ctx.fillStyle = `rgba(101, 67, 33, ${Math.random() * 0.2})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(4, 4);
+        
+        return texture;
+    }
+    
+    // Add 3D grass to the hill
+    addGrassToHill(hill, pathCurve, hillSize, hillHeight) {
+        const hillCenter = hill.position;
+        const grassCount = 2000; // Number of grass patches
+        
+        // Create grass geometry - a simple cross of planes
+        const grassGeometry = new THREE.PlaneGeometry(0.5, 1);
+        
+        // Create grass material with alpha for transparency
+        const grassMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5a6b3c,
+            roughness: 1.0,
+            metalness: 0.0,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide
+        });
+        
+        // Create grass instances
+        for (let i = 0; i < grassCount; i++) {
+            // Generate random position on the hill
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * hillSize * 0.48; // Keep within hill bounds
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Calculate height at this point
+            const distance = Math.sqrt(x * x + z * z);
+            const maxDistance = hillSize * 0.5;
+            let height = Math.cos(distance / maxDistance * Math.PI * 0.5);
+            height = Math.max(0, height) * hillHeight;
+            
+            // Check distance from path
+            const nearestPoint = pathCurve.getPointAt(
+                pathCurve.getUtoTmapping(0, distance / maxDistance)
+            );
+            const distanceToPath = Math.sqrt(
+                Math.pow(x - nearestPoint.x, 2) + 
+                Math.pow(z - nearestPoint.z, 2)
+            );
+            
+            // Only place grass if it's not too close to the path
+            if (distanceToPath > 1.5) {
+                // Create a cross of two planes for 3D grass
+                const grassPatch = new THREE.Group();
+                
+                // First plane
+                const blade1 = new THREE.Mesh(grassGeometry, grassMaterial);
+                
+                // Second plane rotated 90 degrees
+                const blade2 = new THREE.Mesh(grassGeometry, grassMaterial);
+                blade2.rotation.y = Math.PI / 2;
+                
+                grassPatch.add(blade1);
+                grassPatch.add(blade2);
+                
+                // Random scale for variety
+                const scale = 0.5 + Math.random() * 0.5;
+                grassPatch.scale.set(scale, scale, scale);
+                
+                // Random rotation for natural look
+                grassPatch.rotation.y = Math.random() * Math.PI * 2;
+                
+                // Position grass on hill
+                grassPatch.position.set(
+                    hillCenter.x + x,
+                    hillCenter.y + height + 0.1, // Slightly above ground
+                    hillCenter.z + z
+                );
+                
+                // Add slight random tilt
+                grassPatch.rotation.x = (Math.random() * 0.2 - 0.1);
+                grassPatch.rotation.z = (Math.random() * 0.2 - 0.1);
+                
+                this.scene.add(grassPatch);
+            }
+        }
     }
     
     createHillTrees(hill, pathCurve, hillSize, hillHeight) {
