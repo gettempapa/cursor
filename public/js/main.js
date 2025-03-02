@@ -19,74 +19,107 @@ let mouseX = 0;
 let rotationSpeed = 0.002;
 let isPointerLocked = false;
 
+// Check for WebGL support
+function checkWebGL() {
+    try {
+        const canvas = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && 
+            (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch(e) {
+        console.error('WebGL check error:', e);
+        return false;
+    }
+}
+
 // Initialize everything
-init();
-animate();
+console.log('Starting game initialization');
+if (!checkWebGL()) {
+    alert('Your browser does not support WebGL, which is required for this game.');
+    document.getElementById('instructions').innerHTML += '<p style="color:red">WebGL not supported!</p>';
+} else {
+    init();
+    animate();
+}
 
 function init() {
-    // Create scene
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+    try {
+        console.log('Initializing scene...');
+        // Create scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
 
-    // Set up camera
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 3, 5);
+        console.log('Setting up camera...');
+        // Set up camera
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 3, 5);
 
-    // Set up renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
+        console.log('Setting up renderer...');
+        // Set up renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
 
-    // Create player (Navy SEAL represented as a blue box for now)
-    const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
-    const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue color
-    player = new THREE.Mesh(playerGeometry, playerMaterial);
-    player.position.y = 1; // Elevate player to stand on the ground
-    scene.add(player);
+        console.log('Creating player...');
+        // Create player (Navy SEAL represented as a blue box for now)
+        const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue color
+        player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.y = 1; // Elevate player to stand on the ground
+        scene.add(player);
 
-    // Create ground
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
-    const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, side: THREE.DoubleSide });
-    ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = Math.PI / 2;
-    ground.position.y = 0;
-    scene.add(ground);
+        console.log('Creating ground...');
+        // Create ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, side: THREE.DoubleSide });
+        ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = Math.PI / 2;
+        ground.position.y = 0;
+        scene.add(ground);
 
-    // Add simple lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-    
-    // Event listeners
-    window.addEventListener('resize', onWindowResize, false);
-    
-    // Keyboard controls - simplified event listeners
-    window.addEventListener('keydown', (e) => keys[e.code] = true);
-    window.addEventListener('keyup', (e) => keys[e.code] = false);
-    
-    // Setup pointer lock for better mouse control
-    renderer.domElement.addEventListener('click', () => {
-        if (!isPointerLocked) {
-            renderer.domElement.requestPointerLock();
-        }
-    });
-    
-    document.addEventListener('pointerlockchange', () => {
-        isPointerLocked = document.pointerLockElement === renderer.domElement;
-    });
-    
-    document.addEventListener('mousemove', (e) => {
-        if (isPointerLocked) {
-            mouseX += e.movementX * rotationSpeed;
-        }
-    });
-    
-    // Add shooting mechanism
-    document.addEventListener('mousedown', (e) => {
-        if (isPointerLocked && e.button === 0) { // Left mouse button
-            shoot();
-        }
-    });
+        console.log('Adding lighting...');
+        // Add simple lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        console.log('Setting up event listeners...');
+        // Event listeners
+        window.addEventListener('resize', onWindowResize, false);
+        
+        // Keyboard controls - simplified event listeners
+        window.addEventListener('keydown', (e) => keys[e.code] = true);
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+        
+        // Setup pointer lock for better mouse control
+        renderer.domElement.addEventListener('click', () => {
+            if (!isPointerLocked) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+        
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === renderer.domElement;
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isPointerLocked) {
+                mouseX += e.movementX * rotationSpeed;
+            }
+        });
+        
+        // Add shooting mechanism
+        document.addEventListener('mousedown', (e) => {
+            if (isPointerLocked && e.button === 0) { // Left mouse button
+                shoot();
+            }
+        });
+        
+        console.log('Initialization complete!');
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        document.getElementById('instructions').innerHTML += 
+            `<p style="color:red">Error: ${error.message}</p>`;
+    }
 }
 
 function onWindowResize() {
@@ -143,49 +176,55 @@ function updateBullets() {
 }
 
 function animate() {
-    requestAnimationFrame(animate);
-    
-    // Handle player movement with WASD
-    direction.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
-    direction.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
-    
-    if (direction.length() > 0) {
-        direction.normalize();
+    try {
+        requestAnimationFrame(animate);
         
-        // Apply rotation to direction based on camera angle
-        const angle = mouseX;
-        direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+        // Handle player movement with WASD
+        direction.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
+        direction.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
         
-        // Add acceleration
-        velocity.x += direction.x * 0.05;
-        velocity.z += direction.z * 0.05;
+        if (direction.length() > 0) {
+            direction.normalize();
+            
+            // Apply rotation to direction based on camera angle
+            const angle = mouseX;
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+            
+            // Add acceleration
+            velocity.x += direction.x * 0.05;
+            velocity.z += direction.z * 0.05;
+        }
+        
+        // Apply friction
+        velocity.x *= friction;
+        velocity.z *= friction;
+        
+        // Move player
+        player.position.x += velocity.x;
+        player.position.z += velocity.z;
+        
+        // Rotate player to face movement direction
+        if (velocity.length() > 0.01) {
+            player.rotation.y = Math.atan2(velocity.x, velocity.z);
+        }
+        
+        // Update camera position to follow player from behind
+        const cameraOffset = new THREE.Vector3(0, 2, 4);
+        cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        
+        camera.position.x = player.position.x + cameraOffset.x;
+        camera.position.y = player.position.y + cameraOffset.y;
+        camera.position.z = player.position.z + cameraOffset.z;
+        camera.lookAt(player.position);
+        
+        // Update bullets
+        updateBullets();
+        
+        // Render
+        renderer.render(scene, camera);
+    } catch (error) {
+        console.error('Error in animation loop:', error);
+        document.getElementById('instructions').innerHTML += 
+            `<p style="color:red">Animation Error: ${error.message}</p>`;
     }
-    
-    // Apply friction
-    velocity.x *= friction;
-    velocity.z *= friction;
-    
-    // Move player
-    player.position.x += velocity.x;
-    player.position.z += velocity.z;
-    
-    // Rotate player to face movement direction
-    if (velocity.length() > 0.01) {
-        player.rotation.y = Math.atan2(velocity.x, velocity.z);
-    }
-    
-    // Update camera position to follow player from behind
-    const cameraOffset = new THREE.Vector3(0, 2, 4);
-    cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
-    
-    camera.position.x = player.position.x + cameraOffset.x;
-    camera.position.y = player.position.y + cameraOffset.y;
-    camera.position.z = player.position.z + cameraOffset.z;
-    camera.lookAt(player.position);
-    
-    // Update bullets
-    updateBullets();
-    
-    // Render
-    renderer.render(scene, camera);
 } 

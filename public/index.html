@@ -9,19 +9,35 @@
             margin: 0; 
             overflow: hidden; 
             font-family: Arial, sans-serif;
+            background-color: #000; /* Ensure black background */
         }
         canvas { 
             display: block; 
+            width: 100%;
+            height: 100%;
         }
         #instructions {
             position: absolute;
             top: 10px;
             left: 10px;
             color: white;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.7);
             padding: 10px;
             border-radius: 5px;
+            z-index: 100;
             pointer-events: none;
+            max-width: 300px;
+        }
+        #debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #ff0;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 100;
         }
     </style>
 </head>
@@ -31,7 +47,25 @@
         <p>Click to start and lock mouse</p>
         <p>WASD - Move</p>
         <p>Mouse - Look around</p>
+        <p>Left Click - Shoot</p>
     </div>
+    <div id="debug"></div>
+    <script>
+        // Display some basic debug info before loading the game
+        const debugEl = document.getElementById('debug');
+        debugEl.innerHTML = `
+            Browser: ${navigator.userAgent}<br>
+            Screen: ${window.innerWidth}x${window.innerHeight}<br>
+            WebGL: ${window.WebGLRenderingContext ? 'Supported' : 'Not Supported'}<br>
+            Loading game...
+        `;
+        
+        // Handle errors
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.message);
+            debugEl.innerHTML += `<br>ERROR: ${e.message}`;
+        });
+    </script>
     <script type="module" src="./js/main.js"></script>
 </body>
 </html> 
