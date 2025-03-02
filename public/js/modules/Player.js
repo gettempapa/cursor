@@ -241,7 +241,7 @@ export class Player {
         );
         
         // Update camera position
-        this.updateCameraPosition();
+        this.updateCamera();
     }
     
     handleZoom(deltaY) {
@@ -251,6 +251,7 @@ export class Player {
             Math.min(this.maxZoomDistance, this.currentZoomDistance)
         );
         this.cameraOffset.z = this.currentZoomDistance;
+        this.updateCamera();
     }
     
     takeDamage(amount) {

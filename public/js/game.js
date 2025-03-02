@@ -10,17 +10,12 @@ export class Game {
         
         // Initialize core systems
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x87ceeb); // Sky blue background
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
-        
-        // Set initial camera position
-        this.camera.position.set(5, 3, 15);
-        this.camera.lookAt(5, 1, 5);
         
         // Initialize environment
         this.environment = new Environment(this.scene);
@@ -143,8 +138,8 @@ export class Game {
         const width = window.innerWidth;
         const height = window.innerHeight;
         
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
+        this.player.camera.aspect = width / height;
+        this.player.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height);
     }
     
@@ -172,8 +167,8 @@ export class Game {
             this.player.weaponSystem.currentWeapon
         );
         
-        // Render scene with the scene's camera
-        this.renderer.render(this.scene, this.camera);
+        // Render scene with player's camera
+        this.renderer.render(this.scene, this.player.camera);
     }
 
     // Update enemy respawn logic
