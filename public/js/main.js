@@ -14,9 +14,13 @@ const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const friction = 0.95; // Add friction to make movement more realistic
 
-// Mouse controls
+// Camera controls
+let cameraOffset = new THREE.Vector3(0, 2, 5); // Position behind and above player
 let mouseX = 0;
-let rotationSpeed = 0.002;
+let mouseY = 0; // Add vertical mouse control
+const rotationSpeed = 0.002;
+const verticalRotationSpeed = 0.002;
+const maxVerticalRotation = Math.PI / 4; // Limit up/down rotation to 45 degrees
 let isPointerLocked = false;
 
 // Debug information for tracking script loading
@@ -45,6 +49,61 @@ if (!checkWebGL()) {
     animate();
 }
 
+// Create a simple humanoid figure
+function createHumanoidMesh() {
+    const group = new THREE.Group();
+    
+    // Head (sphere)
+    const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFCC99 });
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.position.y = 1.75;
+    group.add(head);
+    
+    // Torso (box)
+    const torsoGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.25);
+    const torsoMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue for the uniform
+    const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
+    torso.position.y = 1.2;
+    group.add(torso);
+    
+    // Legs
+    const legGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+    const legMaterial = new THREE.MeshBasicMaterial({ color: 0x006600 }); // Dark green for pants
+    
+    const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+    leftLeg.position.set(-0.15, 0.5, 0);
+    group.add(leftLeg);
+    
+    const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+    rightLeg.position.set(0.15, 0.5, 0);
+    group.add(rightLeg);
+    
+    // Arms
+    const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+    const armMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 });
+    
+    const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+    leftArm.position.set(-0.35, 1.2, 0);
+    group.add(leftArm);
+    
+    const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+    rightArm.position.set(0.35, 1.2, 0);
+    group.add(rightArm);
+    
+    // Add a small "gun" to the right hand
+    const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.3);
+    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const gun = new THREE.Mesh(gunGeometry, gunMaterial);
+    gun.position.set(0.35, 1.1, -0.25);
+    group.add(gun);
+    
+    // Position the entire model so it stands on the ground
+    group.position.y = 0.1; // Small offset to avoid z-fighting with ground
+    
+    return group;
+}
+
 function init() {
     try {
         console.log('Initializing scene...');
@@ -65,11 +124,8 @@ function init() {
         document.body.appendChild(renderer.domElement);
 
         console.log('Creating player...');
-        // Create player (Navy SEAL represented as a blue box for now)
-        const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
-        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue color
-        player = new THREE.Mesh(playerGeometry, playerMaterial);
-        player.position.y = 1; // Elevate player to stand on the ground
+        // Create humanoid player
+        player = createHumanoidMesh();
         scene.add(player);
 
         console.log('Creating ground...');
@@ -105,9 +161,15 @@ function init() {
             isPointerLocked = document.pointerLockElement === renderer.domElement;
         });
         
+        // Mouse movement for camera
         document.addEventListener('mousemove', (e) => {
             if (isPointerLocked) {
+                // Horizontal rotation (yaw)
                 mouseX += e.movementX * rotationSpeed;
+                
+                // Vertical rotation (pitch) with limits
+                mouseY -= e.movementY * verticalRotationSpeed;
+                mouseY = Math.max(-maxVerticalRotation, Math.min(maxVerticalRotation, mouseY));
             }
         });
         
@@ -133,31 +195,42 @@ function onWindowResize() {
 }
 
 function shoot() {
-    const now = Date.now();
-    if (now - lastShootTime < shootCooldown) return;
-    
-    lastShootTime = now;
-    
-    // Create a bullet
-    const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-    const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-    
-    // Position the bullet at the player's position + forward direction
-    const bulletDirection = new THREE.Vector3(0, 0, -1);
-    bulletDirection.applyQuaternion(player.quaternion);
-    bullet.position.copy(player.position.clone().add(bulletDirection.multiplyScalar(1)));
-    bullet.position.y = 1.5; // Adjust height to be at "gun" level
-    
-    // Store bullet direction and speed for animation
-    bullet.userData.direction = bulletDirection;
-    bullet.userData.speed = 0.5;
-    bullet.userData.distanceTraveled = 0;
-    bullet.userData.maxDistance = 50; // Maximum bullet travel distance
-    
-    // Add to scene and track in bullets array
-    scene.add(bullet);
-    bullets.push(bullet);
+    try {
+        const now = Date.now();
+        if (now - lastShootTime < shootCooldown) return;
+        
+        lastShootTime = now;
+        
+        // Create a bullet
+        const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+        
+        // Get the forward direction using camera rotation
+        const bulletDirection = new THREE.Vector3(0, 0, -1);
+        bulletDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        bulletDirection.applyAxisAngle(new THREE.Vector3(1, 0, 0), mouseY);
+        
+        // Position the bullet at the correct position (right arm of player)
+        const bulletStartPos = new THREE.Vector3();
+        bulletStartPos.copy(player.position);
+        bulletStartPos.y += 1.1; // Height of the gun
+        bulletStartPos.x += Math.sin(mouseX) * 0.35; // Right hand offset
+        bulletStartPos.z += Math.cos(mouseX) * 0.35;
+        bullet.position.copy(bulletStartPos);
+        
+        // Store bullet direction and speed for animation
+        bullet.userData.direction = bulletDirection;
+        bullet.userData.speed = 0.5;
+        bullet.userData.distanceTraveled = 0;
+        bullet.userData.maxDistance = 50; // Maximum bullet travel distance
+        
+        // Add to scene and track in bullets array
+        scene.add(bullet);
+        bullets.push(bullet);
+    } catch (error) {
+        console.error('Error in shoot function:', error);
+    }
 }
 
 function updateBullets() {
@@ -190,7 +263,7 @@ function animate() {
         if (direction.length() > 0) {
             direction.normalize();
             
-            // Apply rotation to direction based on camera angle
+            // Apply rotation to direction based on camera angle (horizontal only)
             const angle = mouseX;
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
             
@@ -207,19 +280,33 @@ function animate() {
         player.position.x += velocity.x;
         player.position.z += velocity.z;
         
-        // Rotate player to face movement direction
-        if (velocity.length() > 0.01) {
-            player.rotation.y = Math.atan2(velocity.x, velocity.z);
-        }
+        // Always rotate player model to face camera direction (horizontal only)
+        player.rotation.y = mouseX;
         
         // Update camera position to follow player from behind
-        const cameraOffset = new THREE.Vector3(0, 2, 4);
-        cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        // Calculate camera position based on camera offset and rotations
+        const rotatedOffset = cameraOffset.clone();
         
-        camera.position.x = player.position.x + cameraOffset.x;
-        camera.position.y = player.position.y + cameraOffset.y;
-        camera.position.z = player.position.z + cameraOffset.z;
-        camera.lookAt(player.position);
+        // Apply horizontal rotation (around Y axis)
+        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        
+        // Set camera position relative to player
+        camera.position.x = player.position.x + rotatedOffset.x;
+        camera.position.y = player.position.y + rotatedOffset.y;
+        camera.position.z = player.position.z + rotatedOffset.z;
+        
+        // Calculate the look target based on vertical rotation
+        const lookTarget = new THREE.Vector3();
+        lookTarget.copy(player.position);
+        lookTarget.y += 1.5; // Look at head height
+        
+        // Apply vertical look (pitch)
+        const verticalOffset = new THREE.Vector3(0, 0, -1);
+        verticalOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), mouseY);
+        verticalOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        verticalOffset.multiplyScalar(5); // Look distance
+        
+        camera.lookAt(lookTarget.add(verticalOffset));
         
         // Update bullets
         updateBullets();
