@@ -288,9 +288,6 @@ class Game {
         // Add crates
         this.createCrates();
 
-        // Add enhanced fog
-        this.scene.fog = new THREE.Fog(0x87ceeb, 50, 150); // Match sky color
-        
         // Add ground with enhanced texture
         this.createGround();
         
