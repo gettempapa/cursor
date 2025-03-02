@@ -685,26 +685,54 @@ class Game {
         // Setup event for first user interaction to initialize audio
         const initAudioOnFirstInteraction = () => {
             try {
-                this.setupAudio();
-                this.audioInitialized = true;
-                this.debug.innerHTML += '<br>Audio initialized after user interaction';
+                // Check if audio is already initialized
+                if (this.audioInitialized) return;
+                
+                // Try to resume audio context if it exists but is suspended
+                if (this.listener && this.listener.context && this.listener.context.state !== 'running') {
+                    this.listener.context.resume().then(() => {
+                        console.log('AudioContext resumed successfully');
+                        this.setupAudio();
+                        this.audioInitialized = true;
+                        this.debug.innerHTML += '<br>Audio initialized after user interaction';
+                    }).catch(err => {
+                        console.error('Failed to resume AudioContext:', err);
+                    });
+                } else {
+                    // Normal initialization
+                    this.setupAudio();
+                    this.audioInitialized = true;
+                    this.debug.innerHTML += '<br>Audio initialized after user interaction';
+                }
             } catch (audioError) {
                 console.error('Audio initialization failed:', audioError);
                 this.debug.innerHTML += `<br>Audio initialization failed: ${audioError.message}`;
             }
-            
-            // Remove event listeners once audio is initialized
-            document.removeEventListener('click', initAudioOnFirstInteraction);
-            document.removeEventListener('keydown', initAudioOnFirstInteraction);
         };
         
         // Listen for user interaction to initialize audio
         document.addEventListener('click', initAudioOnFirstInteraction);
         document.addEventListener('keydown', initAudioOnFirstInteraction);
+        
+        // Also try to initialize on visibility change (for when tab becomes visible)
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this.listener && this.listener.context) {
+                this.listener.context.resume().catch(e => {
+                    console.warn('Could not resume audio context on visibility change:', e);
+                });
+            }
+        });
     }
     
     setupAudio() {
         try {
+            // Make sure listener is available
+            if (!this.listener) {
+                console.warn('AudioListener not available, creating new one');
+                this.listener = new THREE.AudioListener();
+                this.camera.add(this.listener);
+            }
+            
             // Create the rifle sound
             this.rifleSound = new THREE.Audio(this.listener);
             
@@ -712,6 +740,13 @@ class Game {
             if (!this.listener || !this.listener.context) {
                 console.warn('AudioListener or AudioContext not available');
                 return;
+            }
+            
+            // Try to resume the audio context if it's suspended
+            if (this.listener.context.state === 'suspended') {
+                this.listener.context.resume().catch(e => {
+                    console.warn('Could not resume audio context during setup:', e);
+                });
             }
             
             // Create AudioContext
@@ -875,6 +910,20 @@ class Game {
         this.lastFootstepTime = now;
         
         try {
+            // Check if audio context is available and running
+            if (!this.listener || !this.listener.context) {
+                console.warn('AudioListener or AudioContext not available for footstep sound');
+                return;
+            }
+            
+            // Ensure audio context is running (might be suspended on some browsers)
+            if (this.listener.context.state !== 'running') {
+                this.listener.context.resume().catch(e => {
+                    console.warn('Could not resume audio context:', e);
+                });
+                return; // Skip this footstep, will play on next step if context is resumed
+            }
+            
             // Pick a random footstep sound
             const soundIndex = Math.floor(Math.random() * this.footstepSounds.length);
             const footstepSound = this.footstepSounds[soundIndex];
@@ -2121,10 +2170,21 @@ class Game {
         // Play rifle sound
         if (this.audioInitialized && this.rifleSound && this.rifleSound.buffer) {
             try {
-                const soundClone = this.rifleSound.clone();
-                const pitchVariation = 0.9 + Math.random() * 0.2;
-                soundClone.setPlaybackRate(pitchVariation);
-                soundClone.play();
+                // Check if audio context is available and running
+                if (!this.listener || !this.listener.context) {
+                    console.warn('AudioListener or AudioContext not available for rifle sound');
+                } else if (this.listener.context.state !== 'running') {
+                    // Try to resume the audio context
+                    this.listener.context.resume().catch(e => {
+                        console.warn('Could not resume audio context:', e);
+                    });
+                } else {
+                    // Play the sound if everything is good
+                    const soundClone = this.rifleSound.clone();
+                    const pitchVariation = 0.9 + Math.random() * 0.2;
+                    soundClone.setPlaybackRate(pitchVariation);
+                    soundClone.play();
+                }
             } catch (audioError) {
                 console.warn('Error playing rifle sound:', audioError);
             }
@@ -2491,10 +2551,21 @@ class Game {
                 // Play landing sound (use a footstep but louder)
                 if (this.audioInitialized && this.footstepSounds.length > 0) {
                     try {
-                        const landSound = this.footstepSounds[0].clone();
-                        landSound.setVolume(0.6); // Louder than regular footstep
-                        landSound.setPlaybackRate(0.7); // Slower for more weight
-                        landSound.play();
+                        // Check if audio context is available and running
+                        if (!this.listener || !this.listener.context) {
+                            console.warn('AudioListener or AudioContext not available for landing sound');
+                        } else if (this.listener.context.state !== 'running') {
+                            // Try to resume the audio context
+                            this.listener.context.resume().catch(e => {
+                                console.warn('Could not resume audio context:', e);
+                            });
+                        } else {
+                            // Play the sound if everything is good
+                            const landSound = this.footstepSounds[0].clone();
+                            landSound.setVolume(0.6); // Louder than regular footstep
+                            landSound.setPlaybackRate(0.7); // Slower for more weight
+                            landSound.play();
+                        }
                     } catch (e) {
                         console.warn('Error playing landing sound:', e);
                     }
