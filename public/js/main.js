@@ -90,18 +90,13 @@ function createTree(x, z) {
         trunkHeight,
         8
     );
-    const trunkMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x5D4037,   // Rich brown
-        roughness: 0.8,
-        metalness: 0.1,
-        flatShading: true
+    const trunkMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x5D4037   // Rich brown
     });
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
     trunk.position.y = trunkHeight / 2; // Position based on trunk height
     trunk.rotation.x = Math.sin(tiltDirection) * tiltAmount;
     trunk.rotation.z = Math.cos(tiltDirection) * tiltAmount;
-    trunk.castShadow = true;
-    trunk.receiveShadow = true;
     tree.add(trunk);
     
     // Create multiple layers of foliage for a more realistic look
@@ -137,11 +132,8 @@ function createTree(x, z) {
         color.g += (Math.random() * 0.1) - 0.05;
         color.b += (Math.random() * 0.1) - 0.05;
         
-        const foliageMaterial = new THREE.MeshStandardMaterial({ 
-            color: color,
-            roughness: 0.8,
-            metalness: 0.1,
-            flatShading: true
+        const foliageMaterial = new THREE.MeshBasicMaterial({ 
+            color: color
         });
         
         const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
@@ -156,10 +148,6 @@ function createTree(x, z) {
         
         // Add slight rotation for variety
         foliage.rotation.y = Math.random() * Math.PI;
-        
-        // Enable shadows
-        foliage.castShadow = true;
-        foliage.receiveShadow = true;
         
         tree.add(foliage);
     }
@@ -181,61 +169,59 @@ function createTree(x, z) {
 function createHumanoidMesh() {
     const playerGroup = new THREE.Group();
     
+    // Create separate group for aiming parts
+    playerAimHelper = new THREE.Group();
+    playerAimHelper.position.y = 1.2; // Position at shoulder height
+    playerGroup.add(playerAimHelper);
+    
     // Body parts
     // Head (sphere)
     const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-    const headMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700 }); // Yellow
+    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.y = 1.5;
-    head.castShadow = true;
     playerGroup.add(head);
     
     // Helmet
     const helmetGeometry = new THREE.SphereGeometry(0.27, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const helmetMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 }); // Dark gray
+    const helmetMaterial = new THREE.MeshBasicMaterial({ color: 0x444444 }); // Dark gray
     const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
     helmet.position.y = 1.55; // Slightly above head
-    helmet.castShadow = true;
     playerGroup.add(helmet);
     
     // Body (box)
     const bodyGeometry = new THREE.BoxGeometry(0.5, 0.7, 0.25);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     body.position.y = 1.0;
-    body.castShadow = true;
     playerGroup.add(body);
     
     // Left arm
     const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
-    const leftArmMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const leftArmMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
     const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
     leftArm.position.set(-0.325, 1.0, 0); // Left of body
-    leftArm.castShadow = true;
     playerGroup.add(leftArm);
     
     // Right arm (will hold the gun)
     const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
-    const rightArmMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const rightArmMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
     const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
     rightArm.position.set(0.35, 1.0, 0); // Right of body, adjusted for aim helper
-    rightArm.castShadow = true;
     playerAimHelper.add(rightArm); // Attach to aim helper so it moves with aiming
     
     // Legs
     const legGeometry = new THREE.BoxGeometry(0.2, 0.7, 0.2);
-    const legMaterial = new THREE.MeshStandardMaterial({ color: 0x212121 }); // Dark gray
+    const legMaterial = new THREE.MeshBasicMaterial({ color: 0x212121 }); // Dark gray
     
     // Left leg
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
     leftLeg.position.set(-0.15, 0.35, 0);
-    leftLeg.castShadow = true;
     playerGroup.add(leftLeg);
     
     // Right leg
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
     rightLeg.position.set(0.15, 0.35, 0);
-    rightLeg.castShadow = true;
     playerGroup.add(rightLeg);
     
     // Add a gun to the right hand
@@ -243,16 +229,14 @@ function createHumanoidMesh() {
     
     // Gun body
     const gunBodyGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.5);
-    const gunMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 }); // Dark gray
+    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x111111 }); // Dark gray
     const gunBody = new THREE.Mesh(gunBodyGeometry, gunMaterial);
-    gunBody.castShadow = true;
     gunGroup.add(gunBody);
     
     // Gun handle
     const gunHandleGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.08);
     const gunHandle = new THREE.Mesh(gunHandleGeometry, gunMaterial);
     gunHandle.position.set(0, -0.14, 0.05);
-    gunHandle.castShadow = true;
     gunGroup.add(gunHandle);
     
     // Position gun in hand
@@ -327,8 +311,8 @@ function init() {
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x8FBCD4); // Slightly darker sky blue
         
-        // Add some atmospheric fog for depth
-        scene.fog = new THREE.FogExp2(0x8FBCD4, 0.008);
+        // Add atmospheric fog for depth
+        scene.fog = new THREE.FogExp2(0x8FBCD4, 0.004); // Reduced fog density
         
         // Create camera
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -337,48 +321,26 @@ function init() {
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // Disable shadows for better performance
+        renderer.shadowMap.enabled = false;
         document.body.appendChild(renderer.domElement);
         
-        // Improved lighting for forest
-        const ambientLight = new THREE.AmbientLight(0xCCDDFF, 0.4); // Blueish ambient light
+        // Simplified lighting for better compatibility
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter ambient light
         scene.add(ambientLight);
         
-        // Main directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xFFFFDD, 1.0);
-        directionalLight.position.set(10, 30, 10);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 50;
-        directionalLight.shadow.camera.left = -30;
-        directionalLight.shadow.camera.right = 30;
-        directionalLight.shadow.camera.top = 30;
-        directionalLight.shadow.camera.bottom = -30;
-        scene.add(directionalLight);
-        
-        // Softer fill light from opposite direction
-        const fillLight = new THREE.DirectionalLight(0x8899AA, 0.3);
-        fillLight.position.set(-5, 10, -5);
-        scene.add(fillLight);
-        
-        // Create ground with better texture
+        // Create ground with simpler material
         const groundGeometry = new THREE.PlaneGeometry(500, 500);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
+        const groundMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x2D572C, // Darker grass
-            roughness: 0.9, 
-            metalness: 0.0,
-            flatShading: true
+            side: THREE.DoubleSide
         });
         ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
         ground.position.y = 0;
-        ground.receiveShadow = true;
         scene.add(ground);
         
-        // Create player
+        // Create player group
         player = new THREE.Group();
         player.position.set(0, 1, 0); // Start at origin, slightly above ground
         scene.add(player);
@@ -387,52 +349,20 @@ function init() {
         playerBody = createHumanoidMesh();
         player.add(playerBody);
         
-        // Create helper for aiming direction
-        playerAimHelper = new THREE.Group();
-        playerAimHelper.position.y = 1.2; // Position at shoulder height
-        player.add(playerAimHelper);
-        
-        // Create a dense forest by placing trees in a more natural pattern
-        
-        // 1. A small clearing around the player spawn
+        // Create a simpler forest (fewer trees for better performance)
         const clearingRadius = 15;
+        const forestRadius = 80; // Smaller radius for better performance
+        const treeCount = 50; // Reduced number of trees
         
-        // 2. Dense forest area (100-150 trees)
-        const forestRadius = 120; // Larger radius for the forest
-        const treeCount = 120 + Math.floor(Math.random() * 30); // 120-150 trees
-        
-        // Create forest with clustered trees for a more natural look
         for (let i = 0; i < treeCount; i++) {
-            // Use polar coordinates for more natural distribution
             const angle = Math.random() * Math.PI * 2;
             const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
-            const clusterOffset = Math.random() * 5 - 2.5; // Trees tend to grow in clusters
             
-            // Convert to cartesian coordinates
-            const x = Math.cos(angle) * distance + clusterOffset;
-            const z = Math.sin(angle) * distance + clusterOffset;
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
             
-            // Don't place trees too close to player spawn
-            const distFromOrigin = Math.sqrt(x * x + z * z);
-            if (distFromOrigin > clearingRadius) {
+            if (Math.sqrt(x * x + z * z) > clearingRadius) {
                 createTree(x, z);
-            }
-        }
-        
-        // 3. Add some tree clusters for visual interest
-        const clusterCount = 6;
-        for (let i = 0; i < clusterCount; i++) {
-            const clusterAngle = (i / clusterCount) * Math.PI * 2;
-            const clusterDist = clearingRadius + 15;
-            const clusterX = Math.cos(clusterAngle) * clusterDist;
-            const clusterZ = Math.sin(clusterAngle) * clusterDist;
-            
-            // Create 4-6 trees in a tight cluster
-            const treesInCluster = 4 + Math.floor(Math.random() * 3);
-            for (let j = 0; j < treesInCluster; j++) {
-                const offsetX = (Math.random() - 0.5) * 8;
-                const offsetZ = (Math.random() - 0.5) * 8;
-                createTree(clusterX + offsetX, clusterZ + offsetZ);
             }
         }
         
@@ -442,7 +372,7 @@ function init() {
         // Setup event listeners for controls
         setupEventListeners();
         
-        console.log('Initialization complete!');
+        console.log('Initialization complete with basic materials!');
         // Start the animation loop
         animate();
     } catch (error) {
@@ -459,41 +389,59 @@ function onWindowResize() {
 }
 
 function shoot() {
+    const now = Date.now();
+    if (now - lastShootTime < shootCooldown) return;
+    lastShootTime = now;
+    
     try {
-        const now = Date.now();
-        if (now - lastShootTime < shootCooldown) return;
+        console.log('Shooting!');
         
-        lastShootTime = now;
-        
-        // Create a bullet
-        const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        // Create bullet
+        const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
         const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
         
-        // Get bullet direction from aim
+        // Position bullet at gun tip
+        // Use the player's position + offset for gun position
+        bullet.position.copy(player.position);
+        bullet.position.y += 1.2; // Shoulder height
+        
+        // Set bullet direction based on player and aim direction
         const bulletDirection = new THREE.Vector3(0, 0, -1);
-        bulletDirection.applyAxisAngle(new THREE.Vector3(1, 0, 0), mouseY);
-        bulletDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        bulletDirection.applyQuaternion(playerAimHelper.quaternion);
+        bulletDirection.applyQuaternion(player.quaternion);
         
-        // Get position of the gun
-        const bulletStartPos = new THREE.Vector3();
-        playerAimHelper.updateWorldMatrix(true, false); // Update matrices
-        bulletStartPos.setFromMatrixPosition(playerAimHelper.matrixWorld);
-        bulletStartPos.x += Math.sin(mouseX) * 0.35; // Offset to gun position
-        bulletStartPos.z += Math.cos(mouseX) * 0.35;
+        // Store bullet data
+        const bulletData = {
+            mesh: bullet,
+            direction: bulletDirection,
+            speed: 0.5,
+            distance: 0,
+            maxDistance: 100
+        };
         
-        // Position the bullet at the gun's position
-        bullet.position.copy(bulletStartPos);
+        // Move bullet slightly forward to avoid collision with player
+        bullet.position.add(bulletDirection.clone().multiplyScalar(0.6));
         
-        // Store bullet direction and speed for animation
-        bullet.userData.direction = bulletDirection;
-        bullet.userData.speed = 0.5;
-        bullet.userData.distanceTraveled = 0;
-        bullet.userData.maxDistance = 50; // Maximum bullet travel distance
-        
-        // Add to scene and track in bullets array
         scene.add(bullet);
-        bullets.push(bullet);
+        bullets.push(bulletData);
+        
+        // Add muzzle flash effect
+        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00,
+            transparent: true,
+            opacity: 1
+        });
+        const flash = new THREE.Mesh(flashGeometry, flashMaterial);
+        flash.position.copy(bullet.position);
+        scene.add(flash);
+        
+        // Remove flash after short time
+        setTimeout(() => {
+            scene.remove(flash);
+        }, 50);
+        
     } catch (error) {
         console.error('Error in shoot function:', error);
     }
@@ -504,15 +452,15 @@ function updateBullets() {
         const bullet = bullets[i];
         
         // Move bullet forward
-        const movement = bullet.userData.direction.clone().multiplyScalar(bullet.userData.speed);
-        bullet.position.add(movement);
+        const movement = bullet.direction.clone().multiplyScalar(bullet.speed);
+        bullet.mesh.position.add(movement);
         
         // Update distance traveled
-        bullet.userData.distanceTraveled += bullet.userData.speed;
+        bullet.distance += bullet.speed;
         
         // Remove bullets that have gone too far
-        if (bullet.userData.distanceTraveled > bullet.userData.maxDistance) {
-            scene.remove(bullet);
+        if (bullet.distance > bullet.maxDistance) {
+            scene.remove(bullet.mesh);
             bullets.splice(i, 1);
         }
     }
@@ -545,12 +493,11 @@ function animate() {
         moveDirection.normalize();
     }
     
-    // Convert movement to camera-relative direction
-    // Use the horizontal component of camera rotation (mouseX)
+    // Convert move direction to camera-relative direction
     direction.copy(moveDirection);
     direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
     
-    // Apply acceleration with proper speed limits
+    // Apply acceleration based on input
     if (direction.length() > 0) {
         // Add acceleration in the movement direction
         velocity.x += direction.x * ACCELERATION;
@@ -590,26 +537,15 @@ function animate() {
     velocity.x *= friction;
     velocity.z *= friction;
     
-    // Smoothly rotate player body to face movement direction when moving
+    // Rotate the entire player to face movement direction
     if (direction.length() > 0.1) {
         playerDirection.copy(direction).normalize();
         const targetRotation = Math.atan2(playerDirection.x, playerDirection.z);
-        
-        // Smooth rotation - interpolate between current and target rotation
-        const rotationSpeed = 0.15;
-        const currentRotation = playerBody.rotation.y;
-        
-        // Calculate shortest rotation path
-        let rotationDiff = targetRotation - currentRotation;
-        if (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
-        if (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
-        
-        // Apply smooth rotation
-        playerBody.rotation.y += rotationDiff * rotationSpeed;
+        player.rotation.y = targetRotation;
     }
     
     // Update aim direction based on mouse
-    playerAimHelper.rotation.y = mouseX;
+    playerAimHelper.rotation.y = 0; // Reset to avoid compounding rotations
     playerAimHelper.rotation.x = mouseY;
     
     // Update camera position relative to player
