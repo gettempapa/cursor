@@ -475,7 +475,6 @@ class Enemy {
         this.moveSpeed = Constants.PLAYER.MOVE_SPEED * 0.6; // Slightly slower than player
         this.lastShot = 0;
         this.shotCooldown = 2000; // 2 seconds between shots
-        this.model = this.createEnemyModel();
         this.targetPosition = this.getNewTargetPosition();
         this.updateInterval = Math.random() * 2000 + 3000; // Random update interval between 3-5 seconds
         this.lastUpdate = performance.now();
@@ -486,6 +485,9 @@ class Enemy {
         this.health = 100;
         this.bloodParticles = [];
         this.lastDamageTime = 0;
+        
+        // Create the model after initializing all properties
+        this.model = this.createEnemyModel();
     }
 
     createEnemyModel() {
@@ -593,6 +595,9 @@ class Enemy {
         rightHand.position.set(-0.35, 0.1, 0);
         enemy.add(rightHand);
 
+        // Store the model reference before adding the rifle
+        this.model = enemy;
+
         // Add rifle
         const rifle = this.createEnemyRifle();
         enemy.add(rifle);
@@ -600,6 +605,9 @@ class Enemy {
         // Position the enemy
         enemy.position.copy(this.position);
         enemy.rotation.copy(this.rotation);
+
+        // Add to scene
+        this.scene.add(enemy);
 
         return enemy;
     }
@@ -654,8 +662,9 @@ class Enemy {
         rifle.position.set(0.25, 0.4, 0.1); // Move rifle forward and slightly right
         rifle.rotation.y = -0.15; // Adjust initial angle to point more forward
         
-        this.model.add(rifle);
-        this.rifle = rifle;
+        // Return the rifle instead of trying to add it to the model here
+        // The model will add it in createEnemyModel
+        return rifle;
     }
 
     // Add hands to hold the rifle
@@ -3002,10 +3011,18 @@ class Game {
         }
         
         // Update dinosaurs
-        if (this.dinosaurs) {
+        if (this.dinosaurs && this.dinosaurs.length > 0) {
+            // Log dinosaur positions occasionally
+            if (Math.random() < 0.01) { // Log roughly once every 100 frames
+                console.log(`Dinosaurs: ${this.dinosaurs.length}, First dinosaur position:`, 
+                    this.dinosaurs[0].position);
+            }
+            
             for (let i = this.dinosaurs.length - 1; i >= 0; i--) {
                 this.dinosaurs[i].update(deltaTime, this.playerState.position);
             }
+        } else if (now % 5000 < 16) { // Check roughly every 5 seconds
+            console.log("No dinosaurs present in the scene");
         }
         
         // Update debug info
@@ -3171,6 +3188,9 @@ class Game {
     // Add createDinosaur method to Game class after createEnemy method
     createDinosaur() {
         try {
+            console.log("Starting dinosaur creation process");
+            this.debug.innerHTML += '<br>Attempting to create dinosaur...';
+            
             // Generate a random position away from the player
             const angle = Math.random() * Math.PI * 2;
             const distance = 30 + Math.random() * 20; // Between 30-50 units from center
@@ -3179,6 +3199,8 @@ class Game {
                 1,
                 Math.sin(angle) * distance
             );
+            
+            console.log("Generated dinosaur position:", position);
             
             // Check if position is valid (not inside objects)
             let validPosition = true;
@@ -3191,33 +3213,43 @@ class Game {
                 
                 if (distSquared < (tree.radius + 2) * (tree.radius + 2)) {
                     validPosition = false;
+                    console.log("Invalid position - too close to tree");
                     break;
                 }
             }
             
             // If position is valid, create the dinosaur
             if (validPosition) {
+                console.log("Position valid, creating dinosaur");
                 const dinosaur = new Dinosaur(this.scene, position);
                 
                 // Initialize dinosaurs array if it doesn't exist
                 if (!this.dinosaurs) {
                     this.dinosaurs = [];
+                    console.log("Initialized dinosaurs array");
                 }
                 
                 this.dinosaurs.push(dinosaur);
+                console.log("Added dinosaur to array, total:", this.dinosaurs.length);
                 
                 // Pass audio context to dinosaur if available
                 if (this.audioInitialized && this.listener) {
                     dinosaur.listener = this.listener;
                     dinosaur.audioInitialized = true;
+                    console.log("Audio context passed to dinosaur");
                 }
+                
+                this.debug.innerHTML += '<br>Dinosaur created successfully at position ' + 
+                    position.x.toFixed(1) + ', ' + position.y.toFixed(1) + ', ' + position.z.toFixed(1);
             } else {
                 // Try again with a different position
+                console.log("Retrying with different position");
+                this.debug.innerHTML += '<br>Retrying dinosaur creation with different position';
                 this.createDinosaur();
             }
         } catch (error) {
             console.error('Error creating dinosaur:', error);
-            this.debug.innerHTML += `<br>Error creating dinosaur: ${error.message}`;
+            this.debug.innerHTML += `<br>Error creating dinosaur: ${error.message}<br>Stack: ${error.stack}`;
         }
     }
 }
