@@ -73,8 +73,11 @@ class Game {
         this.enemyMuzzleFlash = null; // Enemy's muzzle flash
         this.enemyMuzzleLight = null; // Enemy's muzzle light
         
-        // Audio setup
+        // Audio setup with immediate resume
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.audioContext.resume().then(() => {
+            console.log('AudioContext resumed successfully');
+        });
         this.gunshotBuffer = null;
         this.loadGunshotSound();
         
@@ -299,6 +302,7 @@ class Game {
         this.player = new THREE.Group();
         this.player.add(this.soldier);
         this.player.position.set(5, 1, 5);
+        this.player.rotation.y = Math.PI; // Make player face away from camera
         this.scene.add(this.player);
         
         // Set up camera
@@ -683,7 +687,7 @@ class Game {
             
             // Show enemy muzzle flash
             this.enemyMuzzleFlash.material.opacity = 1;
-            this.enemyMuzzleLight.intensity = 2;
+            this.enemyMuzzleLight.intensity = 3; // Increased intensity
             
             // Play gunshot sound
             this.playGunshot();
@@ -698,17 +702,24 @@ class Game {
             if (this.isShooting) return;
             this.isShooting = true;
             
-            // Show player muzzle flash
-            this.muzzleFlash.material.opacity = 1;
-            this.muzzleLight.intensity = 2;
+            // Show player muzzle flash with increased intensity
+            if (this.muzzleFlash) {
+                this.muzzleFlash.material.opacity = 1;
+                this.muzzleLight.intensity = 3; // Increased intensity
+            }
             
-            // Play gunshot sound
+            // Ensure audio context is running and play gunshot
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
             this.playGunshot();
             
             // Hide player muzzle flash after duration
             setTimeout(() => {
-                this.muzzleFlash.material.opacity = 0;
-                this.muzzleLight.intensity = 0;
+                if (this.muzzleFlash) {
+                    this.muzzleFlash.material.opacity = 0;
+                    this.muzzleLight.intensity = 0;
+                }
                 this.isShooting = false;
             }, this.flashDuration);
         }
@@ -1061,8 +1072,8 @@ class Game {
         // Rifle body - positioned for proper military stance
         const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
         const rifleBodyMesh = new THREE.Mesh(rifleBody, rifleMaterial);
-        rifleBodyMesh.position.set(0.4, 0.35, 0.3); // Moved forward and up for proper stance
-        rifleBodyMesh.rotation.set(0, -Math.PI/24, 0); // Less angled, more straight
+        rifleBodyMesh.position.set(0.4, 0.35, 0.3);
+        rifleBodyMesh.rotation.set(0, -Math.PI/24, 0);
         
         // Rifle stock
         const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
@@ -1077,18 +1088,23 @@ class Game {
         scope.position.set(0, 0.1, 0.2);
         rifleBodyMesh.add(scope);
 
-        // Add muzzle flash
-        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        // Enhanced muzzle flash
+        const flashGeometry = new THREE.SphereGeometry(0.15, 8, 8); // Larger flash
         const flashMaterial = new THREE.MeshBasicMaterial({
             color: 0xffff00,
             transparent: true,
-            opacity: 0
+            opacity: 0,
+            emissive: 0xffff00,
+            emissiveIntensity: 1.0
         });
         
         this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
         this.muzzleFlash.position.set(0, 0, 0.7);
-        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
+        
+        // Brighter muzzle light
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 5); // Increased intensity and range
         this.muzzleLight.position.copy(this.muzzleFlash.position);
+        
         rifleBodyMesh.add(this.muzzleFlash);
         rifleBodyMesh.add(this.muzzleLight);
         
