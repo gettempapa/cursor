@@ -27,11 +27,16 @@ export class Environment {
         ground.receiveShadow = true;
         this.scene.add(ground);
 
-        // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Reduced ambient light intensity
+        // Enhanced lighting setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(ambientLight);
+
+        // Main directional light (sun)
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
         directionalLight.position.set(50, 100, 50);
         directionalLight.castShadow = true;
+        
+        // Improve shadow quality
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         directionalLight.shadow.camera.near = 0.5;
@@ -40,9 +45,13 @@ export class Environment {
         directionalLight.shadow.camera.right = 100;
         directionalLight.shadow.camera.top = 100;
         directionalLight.shadow.camera.bottom = -100;
+        directionalLight.shadow.bias = -0.001;
         
-        this.scene.add(ambientLight);
         this.scene.add(directionalLight);
+
+        // Add hemisphere light for better ambient lighting
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        this.scene.add(hemisphereLight);
 
         // Add other environment elements
         this.createCastleTower();

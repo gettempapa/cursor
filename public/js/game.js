@@ -10,38 +10,41 @@ export class Game {
         
         // Initialize core systems
         this.scene = new THREE.Scene();
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+        
+        // Set up renderer with proper settings
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: "high-performance"
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0x87ceeb); // Sky blue background
+        this.renderer.setClearColor(0x87ceeb, 1);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
         this.container.appendChild(this.renderer.domElement);
         
-        // Initialize environment
+        // Initialize game components
         this.environment = new Environment(this.scene);
-        
-        // Initialize player and UI
         this.player = new Player(this.scene);
-        this.ui = new UI(this.container);
-        
-        // Initialize enemy
         this.enemy = new Enemy(this.scene);
+        this.ui = new UI(this.container);
         
         // Set up controls
         this.setupControls();
         
-        // Start animation loop
-        this.animate();
-        
         // Handle window resizing
         window.addEventListener('resize', () => this.onWindowResize(), false);
         
-        // Request pointer lock on click
+        // Lock pointer on click
         this.container.addEventListener('click', () => {
-            if (!document.pointerLockElement) {
-                this.container.requestPointerLock();
-            }
+            this.container.requestPointerLock();
         });
+        
+        // Start the animation loop
+        this.animate();
     }
     
     setupControls() {
