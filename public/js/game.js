@@ -285,23 +285,14 @@ class Game {
         // Add bunker
         this.createBunker();
         
-        // Add bridge
-        this.createBridge();
-
         // Add crates
         this.createCrates();
 
-        // Add enhanced fog for misty mountains
+        // Add enhanced fog
         this.scene.fog = new THREE.Fog(0x87ceeb, 50, 150); // Match sky color
-        
-        // Create epic mountains
-        this.createMountains();
         
         // Add ground with enhanced texture
         this.createGround();
-        
-        // Add stream
-        this.createStream();
         
         // Add varied trees
         this.createTrees();
@@ -473,18 +464,7 @@ class Game {
                 this.player.position.z + direction.z * this.moveSpeed
             );
             
-            // Check for stream collision if not on bridge
-            if (!this.bridgeBox.containsPoint(newPosition) && this.checkStreamCollision(newPosition)) {
-                if (!this.isDead) {
-                    this.isDead = true;
-                    this.showDeathMessage();
-                    // Make player fall over
-                    this.soldier.rotation.z = Math.PI / 2;
-                }
-                return;
-            }
-            
-            // Check for other collisions before updating position
+            // Check for collisions before updating position
             if (!this.checkCollisions(newPosition)) {
                 this.player.position.copy(newPosition);
             }
@@ -532,18 +512,6 @@ class Game {
     
     animate() {
         requestAnimationFrame(() => this.animate());
-        
-        // Animate stream particles
-        if (this.streamParticles) {
-            const positions = this.streamParticles.geometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                positions[i + 2] -= 0.1; // Move particles along stream
-                if (positions[i + 2] < -50) {
-                    positions[i + 2] = 50; // Reset particle to start
-                }
-            }
-            this.streamParticles.geometry.attributes.position.needsUpdate = true;
-        }
         
         this.updateMovement();
         this.updateCamera();
@@ -615,24 +583,24 @@ class Game {
             const t = i / sampleRate;
             
             // Initial supersonic crack (sharper and louder)
-            const crack = Math.exp(-t * 800) * (Math.random() * 2 - 1) * 1.2;
+            const crack = Math.exp(-t * 800) * (Math.random() * 2 - 1) * 2.0;
             
             // Deep bass impact (lower frequency, more powerful)
-            const bass = Math.exp(-t * 20) * Math.sin(2 * Math.PI * 60 * t) * 1.5;
+            const bass = Math.exp(-t * 20) * Math.sin(2 * Math.PI * 40 * t) * 2.5;
             
             // Mid-frequency body (fuller sound)
-            const mid = Math.exp(-t * 80) * Math.sin(2 * Math.PI * 300 * t);
+            const mid = Math.exp(-t * 80) * Math.sin(2 * Math.PI * 300 * t) * 1.5;
             
             // High-frequency crack detail
-            const highCrack = Math.exp(-t * 1000) * Math.sin(2 * Math.PI * 2000 * t) * 0.3;
+            const highCrack = Math.exp(-t * 1000) * Math.sin(2 * Math.PI * 2000 * t) * 0.8;
             
             // Combine components with enhanced mixing
             data[i] = (
-                crack * 0.8 +     // Sharper initial crack
-                bass * 0.7 +      // Stronger bass
-                mid * 0.5 +       // Fuller mid-range
-                highCrack * 0.4   // Crisp high-end detail
-            ) * 4.0;             // Overall volume boost
+                crack * 1.2 +     // Sharper initial crack
+                bass * 1.0 +      // Stronger bass
+                mid * 0.8 +       // Fuller mid-range
+                highCrack * 0.6   // Crisp high-end detail
+            ) * 6.0;             // Overall volume boost
         }
     }
 
@@ -645,26 +613,26 @@ class Game {
         // Enhanced bass frequencies
         const lowpass = this.audioContext.createBiquadFilter();
         lowpass.type = 'lowpass';
-        lowpass.frequency.value = 300; // Lower frequency for more bass
-        lowpass.Q.value = 10.0; // Sharper resonance
+        lowpass.frequency.value = 200; // Lower frequency for more bass
+        lowpass.Q.value = 12.0; // Sharper resonance
         
         // Supersonic crack frequencies
         const highpass = this.audioContext.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 3000; // Higher for sharper crack
-        highpass.Q.value = 7.0;
+        highpass.frequency.value = 4000; // Higher for sharper crack
+        highpass.Q.value = 9.0;
         
         // More aggressive compression
         const compressor = this.audioContext.createDynamicsCompressor();
-        compressor.threshold.value = -30;
+        compressor.threshold.value = -24;
         compressor.knee.value = 0;
-        compressor.ratio.value = 15;
+        compressor.ratio.value = 20;
         compressor.attack.value = 0;
-        compressor.release.value = 0.2;
+        compressor.release.value = 0.1;
         
         // Enhanced echo effect
         const convolver = this.audioContext.createConvolver();
-        const reverbTime = 4.0;
+        const reverbTime = 5.0;
         const rate = this.audioContext.sampleRate;
         const length = rate * reverbTime;
         const impulse = this.audioContext.createBuffer(2, length, rate);
@@ -674,23 +642,23 @@ class Game {
         // Create more powerful echo reflections
         for (let i = 0; i < length; i++) {
             const t = i / rate;
-            const echoPeaks = [0.03, 0.08, 0.12, 0.2, 0.3, 0.5];
+            const echoPeaks = [0.02, 0.06, 0.1, 0.15, 0.25, 0.4];
             let echoSum = 0;
             for (const delay of echoPeaks) {
-                echoSum += Math.exp(-15 * Math.abs(t - delay)) * (1 - t / reverbTime);
+                echoSum += Math.exp(-12 * Math.abs(t - delay)) * (1 - t / reverbTime);
             }
-            const decay = Math.exp(-1.2 * i / length);
-            left[i] = decay * (1 + echoSum) * 0.8;
-            right[i] = decay * (1 + echoSum) * 0.8;
+            const decay = Math.exp(-1.0 * i / length);
+            left[i] = decay * (1 + echoSum) * 1.2;
+            right[i] = decay * (1 + echoSum) * 1.2;
         }
         convolver.buffer = impulse;
         
         // Volume controls
         const mainGain = this.audioContext.createGain();
-        mainGain.gain.value = 1.0; // Full volume
+        mainGain.gain.value = 2.0; // Doubled volume
         
         const reverbGain = this.audioContext.createGain();
-        reverbGain.gain.value = 0.7; // Stronger echo
+        reverbGain.gain.value = 1.0; // Stronger echo
         
         // Connect the enhanced audio chain
         source.connect(compressor);
@@ -699,7 +667,7 @@ class Game {
         
         // Split into direct sound and echo
         const directGain = this.audioContext.createGain();
-        directGain.gain.value = 0.8;
+        directGain.gain.value = 1.2;
         highpass.connect(directGain);
         directGain.connect(mainGain);
         mainGain.connect(this.audioContext.destination);
@@ -878,65 +846,123 @@ class Game {
         this.bunkerBox = bunkerBox;
     }
 
-    createBridge() {
-        const bridgeGroup = new THREE.Group();
-        
-        // Bridge materials
-        const woodMaterial = new THREE.MeshStandardMaterial({
+    createCrates() {
+        const crateMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B4513,
-            roughness: 0.9,
+            roughness: 0.8,
             metalness: 0.1
         });
-        
-        // Main bridge platform - extended to cover full stream width
-        const bridgeGeometry = new THREE.BoxGeometry(6, 0.2, 6);
-        const bridge = new THREE.Mesh(bridgeGeometry, woodMaterial);
-        bridge.position.set(0, 0.3, 0);
-        bridgeGroup.add(bridge);
-        
-        // Add railings
-        const railingGeometry = new THREE.BoxGeometry(0.1, 0.5, 6);
-        const leftRailing = new THREE.Mesh(railingGeometry, woodMaterial);
-        leftRailing.position.set(-2.9, 0.5, 0);
-        bridgeGroup.add(leftRailing);
-        
-        const rightRailing = new THREE.Mesh(railingGeometry, woodMaterial);
-        rightRailing.position.set(2.9, 0.5, 0);
-        bridgeGroup.add(rightRailing);
-        
-        // Add support posts
-        const postGeometry = new THREE.BoxGeometry(0.2, 1.5, 0.2); // Made posts taller
-        const positions = [
-            [-2.9, -0.6, -2.9], // Lowered posts to reach riverbed
-            [-2.9, -0.6, 2.9],
-            [2.9, -0.6, -2.9],
-            [2.9, -0.6, 2.9]
+
+        // Helper function to create a crate
+        const createCrate = (size, position) => {
+            const crateGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+            const crate = new THREE.Mesh(crateGeometry, crateMaterial);
+            crate.position.copy(position);
+            
+            // Add wood grain texture through geometry
+            const positions = crateGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] += (Math.random() - 0.5) * 0.02;
+                positions[i + 1] += (Math.random() - 0.5) * 0.02;
+                positions[i + 2] += (Math.random() - 0.5) * 0.02;
+            }
+            crateGeometry.attributes.position.needsUpdate = true;
+            
+            // Store crate for collision detection
+            this.crates.push({
+                mesh: crate,
+                size: size,
+                position: position
+            });
+            
+            return crate;
+        };
+
+        // Create crate stacks near bunker
+        const cratePositions = [
+            { size: new THREE.Vector3(1.5, 1.5, 1.5), pos: new THREE.Vector3(8, 0.75, -10) },
+            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(8, 2.1, -10) },
+            { size: new THREE.Vector3(2, 1, 2), pos: new THREE.Vector3(10, 0.5, -8) }
         ];
-        
-        positions.forEach(pos => {
-            const post = new THREE.Mesh(postGeometry, woodMaterial);
-            post.position.set(...pos);
-            bridgeGroup.add(post);
+
+        // Create crates for jumping challenge near stream
+        const streamCrates = [
+            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-4, 0.5, 4) },
+            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-2, 0.5, 7) },
+            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(0, 0.6, 10) }
+        ];
+
+        // Add all crates to scene
+        [...cratePositions, ...streamCrates].forEach(crate => {
+            const crateMesh = createCrate(crate.size, crate.pos);
+            this.scene.add(crateMesh);
         });
-        
-        // Position bridge over stream
-        bridgeGroup.position.set(0, 0, 0);
-        this.scene.add(bridgeGroup);
-        
-        // Update bridge bounds for collision detection
-        this.bridgeBox = new THREE.Box3(
-            new THREE.Vector3(-3, 0, -3),
-            new THREE.Vector3(3, 0.5, 3)
-        );
     }
 
-    checkStreamCollision(position) {
-        // Get stream position (it meanders, so we need to check along its path)
-        const streamX = Math.sin(position.z * 0.1) * 2;
-        const streamWidth = 1.5; // Half the actual stream width
+    createTrees() {
+        // Add varied trees around the scene
+        const treeTypes = ['pine', 'oak'];
+        const treeCount = 25;
         
-        // Check if player is within stream bounds
-        return Math.abs(position.x - streamX) < streamWidth;
+        // Create trees in a more natural scattered pattern
+        for (let i = 0; i < treeCount; i++) {
+            // Use random angles and varying distances for more natural placement
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 10 + Math.random() * 15; // More varied distances
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Randomize tree characteristics
+            const type = treeTypes[Math.floor(Math.random() * treeTypes.length)];
+            const scale = 0.8 + Math.random() * 0.4;
+            
+            // Add some clustering by occasionally placing trees close to each other
+            const tree = this.createPineTree(x, z, scale, type);
+            this.scene.add(tree);
+            
+            // 30% chance to add a smaller tree nearby
+            if (Math.random() < 0.3) {
+                const nearbyAngle = angle + (Math.random() - 0.5) * Math.PI / 4;
+                const nearbyRadius = radius + (Math.random() - 0.5) * 3;
+                const nearbyX = Math.cos(nearbyAngle) * nearbyRadius;
+                const nearbyZ = Math.sin(nearbyAngle) * nearbyRadius;
+                const nearbyTree = this.createPineTree(nearbyX, nearbyZ, scale * 0.8, type);
+                this.scene.add(nearbyTree);
+            }
+        }
+    }
+
+    createGround() {
+        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2d5a27, // Grass green
+            roughness: 0.7, // Less rough for better color
+            metalness: 0.0, // No metalness for natural look
+            emissive: 0x0c2a07, // Slight emissive for better visibility
+            emissiveIntensity: 0.2 // Increased from 0.1
+        });
+        
+        // Enhanced terrain displacement
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            const distance = Math.sqrt(x * x + z * z);
+            
+            // Create varied terrain with hills and valleys
+            if (distance > 5) {
+                vertices[i + 1] = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2 +  // Large terrain features
+                                 Math.sin(x * 0.5) * Math.cos(z * 0.5) * 0.5 + // Medium hills
+                                 (Math.random() - 0.5) * 0.3;                   // Small detail
+            }
+        }
+        
+        groundGeometry.attributes.position.needsUpdate = true;
+        groundGeometry.computeVertexNormals();
+        
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2; // Fix ground rotation
+        this.scene.add(ground);
     }
 
     showDeathMessage() {
@@ -1108,299 +1134,6 @@ class Game {
         
         pistol.add(pistolBodyMesh);
         return pistol;
-    }
-
-    createMountains() {
-        const mountainCount = 12;
-        const mountainRadius = 100;
-        
-        for (let i = 0; i < mountainCount; i++) {
-            const angle = (i / mountainCount) * Math.PI * 2;
-            const x = Math.cos(angle) * mountainRadius;
-            const z = Math.sin(angle) * mountainRadius;
-            
-            // Create more complex mountain geometry
-            const mountainGeometry = new THREE.BufferGeometry();
-            const vertices = [];
-            const segments = 8;
-            const height = 35 + Math.random() * 15;
-            
-            // Create base points
-            for (let j = 0; j < segments; j++) {
-                const segmentAngle = (j / segments) * Math.PI * 2;
-                const radius = 15 + Math.random() * 5;
-                const px = Math.cos(segmentAngle) * radius;
-                const pz = Math.sin(segmentAngle) * radius;
-                vertices.push(x + px, 0, z + pz);
-            }
-            
-            // Create triangles connecting to peak
-            for (let j = 0; j < segments; j++) {
-                const next = (j + 1) % segments;
-                vertices.push(
-                    x + Math.cos(j / segments * Math.PI * 2) * 15,
-                    0,
-                    z + Math.sin(j / segments * Math.PI * 2) * 15,
-                    x,
-                    height,
-                    z,
-                    x + Math.cos(next / segments * Math.PI * 2) * 15,
-                    0,
-                    z + Math.sin(next / segments * Math.PI * 2) * 15
-                );
-            }
-            
-            mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            mountainGeometry.computeVertexNormals();
-            
-            const mountainMaterial = new THREE.MeshStandardMaterial({
-                color: 0xaaaaaa,
-                roughness: 0.8,
-                metalness: 0.2,
-                side: THREE.DoubleSide
-            });
-            
-            const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
-            this.scene.add(mountain);
-            
-            // Add snow caps
-            const snowCapGeometry = new THREE.ConeGeometry(8, 10, segments);
-            const snowMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                roughness: 0.6,
-                metalness: 0.1
-            });
-            const snowCap = new THREE.Mesh(snowCapGeometry, snowMaterial);
-            snowCap.position.set(x, height - 5, z);
-            this.scene.add(snowCap);
-        }
-    }
-
-    createCrates() {
-        const crateMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8B4513,
-            roughness: 0.8,
-            metalness: 0.1
-        });
-
-        // Helper function to create a crate
-        const createCrate = (size, position) => {
-            const crateGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
-            const crate = new THREE.Mesh(crateGeometry, crateMaterial);
-            crate.position.copy(position);
-            
-            // Add wood grain texture through geometry
-            const positions = crateGeometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                positions[i] += (Math.random() - 0.5) * 0.02;
-                positions[i + 1] += (Math.random() - 0.5) * 0.02;
-                positions[i + 2] += (Math.random() - 0.5) * 0.02;
-            }
-            crateGeometry.attributes.position.needsUpdate = true;
-            
-            // Store crate for collision detection
-            this.crates.push({
-                mesh: crate,
-                size: size,
-                position: position
-            });
-            
-            return crate;
-        };
-
-        // Create crate stacks near bunker
-        const cratePositions = [
-            { size: new THREE.Vector3(1.5, 1.5, 1.5), pos: new THREE.Vector3(8, 0.75, -10) },
-            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(8, 2.1, -10) },
-            { size: new THREE.Vector3(2, 1, 2), pos: new THREE.Vector3(10, 0.5, -8) }
-        ];
-
-        // Create crates for jumping challenge near stream
-        const streamCrates = [
-            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-4, 0.5, 4) },
-            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-2, 0.5, 7) },
-            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(0, 0.6, 10) }
-        ];
-
-        // Add all crates to scene
-        [...cratePositions, ...streamCrates].forEach(crate => {
-            const crateMesh = createCrate(crate.size, crate.pos);
-            this.scene.add(crateMesh);
-        });
-    }
-
-    createTrees() {
-        // Add varied trees around the scene
-        const treeTypes = ['pine', 'oak'];
-        const treeCount = 25;
-        
-        // Create trees in a more natural scattered pattern
-        for (let i = 0; i < treeCount; i++) {
-            // Use random angles and varying distances for more natural placement
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 10 + Math.random() * 15; // More varied distances
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            
-            // Randomize tree characteristics
-            const type = treeTypes[Math.floor(Math.random() * treeTypes.length)];
-            const scale = 0.8 + Math.random() * 0.4;
-            
-            // Add some clustering by occasionally placing trees close to each other
-            const tree = this.createPineTree(x, z, scale, type);
-            this.scene.add(tree);
-            
-            // 30% chance to add a smaller tree nearby
-            if (Math.random() < 0.3) {
-                const nearbyAngle = angle + (Math.random() - 0.5) * Math.PI / 4;
-                const nearbyRadius = radius + (Math.random() - 0.5) * 3;
-                const nearbyX = Math.cos(nearbyAngle) * nearbyRadius;
-                const nearbyZ = Math.sin(nearbyAngle) * nearbyRadius;
-                const nearbyTree = this.createPineTree(nearbyX, nearbyZ, scale * 0.8, type);
-                this.scene.add(nearbyTree);
-            }
-        }
-    }
-
-    createGround() {
-        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2d5a27, // Grass green
-            roughness: 0.7, // Less rough for better color
-            metalness: 0.0, // No metalness for natural look
-            emissive: 0x0c2a07, // Slight emissive for better visibility
-            emissiveIntensity: 0.2 // Increased from 0.1
-        });
-        
-        // Enhanced terrain displacement
-        const vertices = groundGeometry.attributes.position.array;
-        for (let i = 0; i < vertices.length; i += 3) {
-            const x = vertices[i];
-            const z = vertices[i + 2];
-            const distance = Math.sqrt(x * x + z * z);
-            
-            // Create varied terrain with hills and valleys
-            if (distance > 5) {
-                vertices[i + 1] = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2 +  // Large terrain features
-                                 Math.sin(x * 0.5) * Math.cos(z * 0.5) * 0.5 + // Medium hills
-                                 (Math.random() - 0.5) * 0.3;                   // Small detail
-            }
-        }
-        
-        groundGeometry.attributes.position.needsUpdate = true;
-        groundGeometry.computeVertexNormals();
-        
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2; // Fix ground rotation
-        this.scene.add(ground);
-    }
-
-    createStream() {
-        const streamWidth = 3;
-        const streamLength = 100;
-        const streamDepth = 1;
-        
-        // Create sunken riverbed
-        const riverbedGeometry = new THREE.BoxGeometry(streamWidth + 2, streamDepth, streamLength);
-        const riverbedMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a4a4a,
-            roughness: 0.9
-        });
-        const riverbed = new THREE.Mesh(riverbedGeometry, riverbedMaterial);
-        riverbed.position.set(0, -streamDepth/2, 0);
-        this.scene.add(riverbed);
-        
-        // Create water surface with enhanced material
-        const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
-        const waterMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3498db, // Bright blue water
-            metalness: 0.9, // More metallic for better reflection
-            roughness: 0.1, // Smoother for water
-            transparent: true,
-            opacity: 0.8,
-            emissive: 0x104a7a, // Slight blue emissive
-            emissiveIntensity: 0.4 // Increased intensity
-        });
-        
-        // Create meandering stream path
-        const streamVertices = streamGeometry.attributes.position.array;
-        for (let i = 0; i < streamVertices.length; i += 3) {
-            const z = streamVertices[i + 2];
-            streamVertices[i] += Math.sin(z * 0.1) * 2;
-            streamVertices[i + 1] = -streamDepth + 0.1;
-        }
-        streamGeometry.attributes.position.needsUpdate = true;
-        streamGeometry.computeVertexNormals();
-        
-        const stream = new THREE.Mesh(streamGeometry, waterMaterial);
-        stream.rotation.x = -Math.PI / 2;
-        this.scene.add(stream);
-        
-        // Add rocks along edges
-        this.addStreamRocks(streamWidth, streamLength, streamDepth);
-        
-        // Add water particles
-        this.addWaterParticles(streamWidth, streamLength);
-    }
-
-    addStreamRocks(streamWidth, streamLength, streamDepth) {
-        const createRock = (size) => {
-            const rockGeometry = new THREE.DodecahedronGeometry(size);
-            const rockMaterial = new THREE.MeshStandardMaterial({
-                color: 0x7c7c7c,
-                roughness: 0.9,
-                metalness: 0.1
-            });
-            return new THREE.Mesh(rockGeometry, rockMaterial);
-        };
-
-        for (let z = -streamLength/2; z < streamLength/2; z += 2) {
-            const streamX = Math.sin(z * 0.1) * 2;
-            
-            ['left', 'right'].forEach(side => {
-                if (Math.random() < 0.8) {
-                    const rock = createRock(0.3 + Math.random() * 0.4);
-                    const xOffset = (side === 'left' ? -1 : 1) * (streamWidth/2 + 0.3 + Math.random() * 0.5);
-                    rock.position.set(
-                        streamX + xOffset,
-                        -streamDepth + Math.random() * 0.5,
-                        z
-                    );
-                    rock.rotation.set(
-                        Math.random() * Math.PI,
-                        Math.random() * Math.PI,
-                        Math.random() * Math.PI
-                    );
-                    this.scene.add(rock);
-                }
-            });
-        }
-    }
-
-    addWaterParticles(streamWidth, streamLength) {
-        const particleGeometry = new THREE.BufferGeometry();
-        const particlePositions = [];
-        const particleCount = 200;
-        
-        for (let i = 0; i < particleCount; i++) {
-            particlePositions.push(
-                Math.random() * streamWidth - streamWidth/2 + Math.sin((i/particleCount) * streamLength * 0.1) * 2,
-                0.2,
-                (i/particleCount) * streamLength - streamLength/2
-            );
-        }
-        
-        particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.1,
-            transparent: true,
-            opacity: 0.6
-        });
-        
-        this.streamParticles = new THREE.Points(particleGeometry, particleMaterial);
-        this.scene.add(this.streamParticles);
     }
 }
 
