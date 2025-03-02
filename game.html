@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOCOM-style Third Person Shooter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #debug {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            display: none;
+            z-index: 100;
+            max-width: 600px;
+            max-height: 400px;
+            overflow: auto;
+        }
+        
+        #loadingScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+        }
+        
+        #loadingScreen h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: white;
+        }
+        
+        #crosshair::before {
+            top: 9px;
+            left: 0;
+            width: 20px;
+            height: 2px;
+        }
+        
+        #crosshair::after {
+            top: 0;
+            left: 9px;
+            width: 2px;
+            height: 20px;
+        }
+        
+        #loadingError {
+            color: red;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <h1>Loading Game...</h1>
+        <p>Preparing your mission, soldier!</p>
+        <div id="loadingError">
+            Error loading the game! Check the console for details.
+        </div>
+    </div>
+    
+    <div id="gameContainer"></div>
+    <div id="crosshair"></div>
+    <div id="debug"></div>
+    
+    <!-- Primary Three.js CDN -->
+    <script type="module" src="public/js/game.js" onerror="document.getElementById('debug').textContent += '\nPrimary script failed, trying backup...'"></script>
+    
+    <!-- Fallback script in case the module import fails -->
+    <script>
+        // Check if Three.js loaded correctly after a delay
+        setTimeout(function() {
+            const debug = document.getElementById('debug');
+            debug.style.display = 'block';
+            
+            if (typeof window.game === 'undefined') {
+                debug.textContent += '\nGame failed to initialize. Trying backup method...';
+                
+                // Try loading Three.js from a different CDN
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.src = 'https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js';
+                script.onload = function() {
+                    debug.textContent += '\nBackup Three.js loaded, initializing game...';
+                    
+                    // Load the game script after Three.js is loaded
+                    const gameScript = document.createElement('script');
+                    gameScript.type = 'module';
+                    gameScript.src = 'public/js/game.js';
+                    document.body.appendChild(gameScript);
+                };
+                script.onerror = function() {
+                    debug.textContent += '\nBackup Three.js failed to load. Please check your internet connection.';
+                    document.getElementById('loadingError').style.display = 'block';
+                };
+                document.body.appendChild(script);
+            }
+        }, 5000); // Check after 5 seconds
+    </script>
+</body>
+</html> 
