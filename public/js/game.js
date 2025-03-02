@@ -168,32 +168,53 @@ class Game {
         return soldier;
     }
     
-    createPineTree(x, z) {
+    createPineTree(x, z, scale = 1, type = 'pine') {
         const treeGroup = new THREE.Group();
         
-        // Tree trunk
-        const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 4, 8);
+        // Randomize tree characteristics
+        const heightVariation = 0.8 + Math.random() * 0.4;
+        const trunkTwist = (Math.random() - 0.5) * 0.2;
+        const branchDensity = 0.7 + Math.random() * 0.6;
+        
+        // Enhanced trunk with natural twist and bark texture
+        const trunkGeometry = new THREE.CylinderGeometry(0.2 * scale, 0.3 * scale, 4 * scale * heightVariation, 8);
         const trunkMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x4d2926,
-            roughness: 0.9
+            color: type === 'pine' ? 0x4d2926 : 0x6b4423,
+            roughness: 0.9,
+            metalness: 0.1,
+            bumpScale: 0.5
         });
+        
+        // Add twist to trunk vertices
+        const trunkPositions = trunkGeometry.attributes.position.array;
+        for (let i = 0; i < trunkPositions.length; i += 3) {
+            const y = trunkPositions[i + 1];
+            const angle = y * trunkTwist;
+            const x = trunkPositions[i];
+            const z = trunkPositions[i + 2];
+            trunkPositions[i] = x * Math.cos(angle) - z * Math.sin(angle);
+            trunkPositions[i + 2] = x * Math.sin(angle) + z * Math.cos(angle);
+        }
+        trunkGeometry.attributes.position.needsUpdate = true;
+        
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.y = 2;
+        trunk.position.y = 2 * scale;
         treeGroup.add(trunk);
         
-        // Tree layers (cone shapes)
+        // Create more natural-looking foliage
         const leafMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x0b5c0b,
+            color: type === 'pine' ? 0x0b5c0b : 0x2d5a27,
             roughness: 0.8
         });
         
         const createLayer = (y, radius, height) => {
-            const coneGeometry = new THREE.ConeGeometry(radius, height, 8);
+            const coneGeometry = new THREE.ConeGeometry(radius * scale, height * scale, 8);
             const cone = new THREE.Mesh(coneGeometry, leafMaterial);
-            cone.position.y = y;
+            cone.position.y = y * scale;
             treeGroup.add(cone);
         };
         
+        // Add layers with scale factor
         createLayer(5.5, 1.5, 3);
         createLayer(4.5, 1.8, 2.5);
         createLayer(3.5, 2, 2);
@@ -203,7 +224,7 @@ class Game {
         // Store tree position and radius for collision detection
         this.trees.push({
             position: new THREE.Vector2(x, z),
-            radius: this.treeCollisionRadius
+            radius: this.treeCollisionRadius * scale
         });
         
         return treeGroup;
@@ -216,28 +237,41 @@ class Game {
         for (const tree of this.trees) {
             const distance = playerPosition.distanceTo(tree.position);
             if (distance < (this.playerCollisionRadius + tree.radius)) {
-                return true; // Collision detected
+                return true;
             }
         }
         
-        // Check bunker collisions (only with walls, not the interior)
+        // Check crate collisions
+        for (const crate of this.crates) {
+            // Only check horizontal collision if we're not above the crate
+            if (newPosition.y <= crate.position.y + crate.size.y) {
+                const dx = Math.abs(newPosition.x - crate.position.x);
+                const dz = Math.abs(newPosition.z - crate.position.z);
+                
+                if (dx < (crate.size.x / 2 + this.playerCollisionRadius) &&
+                    dz < (crate.size.z / 2 + this.playerCollisionRadius)) {
+                    return true;
+                }
+            }
+        }
+        
+        // Check bunker collisions
         if (this.bunkerBox) {
-            const margin = 0.3; // Allow player to move close to walls
+            const margin = 0.3;
             const isInBunkerX = newPosition.x >= (this.bunkerBox.min.x + margin) && 
                                newPosition.x <= (this.bunkerBox.max.x - margin);
             const isInBunkerZ = newPosition.z >= (this.bunkerBox.min.z + margin) && 
                                newPosition.z <= (this.bunkerBox.max.z - margin);
             
-            // If player is not fully inside or outside bunker (i.e., trying to walk through a wall)
             if ((isInBunkerX && !isInBunkerZ && newPosition.z > this.bunkerBox.min.z - margin && 
                  newPosition.z < this.bunkerBox.max.z + margin) ||
                 (!isInBunkerX && isInBunkerZ && newPosition.x > this.bunkerBox.min.x - margin && 
                  newPosition.x < this.bunkerBox.max.x + margin)) {
-                return true; // Collision with bunker wall
+                return true;
             }
         }
         
-        return false; // No collision
+        return false;
     }
     
     setupScene() {
@@ -257,202 +291,34 @@ class Game {
         // Add crates
         this.createCrates();
 
-        // Add fog for misty mountains
-        this.scene.fog = new THREE.Fog(0xcccccc, 30, 100);
+        // Add enhanced fog for misty mountains
+        this.scene.fog = new THREE.Fog(0xcccccc, 50, 150);
         
-        // Add mountains in background
-        const mountainGeometry = new THREE.BufferGeometry();
-        const vertices = [];
-        const mountainCount = 8;
-        const mountainRadius = 80;
+        // Create epic mountains
+        this.createMountains();
         
-        for (let i = 0; i < mountainCount; i++) {
-            const angle = (i / mountainCount) * Math.PI * 2;
-            const x = Math.cos(angle) * mountainRadius;
-            const z = Math.sin(angle) * mountainRadius;
-            
-            // Create triangular mountain peaks
-            vertices.push(
-                x - 10, 0, z - 10,     // base point 1
-                x + 10, 0, z + 10,     // base point 2
-                x, 25 + Math.random() * 10, z  // peak
-            );
-        }
-        
-        mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        mountainGeometry.computeVertexNormals();
-        
-        const mountainMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            roughness: 0.8,
-            metalness: 0.2,
-            side: THREE.DoubleSide
-        });
-        
-        const mountains = new THREE.Mesh(mountainGeometry, mountainMaterial);
-        this.scene.add(mountains);
-        
-        // Add ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2d5a27, // Grass green
-            roughness: 0.9,
-            metalness: 0.1
-        });
-        
-        // Add grass texture through vertex displacement
-        const vertices2 = groundGeometry.attributes.position.array;
-        for (let i = 0; i < vertices2.length; i += 3) {
-            if (Math.abs(vertices2[i]) > 5 || Math.abs(vertices2[i + 2]) > 5) {
-                vertices2[i + 1] = Math.random() * 0.5; // Add small hills
-                // Add small random displacement for grass effect
-                vertices2[i] += (Math.random() - 0.5) * 0.3;
-                vertices2[i + 2] += (Math.random() - 0.5) * 0.3;
-            }
-        }
-        groundGeometry.attributes.position.needsUpdate = true;
-        groundGeometry.computeVertexNormals();
-        
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        this.scene.add(ground);
+        // Add ground with enhanced texture
+        this.createGround();
         
         // Add stream
-        const streamWidth = 3;
-        const streamLength = 100;
-        const streamDepth = 1; // 3 feet depth
+        this.createStream();
         
-        // Create sunken riverbed
-        const riverbedGeometry = new THREE.BoxGeometry(streamWidth + 2, streamDepth, streamLength);
-        const riverbedMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a4a4a,
-            roughness: 0.9
-        });
-        const riverbed = new THREE.Mesh(riverbedGeometry, riverbedMaterial);
-        riverbed.position.set(0, -streamDepth/2, 0);
-        this.scene.add(riverbed);
-        
-        // Create water surface
-        const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
-        const waterMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3498db, // Nice blue water color
-            metalness: 0.2,
-            roughness: 0.3,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        // Create meandering stream path
-        const streamVertices = streamGeometry.attributes.position.array;
-        for (let i = 0; i < streamVertices.length; i += 3) {
-            const z = streamVertices[i + 2];
-            streamVertices[i] += Math.sin(z * 0.1) * 2; // Meandering path
-            streamVertices[i + 1] = -streamDepth + 0.1; // Place water surface just above riverbed
-        }
-        streamGeometry.attributes.position.needsUpdate = true;
-        streamGeometry.computeVertexNormals();
-        
-        const stream = new THREE.Mesh(streamGeometry, waterMaterial);
-        stream.rotation.x = -Math.PI / 2;
-        this.scene.add(stream);
-        
-        // Add rocks along the edges
-        const createRock = (size) => {
-            const rockGeometry = new THREE.DodecahedronGeometry(size);
-            const rockMaterial = new THREE.MeshStandardMaterial({
-                color: 0x7c7c7c,
-                roughness: 0.9,
-                metalness: 0.1
-            });
-            return new THREE.Mesh(rockGeometry, rockMaterial);
-        };
-
-        // Place rocks along both edges of the stream
-        for (let z = -streamLength/2; z < streamLength/2; z += 2) {
-            const streamX = Math.sin(z * 0.1) * 2;
-            
-            // Left edge rocks
-            if (Math.random() < 0.8) {
-                const rock = createRock(0.3 + Math.random() * 0.4);
-                rock.position.set(
-                    streamX - (streamWidth/2 + 0.3 + Math.random() * 0.5),
-                    -streamDepth + Math.random() * 0.5,
-                    z
-                );
-                rock.rotation.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI
-                );
-                this.scene.add(rock);
-            }
-            
-            // Right edge rocks
-            if (Math.random() < 0.8) {
-                const rock = createRock(0.3 + Math.random() * 0.4);
-                rock.position.set(
-                    streamX + (streamWidth/2 + 0.3 + Math.random() * 0.5),
-                    -streamDepth + Math.random() * 0.5,
-                    z
-                );
-                rock.rotation.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI
-                );
-                this.scene.add(rock);
-            }
-        }
-        
-        // Add stream particles (for water effect)
-        const particleGeometry = new THREE.BufferGeometry();
-        const particlePositions = [];
-        const particleCount = 200;
-        
-        for (let i = 0; i < particleCount; i++) {
-            particlePositions.push(
-                Math.random() * streamWidth - streamWidth/2 + Math.sin((i/particleCount) * streamLength * 0.1) * 2,
-                0.2,
-                (i/particleCount) * streamLength - streamLength/2
-            );
-        }
-        
-        particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.1,
-            transparent: true,
-            opacity: 0.6
-        });
-        
-        this.streamParticles = new THREE.Points(particleGeometry, particleMaterial);
-        this.scene.add(this.streamParticles);
-        
-        // Add trees
-        for (let i = 0; i < 20; i++) {
-            const angle = (i / 20) * Math.PI * 2;
-            const radius = 15 + Math.random() * 10;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            const tree = this.createPineTree(x, z);
-            this.scene.add(tree);
-        }
+        // Add varied trees
+        this.createTrees();
         
         // Create and add soldier model at a safe starting position
         this.soldier = this.createSoldier(false);
         this.player = new THREE.Group();
         this.player.add(this.soldier);
-        this.player.position.set(5, 1, 5); // Start away from stream
+        this.player.position.set(5, 1, 5);
         this.scene.add(this.player);
         
-        // Set up camera (now separate from player)
+        // Set up camera
         this.camera.position.copy(this.player.position).add(this.cameraOffset);
         this.scene.add(this.camera);
         
         // Create and add enemy
         this.enemy = this.createSoldier(true);
-        this.enemy.scale.set(1, 1, 1);
         this.enemy.position.set(-5, 1, -5);
         this.scene.add(this.enemy);
         
@@ -1242,6 +1108,282 @@ class Game {
         
         pistol.add(pistolBodyMesh);
         return pistol;
+    }
+
+    createMountains() {
+        const mountainCount = 12;
+        const mountainRadius = 100;
+        
+        for (let i = 0; i < mountainCount; i++) {
+            const angle = (i / mountainCount) * Math.PI * 2;
+            const x = Math.cos(angle) * mountainRadius;
+            const z = Math.sin(angle) * mountainRadius;
+            
+            // Create more complex mountain geometry
+            const mountainGeometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const segments = 8;
+            const height = 35 + Math.random() * 15;
+            
+            // Create base points
+            for (let j = 0; j < segments; j++) {
+                const segmentAngle = (j / segments) * Math.PI * 2;
+                const radius = 15 + Math.random() * 5;
+                const px = Math.cos(segmentAngle) * radius;
+                const pz = Math.sin(segmentAngle) * radius;
+                vertices.push(x + px, 0, z + pz);
+            }
+            
+            // Create triangles connecting to peak
+            for (let j = 0; j < segments; j++) {
+                const next = (j + 1) % segments;
+                vertices.push(
+                    x + Math.cos(j / segments * Math.PI * 2) * 15,
+                    0,
+                    z + Math.sin(j / segments * Math.PI * 2) * 15,
+                    x,
+                    height,
+                    z,
+                    x + Math.cos(next / segments * Math.PI * 2) * 15,
+                    0,
+                    z + Math.sin(next / segments * Math.PI * 2) * 15
+                );
+            }
+            
+            mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            mountainGeometry.computeVertexNormals();
+            
+            const mountainMaterial = new THREE.MeshStandardMaterial({
+                color: 0xaaaaaa,
+                roughness: 0.8,
+                metalness: 0.2,
+                side: THREE.DoubleSide
+            });
+            
+            const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+            this.scene.add(mountain);
+            
+            // Add snow caps
+            const snowCapGeometry = new THREE.ConeGeometry(8, 10, segments);
+            const snowMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const snowCap = new THREE.Mesh(snowCapGeometry, snowMaterial);
+            snowCap.position.set(x, height - 5, z);
+            this.scene.add(snowCap);
+        }
+    }
+
+    createCrates() {
+        const crateMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+
+        // Helper function to create a crate
+        const createCrate = (size, position) => {
+            const crateGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+            const crate = new THREE.Mesh(crateGeometry, crateMaterial);
+            crate.position.copy(position);
+            
+            // Add wood grain texture through geometry
+            const positions = crateGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] += (Math.random() - 0.5) * 0.02;
+                positions[i + 1] += (Math.random() - 0.5) * 0.02;
+                positions[i + 2] += (Math.random() - 0.5) * 0.02;
+            }
+            crateGeometry.attributes.position.needsUpdate = true;
+            
+            // Store crate for collision detection
+            this.crates.push({
+                mesh: crate,
+                size: size,
+                position: position
+            });
+            
+            return crate;
+        };
+
+        // Create crate stacks near bunker
+        const cratePositions = [
+            { size: new THREE.Vector3(1.5, 1.5, 1.5), pos: new THREE.Vector3(8, 0.75, -10) },
+            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(8, 2.1, -10) },
+            { size: new THREE.Vector3(2, 1, 2), pos: new THREE.Vector3(10, 0.5, -8) }
+        ];
+
+        // Create crates for jumping challenge near stream
+        const streamCrates = [
+            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-4, 0.5, 4) },
+            { size: new THREE.Vector3(1, 1, 1), pos: new THREE.Vector3(-2, 0.5, 7) },
+            { size: new THREE.Vector3(1.2, 1.2, 1.2), pos: new THREE.Vector3(0, 0.6, 10) }
+        ];
+
+        // Add all crates to scene
+        [...cratePositions, ...streamCrates].forEach(crate => {
+            const crateMesh = createCrate(crate.size, crate.pos);
+            this.scene.add(crateMesh);
+        });
+    }
+
+    createTrees() {
+        // Add varied trees around the scene
+        const treeTypes = ['pine', 'oak'];
+        const treeCount = 25;
+        
+        for (let i = 0; i < treeCount; i++) {
+            const angle = (i / treeCount) * Math.PI * 2;
+            const radius = 15 + Math.random() * 10;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Randomize tree characteristics
+            const type = treeTypes[Math.floor(Math.random() * treeTypes.length)];
+            const scale = 0.8 + Math.random() * 0.4;
+            
+            const tree = this.createPineTree(x, z, scale, type);
+            this.scene.add(tree);
+        }
+    }
+
+    createGround() {
+        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2d5a27,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        
+        // Enhanced terrain displacement
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            const distance = Math.sqrt(x * x + z * z);
+            
+            // Create varied terrain with hills and valleys
+            if (distance > 5) {
+                vertices[i + 1] = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2 +  // Large terrain features
+                                 Math.sin(x * 0.5) * Math.cos(z * 0.5) * 0.5 + // Medium hills
+                                 (Math.random() - 0.5) * 0.3;                   // Small detail
+            }
+        }
+        
+        groundGeometry.attributes.position.needsUpdate = true;
+        groundGeometry.computeVertexNormals();
+        
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        this.scene.add(ground);
+    }
+
+    createStream() {
+        const streamWidth = 3;
+        const streamLength = 100;
+        const streamDepth = 1;
+        
+        // Create sunken riverbed
+        const riverbedGeometry = new THREE.BoxGeometry(streamWidth + 2, streamDepth, streamLength);
+        const riverbedMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a4a4a,
+            roughness: 0.9
+        });
+        const riverbed = new THREE.Mesh(riverbedGeometry, riverbedMaterial);
+        riverbed.position.set(0, -streamDepth/2, 0);
+        this.scene.add(riverbed);
+        
+        // Create water surface with enhanced material
+        const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3498db,
+            metalness: 0.3,
+            roughness: 0.2,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        // Create meandering stream path
+        const streamVertices = streamGeometry.attributes.position.array;
+        for (let i = 0; i < streamVertices.length; i += 3) {
+            const z = streamVertices[i + 2];
+            streamVertices[i] += Math.sin(z * 0.1) * 2;
+            streamVertices[i + 1] = -streamDepth + 0.1;
+        }
+        streamGeometry.attributes.position.needsUpdate = true;
+        streamGeometry.computeVertexNormals();
+        
+        const stream = new THREE.Mesh(streamGeometry, waterMaterial);
+        stream.rotation.x = -Math.PI / 2;
+        this.scene.add(stream);
+        
+        // Add rocks along edges
+        this.addStreamRocks(streamWidth, streamLength, streamDepth);
+        
+        // Add water particles
+        this.addWaterParticles(streamWidth, streamLength);
+    }
+
+    addStreamRocks(streamWidth, streamLength, streamDepth) {
+        const createRock = (size) => {
+            const rockGeometry = new THREE.DodecahedronGeometry(size);
+            const rockMaterial = new THREE.MeshStandardMaterial({
+                color: 0x7c7c7c,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            return new THREE.Mesh(rockGeometry, rockMaterial);
+        };
+
+        for (let z = -streamLength/2; z < streamLength/2; z += 2) {
+            const streamX = Math.sin(z * 0.1) * 2;
+            
+            ['left', 'right'].forEach(side => {
+                if (Math.random() < 0.8) {
+                    const rock = createRock(0.3 + Math.random() * 0.4);
+                    const xOffset = (side === 'left' ? -1 : 1) * (streamWidth/2 + 0.3 + Math.random() * 0.5);
+                    rock.position.set(
+                        streamX + xOffset,
+                        -streamDepth + Math.random() * 0.5,
+                        z
+                    );
+                    rock.rotation.set(
+                        Math.random() * Math.PI,
+                        Math.random() * Math.PI,
+                        Math.random() * Math.PI
+                    );
+                    this.scene.add(rock);
+                }
+            });
+        }
+    }
+
+    addWaterParticles(streamWidth, streamLength) {
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = [];
+        const particleCount = 200;
+        
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions.push(
+                Math.random() * streamWidth - streamWidth/2 + Math.sin((i/particleCount) * streamLength * 0.1) * 2,
+                0.2,
+                (i/particleCount) * streamLength - streamLength/2
+            );
+        }
+        
+        particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+        
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.1,
+            transparent: true,
+            opacity: 0.6
+        });
+        
+        this.streamParticles = new THREE.Points(particleGeometry, particleMaterial);
+        this.scene.add(this.streamParticles);
     }
 }
 
