@@ -242,16 +242,33 @@ class Dinosaur {
     
     getNewTargetPosition() {
         const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * Constants.DINOSAUR.WANDER_RADIUS;
+        
+        // Limit the dinosaur's wandering radius to keep it in the main grassy area
+        const distance = Math.random() * (Constants.DINOSAUR.WANDER_RADIUS * 0.7); // Reduced radius
         
         // Use current position as base if it's valid, otherwise use a default position
         const baseX = isNaN(this.position.x) ? 30 : this.position.x;
         const baseZ = isNaN(this.position.z) ? 30 : this.position.z;
         
+        // Calculate new position
+        let newX = baseX + Math.cos(angle) * distance;
+        let newZ = baseZ + Math.sin(angle) * distance;
+        
+        // Ensure the dinosaur stays within the main grassy area bounds
+        // These values should match your main grassy area dimensions
+        const GRASSY_AREA_MIN_X = -50;
+        const GRASSY_AREA_MAX_X = 50;
+        const GRASSY_AREA_MIN_Z = -50;
+        const GRASSY_AREA_MAX_Z = 50;
+        
+        // Clamp the values to keep within bounds
+        newX = Math.max(GRASSY_AREA_MIN_X, Math.min(GRASSY_AREA_MAX_X, newX));
+        newZ = Math.max(GRASSY_AREA_MIN_Z, Math.min(GRASSY_AREA_MAX_Z, newZ));
+        
         return new THREE.Vector3(
-            baseX + Math.cos(angle) * distance,
+            newX,
             1,
-            baseZ + Math.sin(angle) * distance
+            newZ
         );
     }
     
@@ -1324,31 +1341,31 @@ class Game {
             const footstepSound = new THREE.Audio(this.listener);
             const audioContext = this.listener.context;
             
-            // Create a buffer for our footstep sound
+            // Create a buffer for our footstep sound - longer for more realistic boot sound
             const sampleRate = audioContext.sampleRate;
-            const duration = 0.15; // sound duration in seconds
+            const duration = 0.3; // longer duration for boots (was 0.15)
             const bufferSize = sampleRate * duration;
             const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
             
             // Get the channel data for processing
             const channelData = buffer.getChannelData(0);
             
-            // Generate a footstep sound
-            const attackTime = sampleRate * 0.02; // 20ms attack
+            // Generate a more realistic boot on grass sound
+            const attackTime = sampleRate * 0.03; // 30ms attack for heavier boot sound
             
-            // Different "materials" for variety
-            let baseTone = 0.3 + (variation * 0.1); // Slightly different tone per variation
-            let toneDecay = 0.7 - (variation * 0.05);
+            // Different "materials" for variety - deeper tones for boots
+            let baseTone = 0.15 + (variation * 0.05); // Lower frequency for boots
+            let toneDecay = 0.5 - (variation * 0.05);
             
-            // Initial impact
+            // Initial impact - heavier for boots
             for (let i = 0; i < attackTime; i++) {
-                // Sharper attack for footstep with some randomness
+                // Sharper attack for boot impact with some randomness
                 const phase = i / attackTime; 
-                const amplitude = 0.7 * (1 - phase) * (Math.random() * 0.4 + 0.6);
+                const amplitude = 0.9 * (1 - phase) * (Math.random() * 0.3 + 0.7);
                 channelData[i] = Math.sin(i * baseTone) * amplitude;
             }
             
-            // Decay part
+            // Decay part - longer for boots crushing grass
             const decayStart = attackTime;
             const decayTime = bufferSize - decayStart;
             
@@ -1356,19 +1373,24 @@ class Game {
                 const index = i + decayStart;
                 const phase = i / decayTime;
                 
-                // Exponential decay
-                const amplitude = 0.5 * Math.exp(-5.0 * phase);
+                // Slower decay for boots
+                const amplitude = 0.7 * Math.exp(-4.0 * phase);
                 
-                // Add some noise to simulate material crushing
-                const noise = (Math.random() * 2 - 1) * 0.2 * (1 - phase);
+                // Add more noise to simulate grass crushing under boots
+                const grassCrush = (Math.random() * 2 - 1) * 0.4 * (1 - phase);
                 
-                // Mix tone and noise for realistic footstep
-                channelData[index] = (Math.sin(i * baseTone * toneDecay) * amplitude) + noise * amplitude;
+                // Add a subtle "squish" effect for wet grass
+                const squishEffect = Math.sin(i * 0.1) * 0.1 * Math.exp(-8.0 * phase);
+                
+                // Mix tone, noise and squish for realistic boot on grass
+                channelData[index] = (Math.sin(i * baseTone * toneDecay) * amplitude) + 
+                                     (grassCrush * amplitude) + 
+                                     squishEffect;
             }
             
             // Set the buffer to our audio
             footstepSound.setBuffer(buffer);
-            footstepSound.setVolume(0.4); // Lower volume than gunshot
+            footstepSound.setVolume(0.6); // Higher volume for boots
             
             // Add to footstep sounds array
             this.footstepSounds.push(footstepSound);
@@ -1413,9 +1435,19 @@ class Game {
                 const newSound = new THREE.Audio(this.listener);
                 newSound.setBuffer(footstepSound.buffer);
                 
-                // Add slight random pitch variation for realism
-                const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
+                // Add slight random pitch variation for realism - lower for boots
+                const pitchVariation = 0.7 + Math.random() * 0.2; // 0.7-0.9 (lower pitch for boots)
                 newSound.setPlaybackRate(pitchVariation);
+                
+                // Add a low-pass filter for more realistic boot sound
+                if (this.listener.context) {
+                    const filter = this.listener.context.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 1000 + Math.random() * 500;
+                    
+                    // Connect through the filter
+                    newSound.setFilter(filter);
+                }
                 
                 newSound.play();
             }
@@ -2749,49 +2781,118 @@ class Game {
             }, 50);
         }
         
-        // Play rifle sound
+        // Play rifle sound - enhanced for a more badass sound
         if (this.audioInitialized && this.audioContext && this.audioContext.state === 'running') {
             try {
-                // Create oscillator for gunshot sound
-                const oscillator = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
+                // Create audio nodes
+                const mainGain = this.audioContext.createGain();
+                mainGain.connect(this.audioContext.destination);
+                mainGain.gain.value = 0.8; // Master volume
                 
-                // Connect nodes
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioContext.destination);
+                // 1. Create the initial explosion sound (low frequency boom)
+                const boomOsc = this.audioContext.createOscillator();
+                const boomGain = this.audioContext.createGain();
                 
-                // Set parameters for a gunshot-like sound
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(20, this.audioContext.currentTime + 0.1);
+                boomOsc.connect(boomGain);
+                boomGain.connect(mainGain);
                 
-                // Volume envelope
-                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.8, this.audioContext.currentTime + 0.01);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+                boomOsc.type = 'sawtooth';
+                boomOsc.frequency.setValueAtTime(80, this.audioContext.currentTime); // Lower frequency for more bass
+                boomOsc.frequency.exponentialRampToValueAtTime(30, this.audioContext.currentTime + 0.2);
                 
-                // Start and stop
-                oscillator.start();
-                oscillator.stop(this.audioContext.currentTime + 0.1);
+                // Volume envelope for the boom
+                boomGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+                boomGain.gain.linearRampToValueAtTime(1.0, this.audioContext.currentTime + 0.01);
+                boomGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
                 
-                // Add a mechanical click sound
+                // 2. Create the crack sound (high frequency)
+                const crackOsc = this.audioContext.createOscillator();
+                const crackGain = this.audioContext.createGain();
+                
+                crackOsc.connect(crackGain);
+                crackGain.connect(mainGain);
+                
+                crackOsc.type = 'sawtooth';
+                crackOsc.frequency.setValueAtTime(1200, this.audioContext.currentTime);
+                crackOsc.frequency.exponentialRampToValueAtTime(300, this.audioContext.currentTime + 0.1);
+                
+                // Volume envelope for the crack
+                crackGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+                crackGain.gain.linearRampToValueAtTime(0.8, this.audioContext.currentTime + 0.005);
+                crackGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+                
+                // 3. Add white noise for the blast
+                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
+                const noiseData = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    noiseData[i] = Math.random() * 2 - 1;
+                }
+                
+                const noiseSource = this.audioContext.createBufferSource();
+                noiseSource.buffer = noiseBuffer;
+                
+                const noiseGain = this.audioContext.createGain();
+                noiseSource.connect(noiseGain);
+                noiseGain.connect(mainGain);
+                
+                noiseGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+                noiseGain.gain.linearRampToValueAtTime(0.7, this.audioContext.currentTime + 0.01);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+                
+                // 4. Add a mechanical click sound
                 setTimeout(() => {
                     const clickOsc = this.audioContext.createOscillator();
                     const clickGain = this.audioContext.createGain();
                     
                     clickOsc.connect(clickGain);
-                    clickGain.connect(this.audioContext.destination);
+                    clickGain.connect(mainGain);
                     
                     clickOsc.type = 'square';
                     clickOsc.frequency.setValueAtTime(800, this.audioContext.currentTime);
                     
                     clickGain.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    clickGain.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+                    clickGain.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.01);
                     clickGain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.03);
                     
                     clickOsc.start();
                     clickOsc.stop(this.audioContext.currentTime + 0.03);
                 }, 50);
+                
+                // Start and stop all oscillators
+                boomOsc.start();
+                boomOsc.stop(this.audioContext.currentTime + 0.3);
+                
+                crackOsc.start();
+                crackOsc.stop(this.audioContext.currentTime + 0.1);
+                
+                noiseSource.start();
+                noiseSource.stop(this.audioContext.currentTime + 0.2);
+                
+                // Add reverb effect for more realistic outdoor gunshot
+                if (this.audioContext.createConvolver) {
+                    setTimeout(() => {
+                        const echoGain = this.audioContext.createGain();
+                        echoGain.gain.value = 0.3;
+                        echoGain.connect(this.audioContext.destination);
+                        
+                        const echoOsc = this.audioContext.createOscillator();
+                        const echoOscGain = this.audioContext.createGain();
+                        
+                        echoOsc.connect(echoOscGain);
+                        echoOscGain.connect(echoGain);
+                        
+                        echoOsc.type = 'sawtooth';
+                        echoOsc.frequency.setValueAtTime(100, this.audioContext.currentTime);
+                        echoOsc.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.3);
+                        
+                        echoOscGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+                        echoOscGain.gain.linearRampToValueAtTime(0.5, this.audioContext.currentTime + 0.05);
+                        echoOscGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
+                        
+                        echoOsc.start();
+                        echoOsc.stop(this.audioContext.currentTime + 0.5);
+                    }, 100);
+                }
             } catch (error) {
                 console.warn('Could not play rifle sound:', error);
             }
