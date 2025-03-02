@@ -270,9 +270,10 @@ function createHumanoidMesh() {
     // Create left arm group for positioning
     const leftArmGroup = new THREE.Group();
     leftArmGroup.position.set(-0.32, 1.1, 0.05);
-    // Rotate left arm slightly to support the gun
-    leftArmGroup.rotation.x = Math.PI * 0.12; // Tilt forward
-    leftArmGroup.rotation.z = -Math.PI * 0.1; // Angle inward
+    // Rotate left arm to support the front of the rifle
+    leftArmGroup.rotation.x = Math.PI * 0.05; // Less tilt forward for proper posture
+    leftArmGroup.rotation.z = -Math.PI * 0.15; // Angle outward to support rifle
+    leftArmGroup.rotation.y = Math.PI * 0.1; // Slight rotation to position hand properly
     playerGroup.add(leftArmGroup);
     
     // Left arm - tactical uniform
@@ -287,6 +288,7 @@ function createHumanoidMesh() {
     const forearmMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
     const leftForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
     leftForearm.position.set(0, -0.35, 0);
+    leftForearm.rotation.x = Math.PI * 0.1; // Angle for supporting the foregrip
     leftArmGroup.add(leftForearm);
     
     // Left tactical glove
@@ -299,9 +301,10 @@ function createHumanoidMesh() {
     // Create right arm group for positioning
     const rightArmGroup = new THREE.Group();
     rightArmGroup.position.set(0.32, 1.1, 0.1);
-    // Rotate right arm to hold the gun
-    rightArmGroup.rotation.x = Math.PI * 0.12; // Tilt forward
-    rightArmGroup.rotation.z = Math.PI * 0.1; // Angle inward
+    // Rotate right arm to hold the gun properly on the trigger/grip
+    rightArmGroup.rotation.x = Math.PI * 0.15; // More tilt forward for trigger hand
+    rightArmGroup.rotation.z = Math.PI * 0.15; // Angle inward toward body
+    rightArmGroup.rotation.y = -Math.PI * 0.05; // Slight rotation for better grip position
     playerAimHelper.add(rightArmGroup);
     
     // Right upper arm
@@ -312,6 +315,7 @@ function createHumanoidMesh() {
     // Right forearm
     const rightForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
     rightForearm.position.set(0, -0.35, 0);
+    rightForearm.rotation.x = Math.PI * 0.2; // Angle downward to grip the pistol grip
     rightArmGroup.add(rightForearm);
     
     // Right tactical glove
@@ -391,6 +395,13 @@ function createHumanoidMesh() {
     stock.position.set(0, -0.03, 0.45);
     gunGroup.add(stock);
     
+    // Add rifle buttstock padding
+    const buttpadGeometry = new THREE.BoxGeometry(0.06, 0.13, 0.02);
+    const buttpadMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.darkGrey });
+    const buttpad = new THREE.Mesh(buttpadGeometry, buttpadMaterial);
+    buttpad.position.set(0, -0.03, 0.58);
+    gunGroup.add(buttpad);
+    
     // Rail system on top of rifle
     const railGeometry = new THREE.BoxGeometry(0.04, 0.02, 0.5);
     const railMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
@@ -445,6 +456,17 @@ function createHumanoidMesh() {
     emitter.position.set(0, 0.1, -0.13);
     gunGroup.add(emitter);
     
+    // Add red glow for the sight
+    const redDotGeometry = new THREE.SphereGeometry(0.01, 8, 8);
+    const redDotMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xFF0000,
+        transparent: true,
+        opacity: 0.8
+    });
+    const redDot = new THREE.Mesh(redDotGeometry, redDotMaterial);
+    redDot.position.set(0, 0.1, -0.1);
+    gunGroup.add(redDot);
+    
     // Add tactical sling attachment points
     const slingPointGeometry = new THREE.TorusGeometry(0.015, 0.005, 8, 16);
     const slingPointMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
@@ -461,33 +483,30 @@ function createHumanoidMesh() {
     rearSlingPoint.position.set(0.03, 0, 0.3);
     gunGroup.add(rearSlingPoint);
     
-    // Position the entire gun between the hands
-    gunGroup.position.set(0, -0.1, 0.3);
+    // Position the rifle in proper aiming position
+    // Move the gun up toward shoulder level for aiming
+    gunGroup.position.set(0.05, 0.17, 0.25);
+    
+    // Tilt the gun slightly to align with soldier's eye line
+    gunGroup.rotation.x = -Math.PI * 0.03;
     // Rotate gun to point forward
     gunGroup.rotation.y = Math.PI;
+    // Slight tilt for realistic aiming
+    gunGroup.rotation.z = Math.PI * 0.02;
     
-    // Add a tactical sling from gun to player
-    const slingGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.6, 8);
-    const slingMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
-    const sling = new THREE.Mesh(slingGeometry, slingMaterial);
-    sling.rotation.z = Math.PI / 2;
-    sling.rotation.y = Math.PI / 8;
-    sling.position.set(0.2, 0.1, 0);
-    gunGroup.add(sling);
-    
-    // Create a connector between left arm and gun
-    leftArmGroup.add(gunGroup);
+    // Connect the right hand to the rifle grip
+    rightArmGroup.add(gunGroup);
     
     // Add visual aim indicator (laser sight from gun)
-    const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.6);
+    const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.8);
     const aimMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xFF0000,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.5
     });
     const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
     aimIndicator.name = "aimIndicator"; // Add name for reference
-    aimIndicator.position.set(0, 0.02, -0.8); // Position in front of gun
+    aimIndicator.position.set(0, 0.02, -0.9); // Position in front of gun
     gunGroup.add(aimIndicator);
     
     // Add a tactical knife on the belt
