@@ -96,7 +96,8 @@ function createHumanoidMesh() {
     
     // Create a group for the parts that rotate with aiming
     playerAimHelper = new THREE.Group();
-    playerAimHelper.position.y = 1.5; // Position at head height
+    // Adjust aim helper position to be at shoulder height, not head height
+    playerAimHelper.position.y = 1.2; 
     playerGroup.add(playerAimHelper);
     
     // Head (sphere)
@@ -142,7 +143,7 @@ function createHumanoidMesh() {
     
     // Right arm and gun (follows aim direction)
     const rightArmGroup = new THREE.Group();
-    rightArmGroup.position.set(0.35, 1.2, 0);
+    rightArmGroup.position.set(0.35, 0, 0); // Position relative to the aim helper
     playerAimHelper.add(rightArmGroup);
     
     const rightArm = new THREE.Mesh(armGeometry, armMaterial);
@@ -156,11 +157,11 @@ function createHumanoidMesh() {
     rightArmGroup.add(gun);
     
     // Create a visible aim direction indicator (for debugging)
-    const aimIndicatorGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.5, 8);
+    const aimIndicatorGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.3, 8);
     const aimIndicatorMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const aimIndicator = new THREE.Mesh(aimIndicatorGeometry, aimIndicatorMaterial);
     aimIndicator.rotation.x = Math.PI / 2; // Make it point forward (z-axis)
-    aimIndicator.position.z = -0.5; // Position it in front of the gun
+    aimIndicator.position.z = -0.4; // Position it in front of the gun
     rightArmGroup.add(aimIndicator);
     
     // Position the entire model so it stands on the ground
@@ -232,9 +233,15 @@ function init() {
         // Event listeners
         window.addEventListener('resize', onWindowResize, false);
         
-        // Keyboard controls - simplified event listeners
-        window.addEventListener('keydown', (e) => keys[e.code] = true);
-        window.addEventListener('keyup', (e) => keys[e.code] = false);
+        // Debug key presses to help diagnose movement issues
+        window.addEventListener('keydown', (e) => {
+            console.log('Key pressed:', e.code);
+            keys[e.code] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
         
         // Setup pointer lock for better mouse control
         renderer.domElement.addEventListener('click', () => {
@@ -344,40 +351,39 @@ function animate() {
     try {
         requestAnimationFrame(animate);
         
-        // Handle player movement with WASD
-        moveDirection.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
-        moveDirection.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
+        // Handle player movement with WASD - simplified to make diagnostics easier
+        const forward = keys['KeyW'] ? 1 : 0;
+        const backward = keys['KeyS'] ? 1 : 0;
+        const left = keys['KeyA'] ? 1 : 0; 
+        const right = keys['KeyD'] ? 1 : 0;
+        
+        // Log movement keys for debugging
+        if (forward || backward || left || right) {
+            console.log('Movement keys:', { forward, backward, left, right });
+        }
+        
+        moveDirection.z = forward - backward;
+        moveDirection.x = right - left;
         
         // Calculate actual movement direction based on camera orientation
-        // This keeps movement relative to the camera's view
         if (moveDirection.length() > 0) {
             moveDirection.normalize();
             
-            // Calculate the world forward direction (always camera-relative)
-            const worldForward = new THREE.Vector3(0, 0, -1);
-            worldForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            // Calculate the forward direction based on camera
+            const angle = camera.rotation.y;
+            const sin = Math.sin(angle);
+            const cos = Math.cos(angle);
             
-            // Calculate the world right direction
-            const worldRight = new THREE.Vector3(1, 0, 0);
-            worldRight.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            // Direction relative to camera
+            direction.x = moveDirection.x * cos + moveDirection.z * sin;
+            direction.z = moveDirection.x * -sin + moveDirection.z * cos;
             
-            // Combine the directions
-            direction.set(0, 0, 0);
-            if (moveDirection.z !== 0) direction.add(worldForward.clone().multiplyScalar(moveDirection.z));
-            if (moveDirection.x !== 0) direction.add(worldRight.clone().multiplyScalar(moveDirection.x));
+            // Add acceleration
+            velocity.x += direction.x * 0.1; // Increased for more responsive movement
+            velocity.z += direction.z * 0.1;
             
-            if (direction.length() > 0) {
-                direction.normalize();
-                
-                // Add acceleration
-                velocity.x += direction.x * 0.05;
-                velocity.z += direction.z * 0.05;
-                
-                // Update player's facing direction for body rotation
-                if (velocity.length() > 0.01) {
-                    playerDirection.copy(direction);
-                }
-            }
+            // Update player's facing direction for body rotation
+            playerDirection.copy(direction);
         }
         
         // Apply friction
