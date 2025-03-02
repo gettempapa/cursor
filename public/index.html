@@ -14,97 +14,68 @@
         body {
             overflow: hidden;
             background-color: #000;
-        }
-        
-        #gameContainer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #87ceeb;
-        }
-        
-        #loadingScreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
+            font-family: Arial, sans-serif;
+            color: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 24px;
-            z-index: 1000;
+            height: 100vh;
+            text-align: center;
         }
         
-        .loading-spinner {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 2s linear infinite;
+        h1 {
+            font-size: 32px;
             margin-bottom: 20px;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        p {
+            margin-bottom: 30px;
+            max-width: 600px;
+            line-height: 1.5;
         }
         
-        .debug {
-            position: fixed;
-            top: 10px;
-            left: 10px;
+        .button {
+            display: inline-block;
+            background-color: #3498db;
             color: white;
-            font-family: monospace;
-            z-index: 100;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 10px;
+            padding: 15px 30px;
             border-radius: 5px;
-            max-width: 500px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 12px;
-            line-height: 1.4;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            transition: background-color 0.3s;
+            margin: 10px;
+        }
+        
+        .button:hover {
+            background-color: #2980b9;
+        }
+        
+        .secondary {
+            background-color: #7f8c8d;
+        }
+        
+        .secondary:hover {
+            background-color: #95a5a6;
         }
     </style>
-    
-    <!-- Use non-module version of Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div id="gameContainer"></div>
-    <div id="loadingScreen">
-        <div class="loading-spinner"></div>
-        Loading game assets...
+    <h1>SOCOM-style Third Person Shooter</h1>
+    <p>
+        Welcome to the game! We've created multiple versions to ensure compatibility
+        across different browsers and systems.
+    </p>
+    
+    <a href="fixed-game.html" class="button">Launch Game (Recommended)</a>
+    <p style="font-size: 12px; margin-top: 5px;">
+        This version contains all game code in a single file for maximum compatibility.
+    </p>
+    
+    <div style="margin-top: 40px; opacity: 0.7; font-size: 14px;">
+        <p>Having issues? Contact support or try refreshing your browser.</p>
+        <p>Game best played with Chrome or Firefox.</p>
     </div>
-    <div id="debug" class="debug"></div>
-    
-    <!-- Use a normal script instead of module -->
-    <script src="js/non-module-game.js"></script>
-    
-    <script>
-        // Add a timeout to show an error if the game doesn't load
-        setTimeout(() => {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const debug = document.getElementById('debug');
-            
-            if (loadingScreen && loadingScreen.style.display !== 'none') {
-                debug.style.display = 'block';
-                debug.innerHTML += '<br>Game is taking too long to load. There might be an error.';
-                
-                // Check if THREE is loaded
-                if (typeof window.game === 'undefined') {
-                    debug.innerHTML += '<br>Game object not created. Check console for errors.';
-                }
-            }
-        }, 10000); // 10 seconds
-    </script>
 </body>
 </html> 
