@@ -7,8 +7,10 @@
   },
   "scripts": {
     "start": "NODE_ENV=production node server.js",
-    "dev": "vite",
+    "start:win": "set NODE_ENV=production && node server.js",
+    "dev": "node server.js",
     "build": "vite build",
+    "postinstall": "npm run build || echo 'Build failed, continuing anyway'",
     "preview": "vite preview"
   },
   "dependencies": {
