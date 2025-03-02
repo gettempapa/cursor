@@ -243,7 +243,13 @@ class Game {
             moving: false,
             shooting: false,
             lastShot: 0,
-            shotCooldown: 100 // milliseconds between shots
+            shotCooldown: 100, // milliseconds between shots
+            // Jump properties
+            isJumping: false,
+            jumpHeight: 2.0,
+            jumpSpeed: 0.15,
+            jumpVelocity: 0,
+            gravity: 0.008
         };
         
         // Create simple soldier model using basic materials
@@ -295,7 +301,7 @@ class Game {
         this.scene.add(this.player);
         
         // Setup camera for third-person view
-        this.cameraOffset = new THREE.Vector3(0, 1.5, 3); // Behind and above the player
+        this.cameraOffset = new THREE.Vector3(0.5, 1.8, 4); // Adjusted: slightly to the right, higher up, and further back
         this.updatePlayerCamera();
         
         // Create audio for weapon
@@ -345,9 +351,10 @@ class Game {
         this.muzzleFlash.visible = false;
         rifle.add(this.muzzleFlash);
         
-        // Position the rifle in player's hands
-        rifle.position.set(0.4, 0.4, 0.3);
-        rifle.rotation.y = -Math.PI / 12;
+        // Position the rifle in player's hands - FIXED DIRECTION
+        // Adjust to point forward instead of toward camera
+        rifle.position.set(0.3, 0.4, 0.2);
+        rifle.rotation.y = Math.PI / 10; // Rotated to point forward
         this.player.add(rifle);
         this.rifle = rifle;
     }
@@ -396,7 +403,8 @@ class Game {
             forward: false,
             backward: false,
             left: false,
-            right: false
+            right: false,
+            jump: false
         };
         
         // Keyboard controls
@@ -406,6 +414,7 @@ class Game {
                 case 'KeyS': this.moveState.backward = true; break;
                 case 'KeyA': this.moveState.left = true; break;
                 case 'KeyD': this.moveState.right = true; break;
+                case 'Space': this.jump(); break; // Trigger jump on spacebar
             }
         });
         
@@ -429,9 +438,9 @@ class Game {
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
                 // Limit vertical camera movement
-                const verticalLook = -e.movementY * 0.002;
+                const verticalLook = e.movementY * 0.002;
                 // Prevent looking too far up or down
-                this.cameraOffset.y = Math.max(1, Math.min(2.5, this.cameraOffset.y + verticalLook));
+                this.cameraOffset.y = Math.max(1, Math.min(2.5, this.cameraOffset.y - verticalLook));
             }
         });
         
@@ -476,6 +485,14 @@ class Game {
         }
     }
     
+    jump() {
+        // Only allow jumping if the player is on the ground
+        if (!this.playerState.isJumping && this.playerState.position.y <= 1.01) {
+            this.playerState.isJumping = true;
+            this.playerState.jumpVelocity = this.playerState.jumpSpeed;
+        }
+    }
+    
     updatePlayer() {
         // Calculate movement
         const direction = new THREE.Vector3(0, 0, 0);
@@ -487,16 +504,18 @@ class Game {
         
         this.playerState.moving = direction.length() > 0;
         
+        // Handle horizontal movement
         if (this.playerState.moving) {
             // Normalize direction vector and apply rotation
             direction.normalize();
             direction.applyEuler(this.playerState.rotation);
             
-            // Update position
-            this.playerState.position.add(direction.multiplyScalar(this.playerState.moveSpeed));
+            // Update position (x and z only)
+            const movement = direction.multiplyScalar(this.playerState.moveSpeed);
+            this.playerState.position.x += movement.x;
+            this.playerState.position.z += movement.z;
             
-            // Update player mesh position and rotation
-            this.player.position.copy(this.playerState.position);
+            // Update player mesh rotation
             this.player.rotation.y = this.playerState.rotation.y;
             
             // Animate legs when moving
@@ -505,6 +524,25 @@ class Game {
             // Reset leg positions when not moving
             this.resetPlayerLegs();
         }
+        
+        // Handle jumping and gravity
+        if (this.playerState.isJumping) {
+            // Apply jump velocity
+            this.playerState.position.y += this.playerState.jumpVelocity;
+            
+            // Apply gravity to reduce jump velocity
+            this.playerState.jumpVelocity -= this.playerState.gravity;
+            
+            // Check if player has landed
+            if (this.playerState.position.y <= 1 && this.playerState.jumpVelocity < 0) {
+                this.playerState.position.y = 1; // Reset to ground level
+                this.playerState.isJumping = false;
+                this.playerState.jumpVelocity = 0;
+            }
+        }
+        
+        // Update player mesh position
+        this.player.position.copy(this.playerState.position);
         
         // Update camera
         this.updatePlayerCamera();
@@ -544,9 +582,13 @@ class Game {
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Make camera look at player's head height
+        // Adjust player position to be down and to the left of the center/crosshair
+        // This is done by adjusting where the camera looks
         const lookTarget = this.playerState.position.clone();
-        lookTarget.y += 1; // Look at the player's head
+        lookTarget.y += 1.2; // Look slightly above player's head
+        lookTarget.x -= 0.5; // Offset to the left
+        lookTarget.z -= 1.0; // Offset forward, in front of player
+        
         this.camera.lookAt(lookTarget);
     }
     
