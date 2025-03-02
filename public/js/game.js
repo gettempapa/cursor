@@ -764,10 +764,36 @@ class Game {
         this.muzzleFlash.visible = false;
         rifle.add(this.muzzleFlash);
         
-        // Position the rifle in player's hands
-        rifle.position.set(0.3, 0.4, 0.3);
+        // Create hands to hold the rifle
+        this.createHands(rifle);
+        
+        // Position the rifle in player's hands - adjusted for better positioning
+        rifle.position.set(0.28, 0.45, 0.3);
+        rifle.rotation.y = -0.2; // Slight angle to appear more natural
+        
         this.player.add(rifle);
         this.rifle = rifle;
+    }
+    
+    // Add hands to hold the rifle
+    createHands(rifle) {
+        const handMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        
+        // Left hand (forward grip)
+        const leftHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
+        const leftHand = new THREE.Mesh(leftHandGeometry, handMaterial);
+        leftHand.position.set(0, -0.05, 0.3);
+        rifle.add(leftHand);
+        
+        // Right hand (trigger hand)
+        const rightHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
+        const rightHand = new THREE.Mesh(rightHandGeometry, handMaterial);
+        rightHand.position.set(0, -0.05, -0.1);
+        rifle.add(rightHand);
+        
+        // Store references to the hands
+        this.leftHand = leftHand;
+        this.rightHand = rightHand;
     }
     
     setupAudio() {
@@ -978,8 +1004,7 @@ class Game {
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Calculate a target point in front of the player
-        // This will be where the crosshair is positioned
+        // Calculate a target point in front of the player (where the crosshair is)
         const forwardDirection = new THREE.Vector3(0, 0, -1);
         forwardDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
         forwardDirection.multiplyScalar(20); // Look 20 units ahead
@@ -995,32 +1020,75 @@ class Game {
         // Have the camera look at this target (this is where the crosshair is)
         this.camera.lookAt(lookTarget);
         
-        // Update rifle to point at the center of screen/crosshair (which is our look target)
-        if (this.rifle) {
-            // Reset the rifle's local rotation
-            this.rifle.rotation.set(0, 0, 0);
+        // Improved rifle aiming that always points to the crosshair
+        this.updateRifleAim(lookTarget);
+    }
+    
+    updateRifleAim(lookTarget) {
+        if (!this.rifle) return;
+        
+        // Get the right arm for positioning
+        const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
+        const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
+        
+        // Calculate the direction vector from the player to the look target
+        const riflePosition = new THREE.Vector3(
+            this.player.position.x + this.rifle.position.x,
+            this.player.position.y + this.rifle.position.y,
+            this.player.position.z + this.rifle.position.z
+        );
+        
+        const rifleDirection = lookTarget.clone().sub(riflePosition);
+        rifleDirection.normalize();
+        
+        // Convert the world direction to a local rotation for the rifle
+        // First, reset the rifle's local rotation
+        this.rifle.rotation.set(0, 0, 0);
+        
+        // Calculate the yaw angle in the player's local space
+        const playerForward = new THREE.Vector3(0, 0, -1);
+        playerForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
+        
+        // Calculate the angle between the player's forward and the rifle direction
+        // Project vectors onto the XZ plane for yaw calculation
+        const playerForwardXZ = new THREE.Vector3(playerForward.x, 0, playerForward.z).normalize();
+        const rifleDirectionXZ = new THREE.Vector3(rifleDirection.x, 0, rifleDirection.z).normalize();
+        
+        const yawCos = playerForwardXZ.dot(rifleDirectionXZ);
+        const yawCross = new THREE.Vector3().crossVectors(playerForwardXZ, rifleDirectionXZ).y;
+        const yawAngle = Math.acos(Math.min(1, Math.max(-1, yawCos))) * (yawCross >= 0 ? 1 : -1);
+        
+        // Calculate the pitch angle
+        const pitchAngle = -Math.asin(Math.min(1, Math.max(-1, rifleDirection.y)));
+        
+        // Apply the calculated rotation with limits
+        // Limit yaw to a reasonable range to keep the rifle facing forward
+        const maxYaw = Math.PI / 3; // 60 degrees
+        const clampedYaw = Math.max(-maxYaw, Math.min(maxYaw, yawAngle));
+        
+        // Apply the rotation - first yaw, then pitch
+        this.rifle.rotation.y = clampedYaw;
+        this.rifle.rotation.x = pitchAngle;
+        
+        // Add a subtle weapon sway based on movement
+        if (this.playerState.moving) {
+            const swayAmount = 0.03;
+            const swaySpeed = 4;
+            const time = performance.now() * 0.001;
             
-            // Calculate the direction vector from the player to the look target
-            const rifleDirection = lookTarget.clone().sub(this.playerState.position);
-            rifleDirection.normalize();
+            this.rifle.rotation.z = Math.sin(time * swaySpeed) * swayAmount;
+            this.rifle.position.y = 0.45 + Math.sin(time * swaySpeed * 2) * 0.02;
+        } else {
+            this.rifle.rotation.z = 0;
+        }
+        
+        // Adjust arms to better hold the rifle based on its rotation
+        if (rightArm && leftArm) {
+            rightArm.rotation.x = this.rifle.rotation.x * 0.7;
+            rightArm.rotation.y = this.rifle.rotation.y * 0.5;
             
-            // Position the rifle in the player's hand but pointed at the crosshair
-            // Convert the world direction to a local rotation for the rifle
-            const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
-            
-            // Calculate the angle between the player's forward direction and the rifle direction
-            const yAngle = Math.atan2(rifleDirection.x, rifleDirection.z);
-            
-            // Apply the calculated rotation
-            this.rifle.rotation.y = yAngle;
-            
-            // Pitch the rifle up/down to aim at the crosshair's height
-            const xzDistance = Math.sqrt(rifleDirection.x * rifleDirection.x + rifleDirection.z * rifleDirection.z);
-            const xAngle = -Math.atan2(rifleDirection.y, xzDistance);
-            this.rifle.rotation.x = xAngle;
-            
-            // Position the rifle in the player's right hand
-            this.rifle.position.set(0.3, 0.4, 0.3);
+            leftArm.rotation.x = this.rifle.rotation.x * 0.7;
+            leftArm.rotation.y = this.rifle.rotation.y * 0.5;
         }
     }
     
