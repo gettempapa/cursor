@@ -40,11 +40,8 @@ class Game {
             moving: false
         };
         
-        // Camera angles
-        this.cameraAngles = {
-            vertical: 0,
-            horizontal: 0
-        };
+        // Standard TPS camera settings
+        this.cameraRotation = new THREE.Vector2(0, 0); // x: vertical, y: horizontal
     }
     
     createEnvironment() {
@@ -197,35 +194,35 @@ class Game {
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Horizontal rotation (left/right)
-                this.playerState.rotation.y -= e.movementX * 0.002;
+                // Standard TPS camera rotation
+                this.cameraRotation.y -= e.movementX * 0.002; // Horizontal
+                this.cameraRotation.x -= e.movementY * 0.002; // Vertical
                 
-                // Vertical rotation (up/down)
-                this.cameraAngles.vertical += e.movementY * 0.002;
-                this.cameraAngles.vertical = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.cameraAngles.vertical));
+                // Clamp vertical rotation to prevent flipping
+                this.cameraRotation.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, this.cameraRotation.x));
+                
+                // Update player rotation to match camera
+                this.playerState.rotation.y = this.cameraRotation.y;
             }
         });
     }
     
     updatePlayerCamera() {
-        const cameraHeight = 2;
-        const cameraDistance = 5;
+        // Standard third-person shooter camera positioning
+        const cameraOffset = new THREE.Vector3(0, 1.5, 4); // Slightly above and behind player
         
-        const playerPosition = this.playerState.position.clone();
-        playerPosition.y += 1.5;
+        // Calculate camera position based on player rotation
+        const rotatedOffset = cameraOffset.clone();
+        rotatedOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), this.cameraRotation.x);
+        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraRotation.y);
         
-        const horizontalDist = Math.cos(this.cameraAngles.vertical) * cameraDistance;
-        const verticalDist = Math.sin(this.cameraAngles.vertical) * cameraDistance;
+        // Position camera relative to player
+        const targetPosition = this.playerState.position.clone();
+        targetPosition.y += 1.5; // Eye level
+        this.camera.position.copy(targetPosition).sub(rotatedOffset);
         
-        const cameraPosition = new THREE.Vector3(
-            -Math.sin(this.playerState.rotation.y) * horizontalDist,
-            cameraHeight + verticalDist,
-            -Math.cos(this.playerState.rotation.y) * horizontalDist
-        );
-        
-        this.camera.position.copy(playerPosition).add(cameraPosition);
-        this.camera.lookAt(playerPosition);
-        this.camera.up.set(0, 1, 0);
+        // Look at player
+        this.camera.lookAt(targetPosition);
     }
     
     updatePlayer(deltaTime) {
