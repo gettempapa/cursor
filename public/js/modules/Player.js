@@ -30,6 +30,9 @@ export class Player {
         this.object.position.set(5, 1, 5);
         this.object.rotation.y = Math.PI;
         
+        // Add player to scene
+        this.scene.add(this.object);
+        
         // Camera settings
         this.setupCamera();
         
