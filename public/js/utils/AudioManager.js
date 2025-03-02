@@ -10,7 +10,7 @@ export class AudioManager {
     }
     
     loadGunshotSound() {
-        const duration = 0.5;
+        const duration = 1.0;
         const sampleRate = this.audioContext.sampleRate;
         this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
         const data = this.gunshotBuffer.getChannelData(0);
@@ -19,24 +19,24 @@ export class AudioManager {
             const t = i / sampleRate;
             
             // Initial supersonic crack
-            const crack = Math.exp(-t * 800) * (Math.random() * 2 - 1) * 2.0;
+            const crack = Math.exp(-t * 1200) * (Math.random() * 2 - 1) * 3.0;
             
             // Deep bass impact
-            const bass = Math.exp(-t * 20) * Math.sin(2 * Math.PI * 40 * t) * 2.5;
+            const bass = Math.exp(-t * 15) * Math.sin(2 * Math.PI * 30 * t) * 4.0;
             
             // Mid-frequency body
-            const mid = Math.exp(-t * 80) * Math.sin(2 * Math.PI * 300 * t) * 1.5;
+            const mid = Math.exp(-t * 60) * Math.sin(2 * Math.PI * 200 * t) * 2.0;
             
             // High-frequency crack detail
-            const highCrack = Math.exp(-t * 1000) * Math.sin(2 * Math.PI * 2000 * t) * 0.8;
+            const highCrack = Math.exp(-t * 1500) * Math.sin(2 * Math.PI * 3000 * t) * 1.2;
             
-            // Combine components
+            // Combine components with enhanced mixing
             data[i] = (
-                crack * 1.2 +
-                bass * 1.0 +
-                mid * 0.8 +
-                highCrack * 0.6
-            ) * 6.0;
+                crack * 1.5 +
+                bass * 1.8 +
+                mid * 1.2 +
+                highCrack * 0.8
+            ) * 8.0;
         }
     }
     
@@ -56,29 +56,29 @@ export class AudioManager {
     }
     
     createAudioChain() {
-        // Lowpass filter for bass
+        // Lowpass filter for enhanced bass
         const lowpass = this.audioContext.createBiquadFilter();
         lowpass.type = 'lowpass';
-        lowpass.frequency.value = 200;
-        lowpass.Q.value = 12.0;
+        lowpass.frequency.value = 150;
+        lowpass.Q.value = 15.0;
         
         // Highpass filter for crack
         const highpass = this.audioContext.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 4000;
-        highpass.Q.value = 9.0;
+        highpass.frequency.value = 5000;
+        highpass.Q.value = 12.0;
         
-        // Compressor for punch
+        // More aggressive compression for punch
         const compressor = this.audioContext.createDynamicsCompressor();
-        compressor.threshold.value = -24;
+        compressor.threshold.value = -30;
         compressor.knee.value = 0;
-        compressor.ratio.value = 20;
+        compressor.ratio.value = 25;
         compressor.attack.value = 0;
         compressor.release.value = 0.1;
         
-        // Echo effect
+        // Enhanced echo effect for outdoor environment
         const convolver = this.audioContext.createConvolver();
-        const reverbTime = 5.0;
+        const reverbTime = 8.0;
         const rate = this.audioContext.sampleRate;
         const length = rate * reverbTime;
         const impulse = this.audioContext.createBuffer(2, length, rate);
@@ -86,20 +86,20 @@ export class AudioManager {
         this.createReverbImpulse(impulse, reverbTime);
         convolver.buffer = impulse;
         
-        // Volume controls
+        // Volume controls with more impact
         const mainGain = this.audioContext.createGain();
-        mainGain.gain.value = 2.0;
+        mainGain.gain.value = 3.0;
         
         const reverbGain = this.audioContext.createGain();
-        reverbGain.gain.value = 1.0;
+        reverbGain.gain.value = 1.5;
         
         // Connect the chain
         compressor.connect(lowpass);
         lowpass.connect(highpass);
         
-        // Split into direct and reverb paths
+        // Split into direct and reverb paths with enhanced balance
         const directGain = this.audioContext.createGain();
-        directGain.gain.value = 1.2;
+        directGain.gain.value = 1.5;
         highpass.connect(directGain);
         directGain.connect(mainGain);
         
@@ -118,21 +118,28 @@ export class AudioManager {
         const right = impulse.getChannelData(1);
         const rate = this.audioContext.sampleRate;
         
-        const echoPeaks = [0.02, 0.06, 0.1, 0.15, 0.25, 0.4];
+        // More echo peaks for complex outdoor reflections
+        const echoPeaks = [
+            0.01, 0.03, 0.06, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6, 0.8
+        ];
         
         for (let i = 0; i < impulse.length; i++) {
             const t = i / rate;
             let echoSum = 0;
             
+            // Enhanced echo pattern
             for (const delay of echoPeaks) {
-                echoSum += Math.exp(-12 * Math.abs(t - delay)) * (1 - t / reverbTime);
+                echoSum += Math.exp(-8 * Math.abs(t - delay)) * (1 - t / reverbTime);
             }
             
-            const decay = Math.exp(-1.0 * i / impulse.length);
-            const value = decay * (1 + echoSum) * 1.2;
+            // Slower decay for outdoor environment
+            const decay = Math.exp(-0.8 * i / impulse.length);
+            const value = decay * (1 + echoSum) * 1.5;
             
-            left[i] = value;
-            right[i] = value;
+            // Add slight stereo variation for more realistic outdoor echo
+            const stereoOffset = Math.sin(t * 2.5) * 0.1;
+            left[i] = value * (1 + stereoOffset);
+            right[i] = value * (1 - stereoOffset);
         }
     }
     
