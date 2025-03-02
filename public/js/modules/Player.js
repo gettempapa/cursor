@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
 import { WeaponSystem } from './WeaponSystem.js';
 
 export class Player {
