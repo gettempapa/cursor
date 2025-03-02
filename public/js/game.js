@@ -18,6 +18,9 @@ class Game {
         this.jumpForce = 0.3;
         this.isGrounded = true;
         
+        // Store crates for collision detection
+        this.crates = [];
+        
         // Movement and rotation state
         this.moveState = {
             forward: false,
@@ -79,11 +82,19 @@ class Game {
         this.isDead = false;
         this.deathMessageContainer = null;
         
+        // Add weapon state
+        this.currentWeapon = 'rifle';
+        this.weaponMenuVisible = false;
+        this.weaponMenuContainer = null;
+        
         // Set up basic scene
         this.setupScene();
         
         // Set up controls
         this.setupControls();
+        
+        // Set up weapon menu
+        this.setupWeaponMenu();
         
         // Handle window resizing
         window.addEventListener('resize', () => this.onWindowResize(), false);
@@ -144,61 +155,15 @@ class Game {
         rightArm.position.set(-0.4, 0.4, 0);
         soldier.add(rightArm);
 
-        // Add rifle in combat position
-        const rifleMaterial = new THREE.MeshStandardMaterial({ color: 0x2f2f2f }); // Dark gray for rifle
-        
-        // Rifle body
-        const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
-        const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
-        rifle.position.set(0.3, 0.5, 0.3); // Moved forward and up
-        rifle.rotation.set(0, -Math.PI/12, 0); // Slight angle inward
-        
-        // Rifle stock
-        const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
-        const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
-        stock.position.set(0, -0.05, -0.6);
-        rifle.add(stock);
-        
-        // Rifle scope
-        const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
-        const scope = new THREE.Mesh(scopeGeometry, rifleMaterial);
-        scope.rotation.x = Math.PI / 2;
-        scope.position.set(0, 0.1, 0.2);
-        rifle.add(scope);
-
-        // Create muzzle flash (initially invisible)
-        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const flashMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            transparent: true,
-            opacity: 0
-        });
-        
-        if (isEnemy) {
-            this.enemyMuzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.enemyMuzzleFlash.position.set(0, 0, 0.7);
-            this.enemyMuzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
-            this.enemyMuzzleLight.position.copy(this.enemyMuzzleFlash.position);
-            rifle.add(this.enemyMuzzleFlash);
-            rifle.add(this.enemyMuzzleLight);
+        // Add initial weapon (rifle)
+        if (!isEnemy) {
+            const rifle = this.createRifle();
+            soldier.add(rifle);
         } else {
-            this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.muzzleFlash.position.set(0, 0, 0.7);
-            this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
-            this.muzzleLight.position.copy(this.muzzleFlash.position);
-            rifle.add(this.muzzleFlash);
-            rifle.add(this.muzzleLight);
+            // Enemy always uses rifle
+            const rifle = this.createRifle();
+            soldier.add(rifle);
         }
-        
-        // Adjust arms for combat stance
-        if (leftArm && rightArm) {
-            leftArm.position.set(0.3, 0.5, 0.2);
-            leftArm.rotation.set(0, -Math.PI/12, 0);
-            rightArm.position.set(-0.3, 0.5, 0.2);
-            rightArm.rotation.set(0, Math.PI/12, 0);
-        }
-        
-        soldier.add(rifle);
         
         return soldier;
     }
@@ -289,6 +254,9 @@ class Game {
         // Add bridge
         this.createBridge();
 
+        // Add crates
+        this.createCrates();
+
         // Add fog for misty mountains
         this.scene.fog = new THREE.Fog(0xcccccc, 30, 100);
         
@@ -352,32 +320,43 @@ class Game {
         // Add stream
         const streamWidth = 3;
         const streamLength = 100;
+        const streamDepth = 1; // 3 feet depth
+        
+        // Create sunken riverbed
+        const riverbedGeometry = new THREE.BoxGeometry(streamWidth + 2, streamDepth, streamLength);
+        const riverbedMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a4a4a,
+            roughness: 0.9
+        });
+        const riverbed = new THREE.Mesh(riverbedGeometry, riverbedMaterial);
+        riverbed.position.set(0, -streamDepth/2, 0);
+        this.scene.add(riverbed);
+        
+        // Create water surface
         const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3498db, // Nice blue water color
+            metalness: 0.2,
+            roughness: 0.3,
+            transparent: true,
+            opacity: 0.8
+        });
         
         // Create meandering stream path
         const streamVertices = streamGeometry.attributes.position.array;
         for (let i = 0; i < streamVertices.length; i += 3) {
             const z = streamVertices[i + 2];
             streamVertices[i] += Math.sin(z * 0.1) * 2; // Meandering path
-            streamVertices[i + 1] = 0.1; // Slightly above ground
+            streamVertices[i + 1] = -streamDepth + 0.1; // Place water surface just above riverbed
         }
         streamGeometry.attributes.position.needsUpdate = true;
         streamGeometry.computeVertexNormals();
         
-        const waterMaterial = new THREE.MeshStandardMaterial({
-            color: 0x355e3b, // Changed to forest green
-            metalness: 0.2,
-            roughness: 0.8,
-            transparent: true,
-            opacity: 0.9
-        });
-        
         const stream = new THREE.Mesh(streamGeometry, waterMaterial);
         stream.rotation.x = -Math.PI / 2;
-        stream.position.y = 0.1; // Slightly above ground
         this.scene.add(stream);
         
-        // Add rocks and vegetation along stream
+        // Add rocks along the edges
         const createRock = (size) => {
             const rockGeometry = new THREE.DodecahedronGeometry(size);
             const rockMaterial = new THREE.MeshStandardMaterial({
@@ -388,88 +367,40 @@ class Game {
             return new THREE.Mesh(rockGeometry, rockMaterial);
         };
 
-        const createReedCluster = () => {
-            const reedGroup = new THREE.Group();
-            const reedMaterial = new THREE.MeshStandardMaterial({
-                color: 0x567d46,
-                roughness: 0.8
-            });
-
-            for (let i = 0; i < 5; i++) {
-                const height = 0.5 + Math.random() * 0.5;
-                const reedGeometry = new THREE.CylinderGeometry(0.02, 0.02, height, 4);
-                const reed = new THREE.Mesh(reedGeometry, reedMaterial);
-                
-                // Position within cluster
-                reed.position.set(
-                    Math.random() * 0.3 - 0.15,
-                    height / 2,
-                    Math.random() * 0.3 - 0.15
-                );
-                
-                // Random slight tilt
-                reed.rotation.x = (Math.random() - 0.5) * 0.2;
-                reed.rotation.z = (Math.random() - 0.5) * 0.2;
-                
-                reedGroup.add(reed);
-            }
-            return reedGroup;
-        };
-
-        // Place rocks and vegetation along stream path
-        for (let i = -streamLength/2; i < streamLength/2; i += 4) {
-            const streamX = Math.sin(i * 0.1) * 2; // Follow stream's meandering
+        // Place rocks along both edges of the stream
+        for (let z = -streamLength/2; z < streamLength/2; z += 2) {
+            const streamX = Math.sin(z * 0.1) * 2;
             
-            // Left side of stream
-            if (Math.random() < 0.7) { // 70% chance for each position
-                const rock = createRock(0.3 + Math.random() * 0.4);
-                rock.position.set(
-                    streamX - (1.8 + Math.random()),
-                    Math.random() * 0.3,
-                    i
-                );
-                rock.rotation.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI
-                );
-                this.scene.add(rock);
-            }
-            
-            if (Math.random() < 0.8) { // 80% chance for vegetation
-                const reeds = createReedCluster();
-                reeds.position.set(
-                    streamX - (1.5 + Math.random() * 0.5),
-                    0,
-                    i
-                );
-                this.scene.add(reeds);
-            }
-            
-            // Right side of stream
-            if (Math.random() < 0.7) {
-                const rock = createRock(0.3 + Math.random() * 0.4);
-                rock.position.set(
-                    streamX + (1.8 + Math.random()),
-                    Math.random() * 0.3,
-                    i
-                );
-                rock.rotation.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI
-                );
-                this.scene.add(rock);
-            }
-            
+            // Left edge rocks
             if (Math.random() < 0.8) {
-                const reeds = createReedCluster();
-                reeds.position.set(
-                    streamX + (1.5 + Math.random() * 0.5),
-                    0,
-                    i
+                const rock = createRock(0.3 + Math.random() * 0.4);
+                rock.position.set(
+                    streamX - (streamWidth/2 + 0.3 + Math.random() * 0.5),
+                    -streamDepth + Math.random() * 0.5,
+                    z
                 );
-                this.scene.add(reeds);
+                rock.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                this.scene.add(rock);
+            }
+            
+            // Right edge rocks
+            if (Math.random() < 0.8) {
+                const rock = createRock(0.3 + Math.random() * 0.4);
+                rock.position.set(
+                    streamX + (streamWidth/2 + 0.3 + Math.random() * 0.5),
+                    -streamDepth + Math.random() * 0.5,
+                    z
+                );
+                rock.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                this.scene.add(rock);
             }
         }
         
@@ -609,6 +540,22 @@ class Game {
                 this.audioContext.resume();
             }
         });
+
+        // Add weapon menu controls
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyI') {
+                this.toggleWeaponMenu(!this.weaponMenuVisible);
+            } else if (this.weaponMenuVisible) {
+                switch(e.code) {
+                    case 'Digit1':
+                        this.switchWeapon('rifle');
+                        break;
+                    case 'Digit2':
+                        this.switchWeapon('pistol');
+                        break;
+                }
+            }
+        });
     }
     
     updateMovement() {
@@ -739,14 +686,14 @@ class Game {
     }
 
     setupCrosshair() {
-        // Create crosshair container
+        // Create crosshair container - positioned up and to the right
         const crosshairContainer = document.createElement('div');
         crosshairContainer.style.position = 'absolute';
-        crosshairContainer.style.top = '50%';
-        crosshairContainer.style.left = '50%';
+        crosshairContainer.style.top = '45%'; // Moved up
+        crosshairContainer.style.left = '52%'; // Moved right
         crosshairContainer.style.transform = 'translate(-50%, -50%)';
-        crosshairContainer.style.width = '24px';
-        crosshairContainer.style.height = '24px';
+        crosshairContainer.style.width = '20px'; // Slightly smaller
+        crosshairContainer.style.height = '20px';
         crosshairContainer.style.pointerEvents = 'none';
 
         // Create crosshair
@@ -760,7 +707,7 @@ class Game {
         circle.style.position = 'absolute';
         circle.style.width = '100%';
         circle.style.height = '100%';
-        circle.style.border = '2px solid rgba(255, 0, 0, 0.8)';
+        circle.style.border = '1.5px solid rgba(255, 255, 255, 0.8)'; // White, thinner, more professional
         circle.style.borderRadius = '50%';
         crosshair.appendChild(circle);
         
@@ -768,15 +715,15 @@ class Game {
         const createLine = (vertical) => {
             const line = document.createElement('div');
             line.style.position = 'absolute';
-            line.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+            line.style.backgroundColor = 'rgba(255, 255, 255, 0.8)'; // White
             
             if (vertical) {
-                line.style.width = '2px';
+                line.style.width = '1.5px'; // Thinner lines
                 line.style.height = '100%';
                 line.style.left = '50%';
                 line.style.transform = 'translateX(-50%)';
             } else {
-                line.style.height = '2px';
+                line.style.height = '1.5px'; // Thinner lines
                 line.style.width = '100%';
                 line.style.top = '50%';
                 line.style.transform = 'translateY(-50%)';
@@ -793,31 +740,33 @@ class Game {
     }
 
     loadGunshotSound() {
-        // Create a powerful AR-15 style gunshot sound
-        const duration = 0.4; // Longer duration for more bass and echo
+        const duration = 0.5; // Longer for more bass and echo
         const sampleRate = this.audioContext.sampleRate;
         this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
         const data = this.gunshotBuffer.getChannelData(0);
         
-        // Generate a powerful crack with deep bass
         for (let i = 0; i < data.length; i++) {
             const t = i / sampleRate;
             
-            // Initial supersonic crack (very sharp attack)
-            const crack = Math.exp(-t * 500) * (Math.random() * 2 - 1);
+            // Initial supersonic crack (sharper and louder)
+            const crack = Math.exp(-t * 800) * (Math.random() * 2 - 1) * 1.2;
             
-            // Deep bass impact
-            const bass = Math.exp(-t * 30) * Math.sin(2 * Math.PI * 80 * t);
+            // Deep bass impact (lower frequency, more powerful)
+            const bass = Math.exp(-t * 20) * Math.sin(2 * Math.PI * 60 * t) * 1.5;
             
-            // Mid-frequency body
-            const mid = Math.exp(-t * 100) * Math.sin(2 * Math.PI * 400 * t);
+            // Mid-frequency body (fuller sound)
+            const mid = Math.exp(-t * 80) * Math.sin(2 * Math.PI * 300 * t);
             
-            // Combine components with proper mixing
+            // High-frequency crack detail
+            const highCrack = Math.exp(-t * 1000) * Math.sin(2 * Math.PI * 2000 * t) * 0.3;
+            
+            // Combine components with enhanced mixing
             data[i] = (
-                crack * 0.7 +    // Sharp crack
-                bass * 0.6 +     // Deep bass
-                mid * 0.4        // Mid frequencies
-            ) * 3.0;            // Increased overall volume
+                crack * 0.8 +     // Sharper initial crack
+                bass * 0.7 +      // Stronger bass
+                mid * 0.5 +       // Fuller mid-range
+                highCrack * 0.4   // Crisp high-end detail
+            ) * 4.0;             // Overall volume boost
         }
     }
 
@@ -830,69 +779,66 @@ class Game {
         // Enhanced bass frequencies
         const lowpass = this.audioContext.createBiquadFilter();
         lowpass.type = 'lowpass';
-        lowpass.frequency.value = 400;
-        lowpass.Q.value = 8.0; // Sharper resonance for punchier bass
+        lowpass.frequency.value = 300; // Lower frequency for more bass
+        lowpass.Q.value = 10.0; // Sharper resonance
         
         // Supersonic crack frequencies
         const highpass = this.audioContext.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 2500;
-        highpass.Q.value = 5.0;
+        highpass.frequency.value = 3000; // Higher for sharper crack
+        highpass.Q.value = 7.0;
         
-        // Aggressive compression for that powerful sound
+        // More aggressive compression
         const compressor = this.audioContext.createDynamicsCompressor();
-        compressor.threshold.value = -24;
+        compressor.threshold.value = -30;
         compressor.knee.value = 0;
-        compressor.ratio.value = 12;
+        compressor.ratio.value = 15;
         compressor.attack.value = 0;
-        compressor.release.value = 0.25;
+        compressor.release.value = 0.2;
         
-        // Create powerful echo effect
+        // Enhanced echo effect
         const convolver = this.audioContext.createConvolver();
-        const reverbTime = 3.0;
+        const reverbTime = 4.0;
         const rate = this.audioContext.sampleRate;
         const length = rate * reverbTime;
         const impulse = this.audioContext.createBuffer(2, length, rate);
         const left = impulse.getChannelData(0);
         const right = impulse.getChannelData(1);
         
-        // Create multiple distinct echo reflections
+        // Create more powerful echo reflections
         for (let i = 0; i < length; i++) {
             const t = i / rate;
-            // Distinct echo peaks for AR-15 style reflection pattern
-            const echoPeaks = [0.05, 0.1, 0.15, 0.25, 0.4, 0.6];
+            const echoPeaks = [0.03, 0.08, 0.12, 0.2, 0.3, 0.5];
             let echoSum = 0;
             for (const delay of echoPeaks) {
-                // Sharper echo peaks with less noise
-                echoSum += Math.exp(-12 * Math.abs(t - delay)) * (1 - t / reverbTime);
+                echoSum += Math.exp(-15 * Math.abs(t - delay)) * (1 - t / reverbTime);
             }
-            const decay = Math.exp(-1.5 * i / length);
-            // Less random noise in the echo, more defined reflections
-            left[i] = decay * (1 + echoSum) * 0.7;
-            right[i] = decay * (1 + echoSum) * 0.7;
+            const decay = Math.exp(-1.2 * i / length);
+            left[i] = decay * (1 + echoSum) * 0.8;
+            right[i] = decay * (1 + echoSum) * 0.8;
         }
         convolver.buffer = impulse;
         
         // Volume controls
         const mainGain = this.audioContext.createGain();
-        mainGain.gain.value = 0.8; // Increased main volume
+        mainGain.gain.value = 1.0; // Full volume
         
         const reverbGain = this.audioContext.createGain();
-        reverbGain.gain.value = 0.6; // Stronger echo
+        reverbGain.gain.value = 0.7; // Stronger echo
         
-        // Connect the audio processing chain
+        // Connect the enhanced audio chain
         source.connect(compressor);
         compressor.connect(lowpass);
         lowpass.connect(highpass);
         
-        // Split into two paths: direct sound and echo
+        // Split into direct sound and echo
         const directGain = this.audioContext.createGain();
-        directGain.gain.value = 0.7;
+        directGain.gain.value = 0.8;
         highpass.connect(directGain);
         directGain.connect(mainGain);
         mainGain.connect(this.audioContext.destination);
         
-        // Echo path with more defined reflections
+        // Echo path
         highpass.connect(convolver);
         convolver.connect(reverbGain);
         reverbGain.connect(this.audioContext.destination);
@@ -1076,8 +1022,8 @@ class Game {
             metalness: 0.1
         });
         
-        // Main bridge platform
-        const bridgeGeometry = new THREE.BoxGeometry(4, 0.2, 6);
+        // Main bridge platform - extended to cover full stream width
+        const bridgeGeometry = new THREE.BoxGeometry(6, 0.2, 6);
         const bridge = new THREE.Mesh(bridgeGeometry, woodMaterial);
         bridge.position.set(0, 0.3, 0);
         bridgeGroup.add(bridge);
@@ -1085,20 +1031,20 @@ class Game {
         // Add railings
         const railingGeometry = new THREE.BoxGeometry(0.1, 0.5, 6);
         const leftRailing = new THREE.Mesh(railingGeometry, woodMaterial);
-        leftRailing.position.set(-1.9, 0.5, 0);
+        leftRailing.position.set(-2.9, 0.5, 0);
         bridgeGroup.add(leftRailing);
         
         const rightRailing = new THREE.Mesh(railingGeometry, woodMaterial);
-        rightRailing.position.set(1.9, 0.5, 0);
+        rightRailing.position.set(2.9, 0.5, 0);
         bridgeGroup.add(rightRailing);
         
         // Add support posts
-        const postGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const postGeometry = new THREE.BoxGeometry(0.2, 1.5, 0.2); // Made posts taller
         const positions = [
-            [-1.9, -0.1, -2.9],
-            [-1.9, -0.1, 2.9],
-            [1.9, -0.1, -2.9],
-            [1.9, -0.1, 2.9]
+            [-2.9, -0.6, -2.9], // Lowered posts to reach riverbed
+            [-2.9, -0.6, 2.9],
+            [2.9, -0.6, -2.9],
+            [2.9, -0.6, 2.9]
         ];
         
         positions.forEach(pos => {
@@ -1111,10 +1057,10 @@ class Game {
         bridgeGroup.position.set(0, 0, 0);
         this.scene.add(bridgeGroup);
         
-        // Store bridge bounds for collision detection
+        // Update bridge bounds for collision detection
         this.bridgeBox = new THREE.Box3(
-            new THREE.Vector3(-2, 0, -3),
-            new THREE.Vector3(2, 0.5, 3)
+            new THREE.Vector3(-3, 0, -3),
+            new THREE.Vector3(3, 0.5, 3)
         );
     }
 
@@ -1157,6 +1103,145 @@ class Game {
         this.player.position.set(5, 1, 5);
         this.player.rotation.set(0, 0, 0);
         this.soldier.rotation.set(0, 0, 0);
+    }
+
+    setupWeaponMenu() {
+        // Create weapon menu container
+        this.weaponMenuContainer = document.createElement('div');
+        this.weaponMenuContainer.style.position = 'absolute';
+        this.weaponMenuContainer.style.top = '50%';
+        this.weaponMenuContainer.style.left = '50%';
+        this.weaponMenuContainer.style.transform = 'translate(-50%, -50%)';
+        this.weaponMenuContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        this.weaponMenuContainer.style.padding = '20px';
+        this.weaponMenuContainer.style.borderRadius = '10px';
+        this.weaponMenuContainer.style.display = 'none';
+        this.weaponMenuContainer.style.color = 'white';
+        this.weaponMenuContainer.style.fontFamily = 'Arial, sans-serif';
+        this.weaponMenuContainer.style.fontSize = '24px';
+        this.weaponMenuContainer.style.textAlign = 'left';
+        this.weaponMenuContainer.style.minWidth = '200px';
+        
+        // Add weapon options
+        this.weaponMenuContainer.innerHTML = `
+            <div style="margin-bottom: 20px; color: #ff0; text-align: center;">WEAPON SELECT</div>
+            <div style="margin: 10px 0;">1. Rifle</div>
+            <div style="margin: 10px 0;">2. Pistol</div>
+        `;
+        
+        this.container.appendChild(this.weaponMenuContainer);
+    }
+
+    toggleWeaponMenu(show) {
+        if (this.weaponMenuContainer) {
+            this.weaponMenuContainer.style.display = show ? 'block' : 'none';
+            this.weaponMenuVisible = show;
+            
+            // Lock/unlock controls based on menu state
+            if (show) {
+                document.exitPointerLock();
+            }
+        }
+    }
+
+    switchWeapon(weaponType) {
+        const oldWeapon = this.soldier.children.find(child => child.isWeapon);
+        if (oldWeapon) {
+            this.soldier.remove(oldWeapon);
+        }
+
+        if (weaponType === 'rifle') {
+            const rifle = this.createRifle();
+            this.soldier.add(rifle);
+            this.currentWeapon = 'rifle';
+        } else if (weaponType === 'pistol') {
+            const pistol = this.createPistol();
+            this.soldier.add(pistol);
+            this.currentWeapon = 'pistol';
+        }
+
+        this.toggleWeaponMenu(false);
+    }
+
+    createRifle() {
+        const rifle = new THREE.Group();
+        rifle.isWeapon = true;
+        
+        const rifleMaterial = new THREE.MeshStandardMaterial({ color: 0x2f2f2f });
+        
+        // Rifle body - positioned for proper military stance
+        const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
+        const rifleBodyMesh = new THREE.Mesh(rifleBody, rifleMaterial);
+        rifleBodyMesh.position.set(0.4, 0.35, 0.3); // Moved forward and up for proper stance
+        rifleBodyMesh.rotation.set(0, -Math.PI/24, 0); // Less angled, more straight
+        
+        // Rifle stock
+        const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
+        const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
+        stock.position.set(0, -0.05, -0.6);
+        rifleBodyMesh.add(stock);
+        
+        // Rifle scope
+        const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
+        const scope = new THREE.Mesh(scopeGeometry, rifleMaterial);
+        scope.rotation.x = Math.PI / 2;
+        scope.position.set(0, 0.1, 0.2);
+        rifleBodyMesh.add(scope);
+
+        // Add muzzle flash
+        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0
+        });
+        
+        this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+        this.muzzleFlash.position.set(0, 0, 0.7);
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
+        this.muzzleLight.position.copy(this.muzzleFlash.position);
+        rifleBodyMesh.add(this.muzzleFlash);
+        rifleBodyMesh.add(this.muzzleLight);
+        
+        rifle.add(rifleBodyMesh);
+        return rifle;
+    }
+
+    createPistol() {
+        const pistol = new THREE.Group();
+        pistol.isWeapon = true;
+        
+        const pistolMaterial = new THREE.MeshStandardMaterial({ color: 0x2f2f2f });
+        
+        // Pistol body - positioned for proper stance
+        const pistolBody = new THREE.BoxGeometry(0.08, 0.15, 0.4);
+        const pistolBodyMesh = new THREE.Mesh(pistolBody, pistolMaterial);
+        pistolBodyMesh.position.set(0.4, 0.35, 0.3); // Aligned with rifle position
+        pistolBodyMesh.rotation.set(0, -Math.PI/24, 0); // Less angled
+        
+        // Pistol grip
+        const gripGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.12);
+        const grip = new THREE.Mesh(gripGeometry, pistolMaterial);
+        grip.position.set(0, -0.15, 0);
+        pistolBodyMesh.add(grip);
+
+        // Add muzzle flash
+        const flashGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0
+        });
+        
+        this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+        this.muzzleFlash.position.set(0, 0, 0.25);
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 2);
+        this.muzzleLight.position.copy(this.muzzleFlash.position);
+        pistolBodyMesh.add(this.muzzleFlash);
+        pistolBodyMesh.add(this.muzzleLight);
+        
+        pistol.add(pistolBodyMesh);
+        return pistol;
     }
 }
 
