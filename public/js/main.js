@@ -16,7 +16,12 @@ const keys = {};
 const velocity = new THREE.Vector3();
 const moveDirection = new THREE.Vector3();
 const direction = new THREE.Vector3(); // Add missing direction vector that was removed
-const friction = 0.95; // Add friction to make movement more realistic
+const friction = 0.85; // Higher friction for more predictable stopping
+
+// Movement parameters
+const MAX_SPEED = 0.2; // Maximum movement speed
+const ACCELERATION = 0.01; // Lower acceleration for smoother control
+const DECELERATION = 0.95; // How quickly the player slows down
 
 // Physics parameters
 const GRAVITY = 0.015;
@@ -410,14 +415,31 @@ function animate() {
         moveDirection.normalize();
     }
     
-    // Convert move direction to camera-relative direction
+    // Convert movement to camera-relative direction
+    // Use the horizontal component of camera rotation (mouseX)
     direction.copy(moveDirection);
     direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
     
-    // Apply acceleration based on input
-    const acceleration = 0.02;
-    velocity.x += direction.x * acceleration;
-    velocity.z += direction.z * acceleration;
+    // Apply acceleration with proper speed limits
+    if (direction.length() > 0) {
+        // Add acceleration in the movement direction
+        velocity.x += direction.x * ACCELERATION;
+        velocity.z += direction.z * ACCELERATION;
+        
+        // Calculate current horizontal speed
+        const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        
+        // If we're exceeding max speed, scale it back
+        if (currentSpeed > MAX_SPEED) {
+            const scaleFactor = MAX_SPEED / currentSpeed;
+            velocity.x *= scaleFactor;
+            velocity.z *= scaleFactor;
+        }
+    } else {
+        // Apply stronger deceleration when no keys are pressed
+        velocity.x *= DECELERATION;
+        velocity.z *= DECELERATION;
+    }
     
     // Apply gravity
     velocity.y -= GRAVITY;
@@ -428,7 +450,7 @@ function animate() {
     player.position.z += velocity.z;
     
     // Ground collision
-    if (player.position.y < 1) { // 1 is the player's height/2
+    if (player.position.y < 1) {
         player.position.y = 1;
         velocity.y = 0;
         isOnGround = true;
@@ -438,11 +460,22 @@ function animate() {
     velocity.x *= friction;
     velocity.z *= friction;
     
-    // Update player rotation to face the direction of movement
+    // Smoothly rotate player body to face movement direction when moving
     if (direction.length() > 0.1) {
         playerDirection.copy(direction).normalize();
         const targetRotation = Math.atan2(playerDirection.x, playerDirection.z);
-        playerBody.rotation.y = targetRotation;
+        
+        // Smooth rotation - interpolate between current and target rotation
+        const rotationSpeed = 0.15;
+        const currentRotation = playerBody.rotation.y;
+        
+        // Calculate shortest rotation path
+        let rotationDiff = targetRotation - currentRotation;
+        if (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+        if (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+        
+        // Apply smooth rotation
+        playerBody.rotation.y += rotationDiff * rotationSpeed;
     }
     
     // Update aim direction based on mouse
