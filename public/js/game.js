@@ -1,4 +1,4 @@
-import * as THREE from 'three/build/three.module.js';
+import * as THREE from 'three';
 import { Player } from './modules/Player.js';
 import { Enemy } from './modules/Enemy.js';
 import { Environment } from './modules/Environment.js';

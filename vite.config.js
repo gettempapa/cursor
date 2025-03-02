@@ -16,5 +16,13 @@ export default defineConfig({
         main: resolve(__dirname, 'public/index.html')
       }
     }
+  },
+  optimizeDeps: {
+    include: ['three']
+  },
+  resolve: {
+    alias: {
+      'three': 'three'
+    }
   }
 }); 
