@@ -3423,28 +3423,26 @@ class Game {
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Very simple third-person controls:
-                // Horizontal mouse = rotate player
-                // Vertical mouse = tilt camera up/down
+                // Classic third-person controls with separated axes
                 
-                // Horizontal rotation - apply directly to player
+                // Horizontal rotation (yaw) - controls the player's facing direction
                 this.playerState.rotation.y -= e.movementX * 0.001;
                 
-                // Make sure cameraAngles is initialized
+                // Initialize camera angles if needed
                 if (!this.cameraAngles) {
                     this.cameraAngles = { vertical: 0, horizontal: 0 };
                 }
                 
-                // Vertical tilt - kept separate from player rotation
-                // This is a direct angle, not applied to any quaternion or euler
-                const newVerticalAngle = this.cameraAngles.vertical + (e.movementY * 0.001);
+                // Vertical rotation (pitch) - controls looking up/down
+                // Apply negative multiplier for proper direction
+                this.cameraAngles.vertical -= e.movementY * 0.001;
                 
-                // Constrain to reasonable limits
+                // Constrain vertical rotation to prevent flipping
                 this.cameraAngles.vertical = Math.max(
-                    -Math.PI / 6, // Up limit
+                    -Math.PI / 4, // Up limit (less than 90 degrees to prevent issues)
                     Math.min(
-                        Math.PI / 8,  // Down limit
-                        newVerticalAngle
+                        Math.PI / 6,  // Down limit
+                        this.cameraAngles.vertical
                     )
                 );
             }
@@ -3747,53 +3745,50 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Standard third-person shooter camera implementation with fixed distance
+        // Fixed third-person camera implementation with no twisting
         
-        // Use constants for camera positioning
-        const cameraDistance = Math.abs(Constants.PLAYER.CAMERA_OFFSET.z);  // Make sure this is positive
+        // Get camera parameters
+        const cameraDistance = Math.abs(Constants.PLAYER.CAMERA_OFFSET.z);
         const cameraHeight = Constants.PLAYER.CAMERA_OFFSET.y;
         
-        // Position camera directly behind player based on player's rotation
-        // Using exact sine/cosine calculations for precise positioning
-        const cameraPosition = new THREE.Vector3(
-            this.playerState.position.x - Math.sin(this.playerState.rotation.y) * cameraDistance,
-            this.playerState.position.y + cameraHeight,
-            this.playerState.position.z - Math.cos(this.playerState.rotation.y) * cameraDistance
-        );
+        // Position the camera using only simple transformations
+        // First position camera at player's position
+        this.camera.position.copy(this.playerState.position);
         
-        // Smooth camera position to prevent jarring movements
-        this.camera.position.lerp(cameraPosition, 0.1);
+        // Then offset it backward and up (no complex math)
+        this.camera.position.x -= Math.sin(this.playerState.rotation.y) * cameraDistance;
+        this.camera.position.z -= Math.cos(this.playerState.rotation.y) * cameraDistance;
+        this.camera.position.y += cameraHeight;
         
-        // Have camera look at player's head
-        const targetHeight = 0.8; // Slightly lower to see more of the environment
-        const targetPosition = this.playerState.position.clone();
-        targetPosition.y += targetHeight;
+        // The critical fix: EXPLICITLY control all camera rotation values
+        // This prevents any unwanted roll that causes twisting
         
-        // Apply vertical angle for looking up/down
-        if (this.cameraAngles && this.cameraAngles.vertical !== 0) {
-            // Calculate vertical offset based on the look angle
-            const verticalOffset = Math.sin(this.cameraAngles.vertical) * cameraDistance;
-            targetPosition.y -= verticalOffset;
+        // First, reset the camera rotation completely
+        this.camera.rotation.set(0, 0, 0, 'YXZ');
+        
+        // Set ONLY the rotations we want (no roll/z-rotation)
+        // Match player's Y rotation for horizontal look
+        this.camera.rotation.y = this.playerState.rotation.y;
+        
+        // Apply vertical tilt if present (X rotation)
+        if (this.cameraAngles && typeof this.cameraAngles.vertical === 'number') {
+            // Only apply pitch (X rotation) - this is what controls looking up/down
+            this.camera.rotation.x = this.cameraAngles.vertical;
         }
         
-        // Point camera at the target position
-        this.camera.lookAt(targetPosition);
+        // EXPLICITLY zero out any roll to prevent twisting
+        this.camera.rotation.z = 0;
         
         // Calculate aim direction for the weapon
         const aimDirection = new THREE.Vector3(0, 0, -1);
-        aimDirection.applyEuler(new THREE.Euler(
-            this.cameraAngles ? this.cameraAngles.vertical : 0,
-            this.playerState.rotation.y,
-            0,
-            'YXZ'
-        ));
+        aimDirection.applyEuler(this.camera.rotation);
         
-        // Set the aim target for the weapon
+        // Set the rifle aim target
         const aimTarget = this.playerState.position.clone();
-        aimTarget.y += 1.0; // Aim from eye level
+        aimTarget.y += 1.0; // Eye level
         aimTarget.add(aimDirection.multiplyScalar(20));
         
-        // Update the rifle's aim
+        // Update rifle aiming
         this.updateRifleAim(aimTarget);
     }
     
