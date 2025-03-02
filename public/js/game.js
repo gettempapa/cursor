@@ -140,26 +140,26 @@ class Game {
         rightArm.position.set(-0.4, 0.4, 0);
         soldier.add(rightArm);
 
-        // Add rifle
+        // Add rifle in combat position
         const rifleMaterial = new THREE.MeshStandardMaterial({ color: 0x2f2f2f }); // Dark gray for rifle
         
         // Rifle body
         const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
         const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
-        rifle.position.set(0.4, 0.4, 0); // Adjusted position
-        rifle.rotation.y = 0; // Point forward
+        rifle.position.set(0.3, 0.5, 0.3); // Moved forward and up
+        rifle.rotation.set(0, -Math.PI/12, 0); // Slight angle inward
         
         // Rifle stock
         const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
         const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
-        stock.position.set(0, 0, -0.6); // Adjusted position
+        stock.position.set(0, -0.05, -0.6);
         rifle.add(stock);
         
         // Rifle scope
         const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
         const scope = new THREE.Mesh(scopeGeometry, rifleMaterial);
         scope.rotation.x = Math.PI / 2;
-        scope.position.set(0, 0.1, 0);
+        scope.position.set(0, 0.1, 0.2);
         rifle.add(scope);
 
         // Create muzzle flash (initially invisible)
@@ -172,18 +172,26 @@ class Game {
         
         if (isEnemy) {
             this.enemyMuzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.enemyMuzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
+            this.enemyMuzzleFlash.position.set(0, 0, 0.7);
             this.enemyMuzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
             this.enemyMuzzleLight.position.copy(this.enemyMuzzleFlash.position);
             rifle.add(this.enemyMuzzleFlash);
             rifle.add(this.enemyMuzzleLight);
         } else {
             this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.muzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
+            this.muzzleFlash.position.set(0, 0, 0.7);
             this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
             this.muzzleLight.position.copy(this.muzzleFlash.position);
             rifle.add(this.muzzleFlash);
             rifle.add(this.muzzleLight);
+        }
+        
+        // Adjust arms for combat stance
+        if (leftArm && rightArm) {
+            leftArm.position.set(0.3, 0.5, 0.2);
+            leftArm.rotation.set(0, -Math.PI/12, 0);
+            rightArm.position.set(-0.3, 0.5, 0.2);
+            rightArm.rotation.set(0, Math.PI/12, 0);
         }
         
         soldier.add(rifle);
@@ -235,10 +243,28 @@ class Game {
     checkCollisions(newPosition) {
         const playerPosition = new THREE.Vector2(newPosition.x, newPosition.z);
         
+        // Check tree collisions
         for (const tree of this.trees) {
             const distance = playerPosition.distanceTo(tree.position);
             if (distance < (this.playerCollisionRadius + tree.radius)) {
                 return true; // Collision detected
+            }
+        }
+        
+        // Check bunker collisions (only with walls, not the interior)
+        if (this.bunkerBox) {
+            const margin = 0.3; // Allow player to move close to walls
+            const isInBunkerX = newPosition.x >= (this.bunkerBox.min.x + margin) && 
+                               newPosition.x <= (this.bunkerBox.max.x - margin);
+            const isInBunkerZ = newPosition.z >= (this.bunkerBox.min.z + margin) && 
+                               newPosition.z <= (this.bunkerBox.max.z - margin);
+            
+            // If player is not fully inside or outside bunker (i.e., trying to walk through a wall)
+            if ((isInBunkerX && !isInBunkerZ && newPosition.z > this.bunkerBox.min.z - margin && 
+                 newPosition.z < this.bunkerBox.max.z + margin) ||
+                (!isInBunkerX && isInBunkerZ && newPosition.x > this.bunkerBox.min.x - margin && 
+                 newPosition.x < this.bunkerBox.max.x + margin)) {
+                return true; // Collision with bunker wall
             }
         }
         
@@ -252,6 +278,9 @@ class Game {
         directionalLight.position.set(1, 1, 1);
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
+
+        // Add bunker
+        this.createBunker();
 
         // Add fog for misty mountains
         this.scene.fog = new THREE.Fog(0xcccccc, 30, 100);
@@ -291,7 +320,7 @@ class Game {
         // Add ground
         const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x355e3b, // Forest green
+            color: 0x3498db, // Changed to water blue
             roughness: 0.8,
             metalness: 0.2
         });
@@ -326,11 +355,11 @@ class Game {
         streamGeometry.computeVertexNormals();
         
         const waterMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3498db,
-            metalness: 0.9,
-            roughness: 0.1,
+            color: 0x355e3b, // Changed to forest green
+            metalness: 0.2,
+            roughness: 0.8,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.9
         });
         
         const stream = new THREE.Mesh(streamGeometry, waterMaterial);
@@ -741,20 +770,20 @@ class Game {
     }
 
     loadGunshotSound() {
-        // Create a more powerful gunshot sound
-        const duration = 0.2;
+        // Create a more powerful gunshot sound with longer duration
+        const duration = 0.3; // Increased duration
         const sampleRate = this.audioContext.sampleRate;
         this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
         const data = this.gunshotBuffer.getChannelData(0);
         
-        // Generate a punchier sound
+        // Generate a much punchier sound
         for (let i = 0; i < data.length; i++) {
             const t = i / sampleRate;
-            // Mix noise with a sharper attack and longer decay
-            const attack = Math.exp(-t * 100);
-            const decay = Math.exp(-t * 15);
+            // Mix noise with an even sharper attack and longer decay
+            const attack = Math.exp(-t * 150); // Sharper attack
+            const decay = Math.exp(-t * 8); // Longer decay
             const noise = Math.random() * 2 - 1;
-            data[i] = (noise * attack * 0.5 + noise * decay * 0.5) * 1.5;
+            data[i] = (noise * attack * 0.7 + noise * decay * 0.6) * 2.0; // Increased amplitude
         }
     }
 
@@ -764,17 +793,18 @@ class Game {
         const source = this.audioContext.createBufferSource();
         source.buffer = this.gunshotBuffer;
         
-        // Add a lowpass filter for more bass
+        // Enhanced bass with lower frequency
         const lowpass = this.audioContext.createBiquadFilter();
         lowpass.type = 'lowpass';
-        lowpass.frequency.value = 1000;
+        lowpass.frequency.value = 800;
+        lowpass.Q.value = 5.0; // Resonance for more punch
         
-        // Add a highpass filter to keep some crack
+        // Sharper crack
         const highpass = this.audioContext.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 200;
+        highpass.frequency.value = 2000;
         
-        // Add distortion for power
+        // More aggressive distortion
         const distortion = this.audioContext.createWaveShaper();
         function makeDistortionCurve(amount) {
             const k = amount;
@@ -782,34 +812,42 @@ class Game {
             const curve = new Float32Array(samples);
             for (let i = 0; i < samples; ++i) {
                 const x = (i * 2) / samples - 1;
-                curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 0.5) * 2;
+                curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 0.3) * 3;
             }
             return curve;
         }
-        distortion.curve = makeDistortionCurve(50);
+        distortion.curve = makeDistortionCurve(100);
         
-        // Create convolver for echo effect
+        // Create canyon-like echo effect
         const convolver = this.audioContext.createConvolver();
-        const reverbTime = 1;
+        const reverbTime = 3.0; // Longer reverb time for canyon effect
         const rate = this.audioContext.sampleRate;
         const length = rate * reverbTime;
         const impulse = this.audioContext.createBuffer(2, length, rate);
         const left = impulse.getChannelData(0);
         const right = impulse.getChannelData(1);
         
+        // Create multiple echo reflections
         for (let i = 0; i < length; i++) {
-            const decay = Math.exp(-3 * i / length);
-            left[i] = (Math.random() * 2 - 1) * decay;
-            right[i] = (Math.random() * 2 - 1) * decay;
+            const t = i / rate;
+            // Create distinct echo peaks
+            const echoPeaks = [0.1, 0.3, 0.6, 1.0, 1.5, 2.0];
+            let echoSum = 0;
+            for (const delay of echoPeaks) {
+                echoSum += Math.exp(-8 * Math.abs(t - delay)) * (1 - t / reverbTime);
+            }
+            const decay = Math.exp(-2 * i / length);
+            left[i] = (Math.random() * 2 - 1) * decay * (1 + echoSum);
+            right[i] = (Math.random() * 2 - 1) * decay * (1 + echoSum);
         }
         convolver.buffer = impulse;
         
-        // Create volume controls
+        // Volume controls
         const mainGain = this.audioContext.createGain();
-        mainGain.gain.value = 0.4; // Main volume
+        mainGain.gain.value = 0.5; // Main volume
         
         const reverbGain = this.audioContext.createGain();
-        reverbGain.gain.value = 0.2; // Echo volume
+        reverbGain.gain.value = 0.4; // Stronger echo
         
         // Connect the audio nodes
         source.connect(distortion);
@@ -820,12 +858,11 @@ class Game {
         highpass.connect(mainGain);
         mainGain.connect(this.audioContext.destination);
         
-        // Reverb path
+        // Canyon echo path
         highpass.connect(convolver);
         convolver.connect(reverbGain);
         reverbGain.connect(this.audioContext.destination);
         
-        // Play the sound
         source.start();
     }
 
@@ -922,6 +959,77 @@ class Game {
                 break;
             }
         }
+    }
+
+    createBunker() {
+        const bunkerGroup = new THREE.Group();
+        
+        // Bunker materials
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5c5c5c,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const windowMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a2a2a,
+            roughness: 0.5,
+            metalness: 0.3
+        });
+
+        // Main bunker structure (5x3x4 meters)
+        const bunkerGeometry = new THREE.BoxGeometry(5, 3, 4);
+        const bunker = new THREE.Mesh(bunkerGeometry, wallMaterial);
+        bunker.position.set(8, 1.5, -8); // Position in the scene
+        
+        // Create windows
+        const windowWidth = 1;
+        const windowHeight = 0.8;
+        const windowDepth = 0.3;
+        const windowGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, windowDepth);
+        
+        // Front windows
+        const frontWindow1 = new THREE.Mesh(windowGeometry, windowMaterial);
+        frontWindow1.position.set(-1.5, 0.5, 2);
+        bunker.add(frontWindow1);
+        
+        const frontWindow2 = new THREE.Mesh(windowGeometry, windowMaterial);
+        frontWindow2.position.set(1.5, 0.5, 2);
+        bunker.add(frontWindow2);
+        
+        // Side windows
+        const sideWindow1 = new THREE.Mesh(windowGeometry, windowMaterial);
+        sideWindow1.rotation.y = Math.PI / 2;
+        sideWindow1.position.set(2.5, 0.5, 0);
+        bunker.add(sideWindow1);
+        
+        const sideWindow2 = new THREE.Mesh(windowGeometry, windowMaterial);
+        sideWindow2.rotation.y = Math.PI / 2;
+        sideWindow2.position.set(-2.5, 0.5, 0);
+        bunker.add(sideWindow2);
+        
+        // Add entrance (no door, just an opening)
+        const entranceWidth = 1.2;
+        const entranceHeight = 2;
+        const entranceGeometry = new THREE.BoxGeometry(entranceWidth, entranceHeight, 0.3);
+        const entrance = new THREE.Mesh(entranceGeometry, windowMaterial);
+        entrance.position.set(0, -0.5, -2);
+        bunker.add(entrance);
+        
+        // Add roof overhang
+        const roofGeometry = new THREE.BoxGeometry(5.5, 0.2, 4.5);
+        const roof = new THREE.Mesh(roofGeometry, wallMaterial);
+        roof.position.set(0, 1.6, 0);
+        bunker.add(roof);
+        
+        bunkerGroup.add(bunker);
+        this.scene.add(bunkerGroup);
+        
+        // Add bunker collision box (slightly smaller than visual model to allow player to enter)
+        const bunkerBox = new THREE.Box3(
+            new THREE.Vector3(6, 0, -10),  // min point
+            new THREE.Vector3(10, 3, -6)   // max point
+        );
+        this.bunkerBox = bunkerBox;
     }
 }
 
