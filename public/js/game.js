@@ -8,7 +8,10 @@ export class Game {
     constructor() {
         this.container = document.getElementById('gameContainer');
         this.scene = new THREE.Scene();
-        this.renderer = this.setupRenderer();
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setClearColor(0x87ceeb); // Sky blue background
+        this.container.appendChild(this.renderer.domElement);
         
         // Initialize game components
         this.environment = new Environment(this.scene);
@@ -31,26 +34,15 @@ export class Game {
         this.animate();
     }
     
-    setupRenderer() {
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0xADD8E6); // Light sky blue background
-        this.container.appendChild(renderer.domElement);
-        return renderer;
-    }
-    
     setupControls() {
         // Mouse movement
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                this.player.handleMouseMovement(
-                    e.movementX || e.mozMovementX || e.webkitMovementX || 0,
-                    e.movementY || e.mozMovementY || e.webkitMovementY || 0
-                );
+                this.player.handleMouseMove(e.movementX, e.movementY);
             }
         });
         
-        // WASD, Space, and R controls
+        // Keyboard controls
         document.addEventListener('keydown', (e) => {
             if (this.player.isDead) return;
             
@@ -59,17 +51,19 @@ export class Game {
                 case 'KeyS': this.player.moveState.backward = true; break;
                 case 'KeyA': this.player.moveState.left = true; break;
                 case 'KeyD': this.player.moveState.right = true; break;
-                case 'KeyR': this.player.weaponSystem.reload(); break;
-                case 'Space':
+                case 'Space': 
                     if (this.player.isGrounded) {
                         this.player.velocity.y = this.player.jumpForce;
                         this.player.isGrounded = false;
                     }
                     break;
-                case 'KeyI':
-                    const show = !this.ui.weaponMenuContainer.style.display || 
-                               this.ui.weaponMenuContainer.style.display === 'none';
-                    this.ui.toggleWeaponMenu(show);
+                case 'KeyR':
+                    this.player.weaponSystem.reload();
+                    this.ui.showReloadIndicator();
+                    break;
+                case 'Tab':
+                    e.preventDefault();
+                    this.ui.toggleWeaponMenu();
                     break;
                 case 'Digit1':
                     if (this.ui.weaponMenuContainer.style.display === 'block') {
@@ -126,20 +120,15 @@ export class Game {
                 this.player.handleZoom(e.deltaY);
             }
         });
-        
-        // Respawn handler
-        document.addEventListener('keydown', () => {
-            if (this.player.isDead) {
-                this.player.respawn();
-                this.ui.hideDeathMessage();
-            }
-        });
     }
     
     onWindowResize() {
-        this.player.camera.aspect = window.innerWidth / window.innerHeight;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        this.player.camera.aspect = width / height;
         this.player.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setSize(width, height);
     }
     
     animate() {
