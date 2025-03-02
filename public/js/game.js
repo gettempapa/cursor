@@ -3386,7 +3386,13 @@ class Game {
             jump: false
         };
 
-        // Camera angles are now initialized in initializeGameComponents
+        // Ensure camera angles are initialized
+        if (!this.cameraAngles) {
+            this.cameraAngles = {
+                vertical: 0,
+                horizontal: 0
+            };
+        }
         
         // Track mouse state for shooting
         this.mouseDown = false;
@@ -3410,26 +3416,33 @@ class Game {
             }
         });
         
-        // Mouse controls for standard third-person shooter
+        // Mouse controls for third-person shooter
         this.container.addEventListener('click', () => {
             this.container.requestPointerLock();
         });
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // In standard third-person shooter controls:
-                // - Horizontal mouse movement rotates the player character (not just the camera)
-                // - Vertical mouse movement only adjusts the camera pitch
+                // Standard third-person control:
+                // - Horizontal mouse movement rotates the player
+                // - Vertical mouse movement tilts the camera
                 
                 // Update player rotation based on horizontal mouse movement
-                this.playerState.rotation.y -= e.movementX * 0.002;
+                // Lower sensitivity for smoother control
+                this.playerState.rotation.y -= e.movementX * 0.001;
                 
-                // Update camera pitch (vertical angle) with tighter constraints for better control
+                // Ensure this.cameraAngles exists
+                if (!this.cameraAngles) {
+                    this.cameraAngles = { vertical: 0, horizontal: 0 };
+                }
+                
+                // Update camera vertical angle (looking up/down)
+                // Note: we invert the sign for more intuitive control
                 this.cameraAngles.vertical = Math.max(
-                    -Math.PI / 4, // Look up limit (less extreme)
+                    -Math.PI / 6, // Look up limit (less extreme)
                     Math.min(
-                        Math.PI / 8, // Look down limit (less extreme)
-                        this.cameraAngles.vertical + e.movementY * 0.002
+                        Math.PI / 12, // Look down limit (less extreme)
+                        this.cameraAngles.vertical + e.movementY * 0.001
                     )
                 );
             }
@@ -3732,51 +3745,53 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Fixed third-person shooter camera implementation
+        // Standard third-person shooter camera implementation with fixed distance
         
-        // Calculate camera position directly behind player
-        // Use a fixed distance for the camera to prevent circular panning
-        const cameraDistance = Constants.PLAYER.CAMERA_OFFSET.z;
+        // Use constants for camera positioning
+        const cameraDistance = Math.abs(Constants.PLAYER.CAMERA_OFFSET.z);  // Make sure this is positive
         const cameraHeight = Constants.PLAYER.CAMERA_OFFSET.y;
         
-        // Calculate camera position directly behind player based on player's rotation
+        // Position camera directly behind player based on player's rotation
+        // Using exact sine/cosine calculations for precise positioning
         const cameraPosition = new THREE.Vector3(
             this.playerState.position.x - Math.sin(this.playerState.rotation.y) * cameraDistance,
             this.playerState.position.y + cameraHeight,
             this.playerState.position.z - Math.cos(this.playerState.rotation.y) * cameraDistance
         );
         
-        this.camera.position.copy(cameraPosition);
+        // Smooth camera position to prevent jarring movements
+        this.camera.position.lerp(cameraPosition, 0.1);
         
-        // Calculate target position - player position plus height offset
-        const targetHeight = 1.0; // Look at player head height
+        // Have camera look at player's head
+        const targetHeight = 0.8; // Slightly lower to see more of the environment
         const targetPosition = this.playerState.position.clone();
         targetPosition.y += targetHeight;
         
-        // Apply vertical tilt if needed
-        if (this.cameraAngles.vertical !== 0) {
-            // Calculate a point above or below the player based on vertical angle
-            const verticalOffset = Math.tan(this.cameraAngles.vertical) * cameraDistance;
-            targetPosition.y += verticalOffset;
+        // Apply vertical angle for looking up/down
+        if (this.cameraAngles && this.cameraAngles.vertical !== 0) {
+            // Calculate vertical offset based on the look angle
+            const verticalOffset = Math.sin(this.cameraAngles.vertical) * cameraDistance;
+            targetPosition.y -= verticalOffset;
         }
         
-        // Point camera at target
+        // Point camera at the target position
         this.camera.lookAt(targetPosition);
         
-        // Calculate aim point for weapon
+        // Calculate aim direction for the weapon
         const aimDirection = new THREE.Vector3(0, 0, -1);
         aimDirection.applyEuler(new THREE.Euler(
-            this.cameraAngles.vertical,
+            this.cameraAngles ? this.cameraAngles.vertical : 0,
             this.playerState.rotation.y,
             0,
             'YXZ'
         ));
         
+        // Set the aim target for the weapon
         const aimTarget = this.playerState.position.clone();
         aimTarget.y += 1.0; // Aim from eye level
         aimTarget.add(aimDirection.multiplyScalar(20));
         
-        // Update rifle aim
+        // Update the rifle's aim
         this.updateRifleAim(aimTarget);
     }
     
@@ -3910,7 +3925,7 @@ class Game {
     }
     
     updatePlayer(deltaTime) {
-        // Calculate movement with delta time for consistent speed
+        // Calculate movement direction based on WASD input
         const direction = new THREE.Vector3(0, 0, 0);
         
         if (this.moveState.forward) direction.z -= 1;
@@ -3918,19 +3933,23 @@ class Game {
         if (this.moveState.left) direction.x -= 1;
         if (this.moveState.right) direction.x += 1;
         
+        // Check if player is moving
         this.playerState.moving = direction.length() > 0;
         
-        // Handle horizontal movement with delta time
+        // Handle movement if there's input
         if (this.playerState.moving) {
-            // Normalize direction vector and apply rotation
+            // Normalize the direction vector to maintain consistent speed in all directions
             direction.normalize();
-            direction.applyEuler(this.playerState.rotation);
             
-            // Apply delta time to movement speed
+            // Apply player rotation to make movement relative to the player's facing direction
+            // This ensures WASD controls are relative to where the player is looking
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
+            
+            // Apply movement speed with delta time for framerate independence
             const scaledSpeed = this.playerState.moveSpeed * deltaTime * 60; // Normalize to 60fps
-            
-            // Calculate new position but don't apply it yet
             const movement = direction.multiplyScalar(scaledSpeed);
+            
+            // Calculate new position
             const newPosition = this.playerState.position.clone();
             newPosition.x += movement.x;
             newPosition.z += movement.z;
@@ -3950,8 +3969,10 @@ class Game {
                 this.playFootstepSound();
             }
             
-            // Update player mesh rotation
-            this.player.rotation.y = this.playerState.rotation.y;
+            // Update player mesh rotation to match player state
+            if (this.player) {
+                this.player.rotation.y = this.playerState.rotation.y;
+            }
         }
         
         // Handle jumping and gravity with delta time
@@ -3975,7 +3996,7 @@ class Game {
                 this.playerState.isJumping = false;
                 this.playerState.jumpVelocity = 0;
                 
-                // Play landing sound (use a footstep but louder)
+                // Play landing sound
                 if (this.audioInitialized && this.footstepSounds && this.footstepSounds.length > 0) {
                     try {
                         // Check if audio context is available and running
@@ -3987,7 +4008,7 @@ class Game {
                                 console.warn('Could not resume audio context:', e);
                             });
                         } else {
-                            // Create a new Audio instance instead of cloning
+                            // Play a landing sound
                             const landSound = new THREE.Audio(this.listener);
                             landSound.setBuffer(this.footstepSounds[0].buffer);
                             landSound.setVolume(0.6); // Louder than regular footstep
@@ -4001,7 +4022,7 @@ class Game {
             }
         }
         
-        // Update camera position to follow player
+        // Update camera to follow player
         this.updatePlayerCamera();
         
         // Update player model position
