@@ -1,27 +1,29 @@
 class JungleHuntGame {
     constructor() {
-        this.initScene();
-        this.initPlayer();
-        this.initDinosaurs();
-        this.initControls();
+        this.setupScene();
+        this.setupPlayer();
+        this.setupDinosaurs();
+        this.setupControls();
         this.startGameLoop();
     }
 
-    initScene() {
+    setupScene() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('game-container').appendChild(this.renderer.domElement);
+        document.body.appendChild(this.renderer.domElement);
 
         // Lighting
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.scene.add(ambientLight);
+
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(50, 100, 50);
         directionalLight.castShadow = true;
         this.scene.add(directionalLight);
 
-        // Jungle ground
+        // Ground
         const groundTexture = new THREE.TextureLoader().load('textures/jungle_ground.jpg');
         groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
         groundTexture.repeat.set(50, 50);
@@ -34,11 +36,11 @@ class JungleHuntGame {
         ground.receiveShadow = true;
         this.scene.add(ground);
 
-        // Jungle trees
-        this.createTrees(100);
+        // Trees
+        this.addTrees(100);
     }
 
-    createTrees(count) {
+    addTrees(count) {
         for (let i = 0; i < count; i++) {
             const tree = new THREE.Group();
             const trunk = new THREE.Mesh(
@@ -61,7 +63,7 @@ class JungleHuntGame {
         }
     }
 
-    initPlayer() {
+    setupPlayer() {
         this.player = new THREE.Mesh(
             new THREE.BoxGeometry(1, 2, 1),
             new THREE.MeshStandardMaterial({ color: 0x567d46 })
@@ -74,7 +76,7 @@ class JungleHuntGame {
         this.pitch = 0;
     }
 
-    initDinosaurs() {
+    setupDinosaurs() {
         this.dinosaurs = Array.from({ length: 10 }, () => {
             const dino = new THREE.Mesh(
                 new THREE.BoxGeometry(4, 4, 6),
@@ -87,10 +89,10 @@ class JungleHuntGame {
         });
     }
 
-    initControls() {
+    setupControls() {
         document.addEventListener('keydown', e => this.handleKey(e.code, true));
         document.addEventListener('keyup', e => this.handleKey(e.code, false));
-        document.addEventListener('click', () => document.getElementById('game-container').requestPointerLock());
+        document.addEventListener('click', () => document.body.requestPointerLock());
         document.addEventListener('mousemove', e => {
             if (document.pointerLockElement) {
                 this.yaw -= e.movementX * 0.002;
