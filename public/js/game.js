@@ -81,155 +81,425 @@ class Dinosaur {
     
     createDinosaurModel() {
         const dinosaur = new THREE.Group();
-        const scale = Constants.DINOSAUR.SIZE;
+        const scale = Constants.DINOSAUR.SIZE * 1.3; // Increased size for more intimidation
         
-        // Body material with texture
+        // Create sophisticated materials with textures, bumps and shine
+        const bodyTexture = this.createDinosaurTexture();
+        const bodyNormalMap = this.createDinosaurNormalMap();
+        
         const bodyMaterial = new THREE.MeshStandardMaterial({
             color: Constants.COLORS.DINO_BODY,
-            roughness: 0.8,
-            metalness: 0.1
+            roughness: 0.7,
+            metalness: 0.1,
+            map: bodyTexture,
+            normalMap: bodyNormalMap,
+            normalScale: new THREE.Vector2(1, 1),
+            bumpMap: bodyNormalMap,
+            bumpScale: 0.02
         });
         
         const bellyMaterial = new THREE.MeshStandardMaterial({
             color: Constants.COLORS.DINO_BELLY,
-            roughness: 0.7,
-            metalness: 0.1
+            roughness: 0.6,
+            metalness: 0.1,
+            map: bodyTexture,
+            normalMap: bodyNormalMap,
+            normalScale: new THREE.Vector2(0.5, 0.5)
         });
         
         const spikeMaterial = new THREE.MeshStandardMaterial({
             color: Constants.COLORS.DINO_SPIKES,
-            roughness: 0.5,
-            metalness: 0.2
+            roughness: 0.3,
+            metalness: 0.4,
+            envMap: this.scene.background
         });
         
-        // Create dinosaur body parts
+        const teethMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf8f8f0,
+            roughness: 0.3,
+            metalness: 0.4
+        });
         
-        // Main body
-        const bodyGeometry = new THREE.BoxGeometry(1.2 * scale, 1 * scale, 2.5 * scale);
+        // Main body - use a smoother geometry
+        const bodyShape = new THREE.Shape();
+        bodyShape.moveTo(-0.6 * scale, -0.5 * scale);
+        bodyShape.lineTo(0.6 * scale, -0.5 * scale);
+        bodyShape.lineTo(0.7 * scale, 0 * scale);
+        bodyShape.lineTo(0.6 * scale, 0.5 * scale);
+        bodyShape.lineTo(-0.6 * scale, 0.5 * scale);
+        bodyShape.lineTo(-0.7 * scale, 0 * scale);
+        bodyShape.lineTo(-0.6 * scale, -0.5 * scale);
+        
+        const extrudeSettings = {
+            steps: 1,
+            depth: 2.5 * scale,
+            bevelEnabled: true,
+            bevelThickness: 0.2 * scale,
+            bevelSize: 0.2 * scale,
+            bevelOffset: 0,
+            bevelSegments: 5
+        };
+        
+        const bodyGeometry = new THREE.ExtrudeGeometry(bodyShape, extrudeSettings);
+        bodyGeometry.rotateX(Math.PI / 2);
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 1.5 * scale;
+        body.rotation.x = Math.PI / 2;
         dinosaur.add(body);
         
-        // Belly
-        const bellyGeometry = new THREE.BoxGeometry(1.1 * scale, 0.9 * scale, 2.4 * scale);
-        const belly = new THREE.Mesh(bellyGeometry, bellyMaterial);
-        belly.position.set(0, -0.05 * scale, 0);
-        body.add(belly);
+        // Create muscle bulges for a more realistic appearance
+        const shoulderGeometry = new THREE.SphereGeometry(0.6 * scale, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+        leftShoulder.position.set(0.6 * scale, 0.2 * scale, -0.8 * scale);
+        leftShoulder.rotation.z = -Math.PI / 2;
+        body.add(leftShoulder);
         
-        // Neck
-        const neckGeometry = new THREE.BoxGeometry(0.6 * scale, 0.6 * scale, 1.2 * scale);
+        const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+        rightShoulder.position.set(-0.6 * scale, 0.2 * scale, -0.8 * scale);
+        rightShoulder.rotation.z = Math.PI / 2;
+        body.add(rightShoulder);
+        
+        const hipGeometry = new THREE.SphereGeometry(0.7 * scale, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+        leftHip.position.set(0.6 * scale, 0.2 * scale, 0.8 * scale);
+        leftHip.rotation.z = -Math.PI / 2;
+        body.add(leftHip);
+        
+        const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+        rightHip.position.set(-0.6 * scale, 0.2 * scale, 0.8 * scale);
+        rightHip.rotation.z = Math.PI / 2;
+        body.add(rightHip);
+        
+        // Neck using curved geometries
+        const neckCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0.3 * scale, -0.4 * scale),
+            new THREE.Vector3(0, 0.5 * scale, -0.8 * scale),
+            new THREE.Vector3(0, 0.7 * scale, -1.2 * scale),
+        ]);
+        
+        const neckGeometry = new THREE.TubeGeometry(neckCurve, 8, 0.3 * scale, 12, false);
         const neck = new THREE.Mesh(neckGeometry, bodyMaterial);
-        neck.position.set(0, 0.3 * scale, -1.6 * scale);
-        neck.rotation.x = -Math.PI / 8;
+        neck.position.set(0, 0.3 * scale, -1.2 * scale);
         body.add(neck);
         
-        // Head
-        const headGeometry = new THREE.BoxGeometry(0.7 * scale, 0.5 * scale, 1 * scale);
-        const head = new THREE.Mesh(headGeometry, bodyMaterial);
-        head.position.set(0, 0.4 * scale, -0.7 * scale);
-        head.rotation.x = Math.PI / 12;
-        neck.add(head);
+        // Head with more detailed features
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.7 * scale, -1.2 * scale);
+        headGroup.rotation.x = -Math.PI / 6;
+        neck.add(headGroup);
         
-        // Snout
-        const snoutGeometry = new THREE.BoxGeometry(0.5 * scale, 0.3 * scale, 0.8 * scale);
-        const snout = new THREE.Mesh(snoutGeometry, bodyMaterial);
-        snout.position.set(0, -0.1 * scale, -0.8 * scale);
-        head.add(snout);
+        // Skull with beveled edges for realism
+        const skullGeometry = new THREE.BoxGeometry(0.7 * scale, 0.5 * scale, 1 * scale);
+        const skull = new THREE.Mesh(skullGeometry, bodyMaterial);
+        headGroup.add(skull);
         
-        // Eyes
-        const eyeGeometry = new THREE.SphereGeometry(0.08 * scale, 8, 8);
-        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        // Detailed jaw
+        const jawGeometry = new THREE.BoxGeometry(0.65 * scale, 0.3 * scale, 1.1 * scale);
+        const jaw = new THREE.Mesh(jawGeometry, bodyMaterial);
+        jaw.position.set(0, -0.3 * scale, 0);
+        jaw.rotation.x = this.jawAngle || 0; // For animation
+        headGroup.add(jaw);
+        this.jaw = jaw; // Store for animations
         
-        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        leftEye.position.set(0.25 * scale, 0.1 * scale, -0.3 * scale);
-        head.add(leftEye);
+        // Eyes with advanced materials for a predatory look
+        const eyeGeometry = new THREE.SphereGeometry(0.08 * scale, 16, 16);
+        const irisGeometry = new THREE.SphereGeometry(0.04 * scale, 16, 16);
         
-        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        rightEye.position.set(-0.25 * scale, 0.1 * scale, -0.3 * scale);
-        head.add(rightEye);
+        const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const irisMaterial = new THREE.MeshBasicMaterial({ color: 0xcc3311 }); // Predatory red eyes
         
-        // Tail
+        // Create detailed eyes
+        const createDetailedEye = (x) => {
+            const eyeGroup = new THREE.Group();
+            eyeGroup.position.set(x, 0.1 * scale, -0.3 * scale);
+            
+            const eyeball = new THREE.Mesh(eyeGeometry, eyeWhiteMaterial);
+            eyeGroup.add(eyeball);
+            
+            const iris = new THREE.Mesh(irisGeometry, irisMaterial);
+            iris.position.z = -0.05 * scale;
+            eyeGroup.add(iris);
+            
+            // Add eyelid
+            const lidGeometry = new THREE.SphereGeometry(0.085 * scale, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const lidMaterial = new THREE.MeshStandardMaterial({ 
+                color: Constants.COLORS.DINO_BODY, 
+                roughness: 0.7,
+                side: THREE.DoubleSide
+            });
+            
+            const eyelid = new THREE.Mesh(lidGeometry, lidMaterial);
+            eyelid.rotation.x = Math.PI / 2;
+            eyelid.position.z = -0.01 * scale;
+            eyeGroup.add(eyelid);
+            
+            return eyeGroup;
+        };
+        
+        const leftEye = createDetailedEye(0.25 * scale);
+        const rightEye = createDetailedEye(-0.25 * scale);
+        skull.add(leftEye);
+        skull.add(rightEye);
+        
+        // Detailed teeth
+        const createTeeth = (parent, isUpper) => {
+            const teethGroup = new THREE.Group();
+            teethGroup.position.z = -0.5 * scale;
+            const yPos = isUpper ? -0.2 * scale : 0.15 * scale;
+            const rotation = isUpper ? Math.PI : 0;
+            
+            for (let i = 0; i < 8; i++) {
+                const toothSize = (0.03 + Math.random() * 0.03) * scale;
+                const toothGeometry = new THREE.ConeGeometry(toothSize, 0.1 * scale, 5);
+                const tooth = new THREE.Mesh(toothGeometry, teethMaterial);
+                
+                // Position teeth along jaw
+                const xOffset = -0.25 * scale + i * 0.07 * scale;
+                tooth.position.set(xOffset, yPos, 0);
+                tooth.rotation.x = rotation;
+                teethGroup.add(tooth);
+            }
+            
+            parent.add(teethGroup);
+        };
+        
+        createTeeth(skull, true);  // Upper jaw teeth
+        createTeeth(jaw, false);   // Lower jaw teeth
+        
+        // Realistic tail with segmented animation
         this.tail = new THREE.Group();
         body.add(this.tail);
+        this.tailSegments = [];
         
-        const tailBase = new THREE.Mesh(
-            new THREE.BoxGeometry(0.8 * scale, 0.7 * scale, 1 * scale),
-            bodyMaterial
-        );
-        tailBase.position.set(0, -0.1 * scale, 1.5 * scale);
-        this.tail.add(tailBase);
+        // Create a curved, articulated tail
+        const tailCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, 0.5 * scale),
+            new THREE.Vector3(0, 0, 1 * scale),
+            new THREE.Vector3(0, 0, 1.5 * scale),
+            new THREE.Vector3(0, 0, 2 * scale),
+            new THREE.Vector3(0, 0, 2.5 * scale),
+            new THREE.Vector3(0, 0, 3 * scale)
+        ]);
         
-        const tailMid = new THREE.Mesh(
-            new THREE.BoxGeometry(0.6 * scale, 0.5 * scale, 1.2 * scale),
-            bodyMaterial
-        );
-        tailMid.position.set(0, 0, 1 * scale);
-        tailBase.add(tailMid);
-        
-        const tailEnd = new THREE.Mesh(
-            new THREE.BoxGeometry(0.4 * scale, 0.3 * scale, 1.4 * scale),
-            bodyMaterial
-        );
-        tailEnd.position.set(0, 0, 1.1 * scale);
-        tailMid.add(tailEnd);
-        
-        // Back spikes
-        for (let i = 0; i < 7; i++) {
-            const spikeHeight = (0.2 + Math.random() * 0.2) * scale;
-            const spikeGeometry = new THREE.ConeGeometry(0.1 * scale, spikeHeight, 4);
-            const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-            spike.position.set(0, 0.5 * scale, (-0.8 + i * 0.3) * scale);
-            spike.rotation.x = -Math.PI / 2;
-            body.add(spike);
+        // Create tail segments for animation
+        const tailPoints = tailCurve.getPoints(6);
+        for (let i = 0; i < tailPoints.length - 1; i++) {
+            const startPoint = tailPoints[i];
+            const endPoint = tailPoints[i + 1];
+            
+            const segmentLength = startPoint.distanceTo(endPoint);
+            const tailRadius = 0.3 * scale * (1 - i / 7); // Tail tapers toward the end
+            
+            const segmentGeometry = new THREE.CylinderGeometry(
+                tailRadius, 
+                tailRadius * 0.8, 
+                segmentLength, 
+                12, 1,
+                false
+            );
+            
+            const segment = new THREE.Mesh(segmentGeometry, bodyMaterial);
+            segment.position.copy(startPoint);
+            
+            // Calculate rotation to point to next segment
+            segment.lookAt(endPoint);
+            segment.rotateX(Math.PI / 2);
+            
+            // Connect segments hierarchically
+            if (i === 0) {
+                segment.position.set(0, -0.1 * scale, 1.2 * scale);
+                this.tail.add(segment);
+            } else {
+                this.tailSegments[i-1].add(segment);
+                segment.position.set(0, 0, segmentLength);
+            }
+            
+            this.tailSegments.push(segment);
         }
         
-        // Legs
+        // Add spikes along back and tail
+        const addSpikes = (parent, count, startZ, endZ, maxHeight) => {
+            for (let i = 0; i < count; i++) {
+                const progress = i / (count - 1);
+                const zPos = startZ + progress * (endZ - startZ);
+                
+                // Spikes have varying heights with a pattern
+                const heightPattern = Math.sin(progress * Math.PI) * 0.5 + 0.5;
+                const spikeHeight = (maxHeight * heightPattern) * scale;
+                
+                const spikeGeometry = new THREE.ConeGeometry(0.08 * scale, spikeHeight, 4);
+                const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+                spike.position.set(0, (0.5 + heightPattern * 0.1) * scale, zPos);
+                spike.rotation.x = -Math.PI / 2;
+                parent.add(spike);
+            }
+        };
+        
+        // Add spikes along the back
+        addSpikes(body, 10, -1.0 * scale, 1.0 * scale, 0.4);
+        
+        // Add spikes along the tail
+        for (let i = 0; i < this.tailSegments.length; i++) {
+            if (i < 3) { // Only add spikes to first few segments
+                const spike = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.06 * scale * (1 - i * 0.2), 0.25 * scale * (1 - i * 0.2), 4),
+                    spikeMaterial
+                );
+                spike.position.y = 0.2 * scale;
+                spike.rotation.x = -Math.PI / 2;
+                this.tailSegments[i].add(spike);
+            }
+        }
+        
+        // Legs with muscle definition and articulation
         this.legs = [];
         
-        // Front legs
+        // Create dinosaur legs
         const createLeg = (isLeft, isFront) => {
             const legGroup = new THREE.Group();
-            const xPos = isLeft ? 0.5 * scale : -0.5 * scale;
+            const xPos = isLeft ? 0.55 * scale : -0.55 * scale;
             const zPos = isFront ? -0.8 * scale : 0.8 * scale;
             
-            const upperLeg = new THREE.Mesh(
-                new THREE.BoxGeometry(0.3 * scale, 0.7 * scale, 0.3 * scale),
-                bodyMaterial
-            );
-            upperLeg.position.y = -0.35 * scale;
-            legGroup.add(upperLeg);
-            
-            const lowerLeg = new THREE.Mesh(
-                new THREE.BoxGeometry(0.25 * scale, 0.7 * scale, 0.25 * scale),
-                bodyMaterial
-            );
-            lowerLeg.position.y = -0.7 * scale;
-            upperLeg.add(lowerLeg);
-            
-            const foot = new THREE.Mesh(
-                new THREE.BoxGeometry(0.35 * scale, 0.15 * scale, 0.4 * scale),
-                bodyMaterial
-            );
-            foot.position.y = -0.4 * scale;
-            foot.position.z = 0.05 * scale;
-            lowerLeg.add(foot);
-            
-            // Add claws
-            for (let i = 0; i < 3; i++) {
-                const claw = new THREE.Mesh(
-                    new THREE.ConeGeometry(0.05 * scale, 0.15 * scale, 4),
-                    new THREE.MeshBasicMaterial({ color: 0x111111 })
+            // For front legs, the structure is different than hind legs
+            if (isFront) {
+                // Front legs are smaller
+                const legScale = 0.8;
+                
+                // Upper leg with muscle bulge
+                const upperLegGeometry = new THREE.CylinderGeometry(
+                    0.15 * scale * legScale,
+                    0.12 * scale * legScale,
+                    0.6 * scale * legScale,
+                    10
                 );
-                claw.position.set((-0.1 + i * 0.1) * scale, -0.05 * scale, -0.2 * scale);
-                claw.rotation.x = -Math.PI / 4;
-                foot.add(claw);
+                const upperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial);
+                upperLeg.position.y = -0.3 * scale;
+                upperLeg.rotation.x = Math.PI / 15;
+                legGroup.add(upperLeg);
+                
+                // Lower leg
+                const lowerLegGeometry = new THREE.CylinderGeometry(
+                    0.11 * scale * legScale,
+                    0.09 * scale * legScale,
+                    0.6 * scale * legScale,
+                    8
+                );
+                const lowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+                lowerLeg.position.y = -0.6 * scale;
+                lowerLeg.rotation.x = -Math.PI / 8;
+                upperLeg.add(lowerLeg);
+                
+                // Foot with three toes
+                const foot = new THREE.Group();
+                foot.position.y = -0.3 * scale;
+                lowerLeg.add(foot);
+                
+                // Create detailed foot with toes
+                const footPad = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.25 * scale, 0.1 * scale, 0.35 * scale),
+                    bodyMaterial
+                );
+                foot.add(footPad);
+                
+                // Add three toes with claws
+                for (let i = 0; i < 3; i++) {
+                    const toe = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.07 * scale, 0.06 * scale, 0.2 * scale),
+                        bodyMaterial
+                    );
+                    
+                    const xOffset = (i - 1) * 0.08 * scale;
+                    toe.position.set(xOffset, 0, -0.2 * scale);
+                    
+                    const claw = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.04 * scale, 0.15 * scale, 4),
+                        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 })
+                    );
+                    claw.position.z = -0.15 * scale;
+                    claw.rotation.x = -Math.PI / 4;
+                    toe.add(claw);
+                    
+                    foot.add(toe);
+                }
+            } else {
+                // Hind legs are more powerful
+                
+                // Create upper leg with powerful thigh muscle
+                const thighGeometry = new THREE.CylinderGeometry(
+                    0.23 * scale, 
+                    0.18 * scale, 
+                    0.8 * scale,
+                    12
+                );
+                const upperLeg = new THREE.Mesh(thighGeometry, bodyMaterial);
+                upperLeg.position.y = -0.4 * scale;
+                upperLeg.rotation.x = -Math.PI / 12;
+                legGroup.add(upperLeg);
+                
+                // Lower leg
+                const lowerLegGeometry = new THREE.CylinderGeometry(
+                    0.17 * scale,
+                    0.14 * scale,
+                    0.7 * scale,
+                    10
+                );
+                const lowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+                lowerLeg.position.y = -0.75 * scale;
+                lowerLeg.rotation.x = Math.PI / 6;
+                upperLeg.add(lowerLeg);
+                
+                // Ankle joint
+                const ankleGeometry = new THREE.SphereGeometry(0.12 * scale, 8, 8);
+                const ankle = new THREE.Mesh(ankleGeometry, bodyMaterial);
+                ankle.position.y = -0.35 * scale;
+                lowerLeg.add(ankle);
+                
+                // Foot with detailed toes
+                const foot = new THREE.Group();
+                foot.position.y = -0.12 * scale;
+                foot.rotation.x = Math.PI / 4;
+                ankle.add(foot);
+                
+                // Create detailed foot with powerful toes
+                const footPad = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3 * scale, 0.12 * scale, 0.4 * scale),
+                    bodyMaterial
+                );
+                foot.add(footPad);
+                
+                // Add three toes with large claws
+                for (let i = 0; i < 3; i++) {
+                    const toeGeometry = new THREE.BoxGeometry(0.08 * scale, 0.07 * scale, 0.25 * scale);
+                    const toe = new THREE.Mesh(toeGeometry, bodyMaterial);
+                    
+                    const xOffset = (i - 1) * 0.1 * scale;
+                    toe.position.set(xOffset, 0, -0.25 * scale);
+                    
+                    // Add vicious claws to the toes
+                    const claw = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.05 * scale, 0.2 * scale, 4),
+                        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 })
+                    );
+                    claw.position.z = -0.2 * scale;
+                    claw.rotation.x = -Math.PI / 4;
+                    toe.add(claw);
+                    
+                    foot.add(toe);
+                }
             }
             
             legGroup.position.set(xPos, 0, zPos);
             body.add(legGroup);
-            this.legs.push({ group: legGroup, upper: upperLeg, lower: lowerLeg, foot: foot, isFront });
             
-            return legGroup;
+            return { 
+                group: legGroup, 
+                upper: legGroup.children[0], 
+                lower: legGroup.children[0].children[0],
+                foot: legGroup.children[0].children[0].children[0],
+                isFront 
+            };
         };
         
         createLeg(true, true);   // Front left
@@ -531,58 +801,138 @@ class Enemy {
     createEnemyModel() {
         const enemy = new THREE.Group();
 
-        // Create jacket (body)
-        const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const jacketMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2F4F4F,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        const body = new THREE.Mesh(bodyGeometry, jacketMaterial);
-        body.position.y = 0.4;
-        enemy.add(body);
-
-        // Create helmet with camo pattern
-        const headGeometry = new THREE.BoxGeometry(0.35, 0.32, 0.35);
-        const camoColors = Constants.COLORS.CAMO;
-        
-        // Create camo pattern
+        // Create multicam camo pattern for texture
         const camoCanvas = document.createElement('canvas');
-        camoCanvas.width = 128;
-        camoCanvas.height = 128;
+        camoCanvas.width = 512;
+        camoCanvas.height = 512;
         const ctx = camoCanvas.getContext('2d');
         
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(0, 0, 128, 128);
+        // Base camo color - sandy tan base for multicam
+        ctx.fillStyle = '#B5A276';
+        ctx.fillRect(0, 0, 512, 512);
         
-        for (let i = 0; i < 40; i++) {
-            const x = Math.random() * 128;
-            const y = Math.random() * 128;
-            const size = 10 + Math.random() * 20;
-            const colorIndex = Math.floor(Math.random() * camoColors.length);
-            ctx.fillStyle = '#' + camoColors[colorIndex].toString(16);
+        // Multicam-like pattern with multiple colors
+        const camoColors = ['#63613E', '#605E3F', '#8C7E62', '#312F22', '#7D7969', '#A99F8A'];
+        
+        // Add large blobs
+        for (let i = 0; i < 30; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const size = 30 + Math.random() * 60;
+            ctx.fillStyle = camoColors[Math.floor(Math.random() * camoColors.length)];
+            ctx.beginPath();
+            ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Add smaller detailed spots
+        for (let i = 0; i < 60; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const size = 5 + Math.random() * 20;
+            ctx.fillStyle = camoColors[Math.floor(Math.random() * camoColors.length)];
             ctx.beginPath();
             ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
             ctx.fill();
         }
         
         const camoTexture = new THREE.CanvasTexture(camoCanvas);
-        const helmetMaterial = new THREE.MeshStandardMaterial({ map: camoTexture });
-        const helmet = new THREE.Mesh(headGeometry, helmetMaterial);
+        
+        // Create tactical vest (body)
+        const bodyGeometry = new THREE.BoxGeometry(0.54, 0.8, 0.35);
+        const vestMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1A2E14, // Darker green for tactical vest
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const body = new THREE.Mesh(bodyGeometry, vestMaterial);
+        body.position.y = 0.4;
+        enemy.add(body);
+        
+        // Add tactical pouches to vest
+        const pouchGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.08);
+        const pouchMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0A0A0A, // Black pouches
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        
+        // Add magazine pouches on front
+        for (let i = 0; i < 2; i++) {
+            const pouch = new THREE.Mesh(pouchGeometry, pouchMaterial);
+            pouch.position.set(0.12 * (i === 0 ? 1 : -1), 0.4, 0.18);
+            body.add(pouch);
+        }
+        
+        // Add utility pouches on sides
+        for (let i = 0; i < 2; i++) {
+            const sidePouch = new THREE.Mesh(pouchGeometry, pouchMaterial);
+            sidePouch.position.set(0.28 * (i === 0 ? 1 : -1), 0.3, 0);
+            sidePouch.rotation.y = Math.PI * 0.5 * (i === 0 ? 1 : -1);
+            body.add(sidePouch);
+        }
+
+        // Create helmet with tactical details
+        const helmetGeometry = new THREE.BoxGeometry(0.38, 0.32, 0.38);
+        const helmetMaterial = new THREE.MeshStandardMaterial({ 
+            map: camoTexture,
+            roughness: 0.9,
+            metalness: 0.2
+        });
+        const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
         helmet.position.y = 1;
         enemy.add(helmet);
+        
+        // Add helmet accessories - NVG mount
+        const mountGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.1);
+        const mountMaterial = new THREE.MeshStandardMaterial({ color: 0x0A0A0A });
+        const nvgMount = new THREE.Mesh(mountGeometry, mountMaterial);
+        nvgMount.position.set(0, 0.12, 0.16);
+        helmet.add(nvgMount);
+        
+        // Side rails
+        for (let i = 0; i < 2; i++) {
+            const rail = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.05, 0.2),
+                mountMaterial
+            );
+            rail.position.set(0.2 * (i === 0 ? 1 : -1), 0, 0);
+            helmet.add(rail);
+        }
 
-        // Face
+        // Face with tactical face paint
         const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
         const faceMaterial = new THREE.MeshStandardMaterial({ color: Constants.COLORS.SOLDIER_FACE });
         const face = new THREE.Mesh(faceGeometry, faceMaterial);
         face.position.set(0, 0.95, 0.05);
+        
+        // Create face paint texture
+        const faceCanvas = document.createElement('canvas');
+        faceCanvas.width = 128;
+        faceCanvas.height = 128;
+        const faceCtx = faceCanvas.getContext('2d');
+        
+        // Base skin color
+        faceCtx.fillStyle = '#C9A585';
+        faceCtx.fillRect(0, 0, 128, 128);
+        
+        // Add face paint stripes
+        faceCtx.fillStyle = '#0A0A0A';
+        
+        // Horizontal stripes
+        faceCtx.fillRect(20, 30, 88, 10);
+        faceCtx.fillRect(30, 60, 68, 8);
+        
+        // Apply texture to face
+        const faceTexture = new THREE.CanvasTexture(faceCanvas);
+        face.material.map = faceTexture;
+        
         enemy.add(face);
 
-        // Create pants (legs)
-        const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        // Create tactical pants (legs) with cargo pockets
+        const legGeometry = new THREE.BoxGeometry(0.22, 0.6, 0.22);
         const pantsMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x1a472a,
+            map: camoTexture,
             roughness: 0.9,
             metalness: 0.1
         });
@@ -594,44 +944,89 @@ class Enemy {
         this.rightLeg = new THREE.Mesh(legGeometry, pantsMaterial);
         this.rightLeg.position.set(-0.15, -0.3, 0);
         enemy.add(this.rightLeg);
+        
+        // Add knee pads
+        const kneePadGeometry = new THREE.BoxGeometry(0.25, 0.12, 0.25);
+        const kneePadMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0A0A0A,
+            roughness: 0.8
+        });
+        
+        for (let i = 0; i < 2; i++) {
+            const kneePad = new THREE.Mesh(kneePadGeometry, kneePadMaterial);
+            kneePad.position.set(0.15 * (i === 0 ? 1 : -1), -0.1, 0.02);
+            enemy.add(kneePad);
+        }
 
-        // Create boots
-        const bootGeometry = new THREE.BoxGeometry(0.22, 0.15, 0.25);
+        // Create tactical boots
+        const bootGeometry = new THREE.BoxGeometry(0.24, 0.18, 0.28);
         const bootMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2b1810,
+            color: 0x0A0A0A, // Black tactical boots
             roughness: 0.9,
-            metalness: 0.2
+            metalness: 0.3
         });
         
         const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-        leftBoot.position.set(0.15, -0.6, 0.02);
+        leftBoot.position.set(0.15, -0.62, 0.02);
         enemy.add(leftBoot);
         
         const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-        rightBoot.position.set(-0.15, -0.6, 0.02);
+        rightBoot.position.set(-0.15, -0.62, 0.02);
         enemy.add(rightBoot);
 
-        // Create arms with hands
-        const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const handGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+        // Create tactical arms with improved geometry
+        const upperArmGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8);
+        const lowerArmGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8);
+        const armMaterial = new THREE.MeshStandardMaterial({ map: camoTexture });
         
-        this.leftArm = new THREE.Mesh(armGeometry, jacketMaterial);
-        this.leftArm.position.set(0.35, 0.4, 0);
+        // Upper arms
+        this.leftArm = new THREE.Group();
+        const leftUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
+        leftUpperArm.rotation.z = Math.PI/2;
+        leftUpperArm.position.y = -0.175;
+        this.leftArm.add(leftUpperArm);
+        this.leftArm.position.set(0.35, 0.5, 0);
         enemy.add(this.leftArm);
         
-        this.rightArm = new THREE.Mesh(armGeometry, jacketMaterial);
-        this.rightArm.position.set(-0.35, 0.4, 0);
+        this.rightArm = new THREE.Group();
+        const rightUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
+        rightUpperArm.rotation.z = Math.PI/2;
+        rightUpperArm.position.y = -0.175;
+        this.rightArm.add(rightUpperArm);
+        this.rightArm.position.set(-0.35, 0.5, 0);
         enemy.add(this.rightArm);
         
-        const handMaterial = new THREE.MeshStandardMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        // Lower arms
+        const leftLowerArmGroup = new THREE.Group();
+        const leftLowerArm = new THREE.Mesh(lowerArmGeometry, armMaterial);
+        leftLowerArm.rotation.z = Math.PI/2;
+        leftLowerArm.position.y = -0.175;
+        leftLowerArmGroup.add(leftLowerArm);
+        leftLowerArmGroup.position.set(0, -0.35, 0);
+        this.leftArm.add(leftLowerArmGroup);
         
-        const leftHand = new THREE.Mesh(handGeometry, handMaterial);
-        leftHand.position.set(0.35, 0.1, 0);
-        enemy.add(leftHand);
+        const rightLowerArmGroup = new THREE.Group();
+        const rightLowerArm = new THREE.Mesh(lowerArmGeometry, armMaterial);
+        rightLowerArm.rotation.z = Math.PI/2;
+        rightLowerArm.position.y = -0.175;
+        rightLowerArmGroup.add(rightLowerArm);
+        rightLowerArmGroup.position.set(0, -0.35, 0);
+        this.rightArm.add(rightLowerArmGroup);
         
-        const rightHand = new THREE.Mesh(handGeometry, handMaterial);
-        rightHand.position.set(-0.35, 0.1, 0);
-        enemy.add(rightHand);
+        // Tactical gloves
+        const handGeometry = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+        const gloveMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0A0A0A, // Black tactical gloves
+            roughness: 0.8
+        });
+        
+        const leftHand = new THREE.Mesh(handGeometry, gloveMaterial);
+        leftHand.position.set(0, -0.55, 0);
+        this.leftArm.add(leftHand);
+        
+        const rightHand = new THREE.Mesh(handGeometry, gloveMaterial);
+        rightHand.position.set(0, -0.55, 0);
+        this.rightArm.add(rightHand);
 
         // Store the model reference before adding the rifle
         this.model = enemy;
@@ -653,32 +1048,75 @@ class Enemy {
     createEnemyRifle() {
         const rifle = new THREE.Group();
         
-        // Rifle body
-        const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8);
-        const rifleMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
-        rifle.add(rifleBody);
+        // Rifle materials
+        const metalMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2c2c2c, 
+            roughness: 0.5,
+            metalness: 0.7
+        });
+        const blackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0A0A0A, 
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        
+        // Create rifle receiver (main body)
+        const receiverGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.5);
+        const receiver = new THREE.Mesh(receiverGeometry, blackMaterial);
+        rifle.add(receiver);
         
         // Rifle barrel
-        const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 8);
-        const barrel = new THREE.Mesh(barrelGeometry, rifleMaterial);
+        const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8);
+        const barrel = new THREE.Mesh(barrelGeometry, metalMaterial);
         barrel.rotation.x = Math.PI / 2;
         barrel.position.z = 0.6;
         rifle.add(barrel);
         
+        // Handguard
+        const handguardGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8);
+        const handguard = new THREE.Mesh(handguardGeometry, blackMaterial);
+        handguard.rotation.x = Math.PI / 2;
+        handguard.position.z = 0.35;
+        rifle.add(handguard);
+        
         // Rifle stock
-        const stockGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.4);
-        const stockMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
-        const stock = new THREE.Mesh(stockGeometry, stockMaterial);
-        stock.position.z = -0.4;
+        const stockGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.35);
+        const stock = new THREE.Mesh(stockGeometry, blackMaterial);
+        stock.position.z = -0.42;
         rifle.add(stock);
         
-        // Rifle sight
-        const sightGeometry = new THREE.BoxGeometry(0.05, 0.08, 0.05);
-        const sight = new THREE.Mesh(sightGeometry, rifleMaterial);
-        sight.position.y = 0.08;
-        sight.position.z = 0.1;
-        rifle.add(sight);
+        // Pistol grip
+        const gripGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.06);
+        const grip = new THREE.Mesh(gripGeometry, blackMaterial);
+        grip.position.set(0, -0.12, -0.1);
+        grip.rotation.x = Math.PI * 0.2;
+        rifle.add(grip);
+        
+        // Magazine
+        const magGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.08);
+        const magazine = new THREE.Mesh(magGeometry, blackMaterial);
+        magazine.position.set(0, -0.08, 0.05);
+        rifle.add(magazine);
+        
+        // Optic sight
+        const opticBodyGeometry = new THREE.BoxGeometry(0.1, 0.08, 0.15);
+        const opticBody = new THREE.Mesh(opticBodyGeometry, blackMaterial);
+        opticBody.position.set(0, 0.1, 0.1);
+        rifle.add(opticBody);
+        
+        // Optic lens
+        const lensGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.02, 16);
+        const lensMaterial = new THREE.MeshStandardMaterial({
+            color: 0x0066FF,
+            roughness: 0.2,
+            metalness: 0.8,
+            transparent: true,
+            opacity: 0.7
+        });
+        const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+        lens.rotation.x = Math.PI / 2;
+        lens.position.set(0, 0.1, 0.17);
+        rifle.add(lens);
         
         // Muzzle flash (initially invisible)
         const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
@@ -688,42 +1126,16 @@ class Enemy {
             opacity: 0.8
         });
         this.muzzleFlash = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
-        this.muzzleFlash.position.z = 0.9;
+        this.muzzleFlash.position.z = 0.95;
         this.muzzleFlash.rotation.x = Math.PI / 2;
         this.muzzleFlash.visible = false;
         rifle.add(this.muzzleFlash);
         
-        // Create hands to hold the rifle
-        this.createHands(rifle);
+        // Position the rifle in enemy's hands
+        rifle.position.set(0.28, 0.4, 0.2);
+        rifle.rotation.y = -0.2;
         
-        // Position the rifle in player's hands - MODIFIED positioning for forward aiming
-        rifle.position.set(0.25, 0.4, 0.1); // Move rifle forward and slightly right
-        rifle.rotation.y = -0.15; // Adjust initial angle to point more forward
-        
-        // Return the rifle instead of trying to add it to the model here
-        // The model will add it in createEnemyModel
         return rifle;
-    }
-
-    // Add hands to hold the rifle
-    createHands(rifle) {
-        const handMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
-        
-        // Left hand (forward grip)
-        const leftHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
-        const leftHand = new THREE.Mesh(leftHandGeometry, handMaterial);
-        leftHand.position.set(0, -0.05, 0.3);
-        rifle.add(leftHand);
-        
-        // Right hand (trigger hand)
-        const rightHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
-        const rightHand = new THREE.Mesh(rightHandGeometry, handMaterial);
-        rightHand.position.set(0, -0.05, -0.1);
-        rifle.add(rightHand);
-        
-        // Store references to the hands
-        this.leftHand = leftHand;
-        this.rightHand = rightHand;
     }
 
     getNewTargetPosition() {
@@ -2410,66 +2822,168 @@ class Game {
     }
     
     createPlayerModel() {
-        // Create detailed soldier model
+        // Create detailed Navy SEAL soldier model
         this.player = new THREE.Group();
         
-        // Create a canvas for camo texture
+        // Create a canvas for multicam camo texture
         const camoCanvas = document.createElement('canvas');
-        camoCanvas.width = 256;
-        camoCanvas.height = 256;
+        camoCanvas.width = 512;
+        camoCanvas.height = 512;
         const ctx = camoCanvas.getContext('2d');
         
-        // Fill with base color
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(0, 0, 256, 256);
+        // Fill with multicam base color (tan)
+        ctx.fillStyle = '#B5A276';
+        ctx.fillRect(0, 0, 512, 512);
         
-        // Add random camo spots
-        for (let i = 0; i < 80; i++) {
-            const x = Math.random() * 256;
-            const y = Math.random() * 256;
-            const size = 15 + Math.random() * 30;
-            const colorIndex = Math.floor(Math.random() * Constants.COLORS.CAMO.length);
-            ctx.fillStyle = '#' + Constants.COLORS.CAMO[colorIndex].toString(16);
+        // Add multicam pattern spots (more realistic military pattern)
+        const camoColors = ['#798461', '#5D5D3E', '#A59372', '#4D5940', '#6C7056', '#3F3F2A'];
+        
+        // Create large base blobs
+        for (let i = 0; i < 40; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const size = 40 + Math.random() * 80;
+            const colorIndex = Math.floor(Math.random() * camoColors.length);
+            
+            ctx.fillStyle = camoColors[colorIndex];
             ctx.beginPath();
-            ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            
+            // Create irregular blob shapes
+            const points = 6 + Math.floor(Math.random() * 5);
+            for (let j = 0; j < points; j++) {
+                const angle = (j / points) * Math.PI * 2;
+                const radius = size * (0.7 + Math.random() * 0.6);
+                const px = x + Math.cos(angle) * radius;
+                const py = y + Math.sin(angle) * radius;
+                
+                if (j === 0) {
+                    ctx.moveTo(px, py);
+                } else {
+                    ctx.lineTo(px, py);
+                }
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // Add smaller detail spots
+        for (let i = 0; i < 200; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const size = 5 + Math.random() * 15;
+            const colorIndex = Math.floor(Math.random() * camoColors.length);
+            
+            ctx.fillStyle = camoColors[colorIndex];
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
             ctx.fill();
         }
         
         // Create texture from canvas
         const camoTexture = new THREE.CanvasTexture(camoCanvas);
+        camoTexture.wrapS = THREE.RepeatWrapping;
+        camoTexture.wrapT = THREE.RepeatWrapping;
         
-        // Body with camo uniform
-        const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshStandardMaterial({ 
+        // Materials for different equipment parts
+        const camoMaterial = new THREE.MeshStandardMaterial({ 
             map: camoTexture,
             roughness: 0.8,
             metalness: 0.1
         });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.position.y = 0.4;
-        this.player.add(body);
         
-        // Create helmet with camo pattern
+        const blackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        
+        const vestMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x556B2F,  // Darker green for tactical vest
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        
+        // Torso with better proportions
+        const torsoGeometry = new THREE.BoxGeometry(0.5, 0.7, 0.3);
+        const torso = new THREE.Mesh(torsoGeometry, camoMaterial);
+        torso.position.y = 0.5;
+        this.player.add(torso);
+        
+        // Tactical vest with MOLLE system
+        const vestGeometry = new THREE.BoxGeometry(0.52, 0.72, 0.32);
+        const vest = new THREE.Mesh(vestGeometry, vestMaterial);
+        vest.position.set(0, 0.5, 0);
+        this.player.add(vest);
+        
+        // Vest details - add pouches and equipment
+        const addPouch = (x, y, z, width, height, depth) => {
+            const pouchGeometry = new THREE.BoxGeometry(width, height, depth);
+            const pouch = new THREE.Mesh(pouchGeometry, blackMaterial);
+            pouch.position.set(x, y, z);
+            this.player.add(pouch);
+            return pouch;
+        };
+        
+        // Magazine pouches
+        addPouch(0.2, 0.5, 0.17, 0.15, 0.15, 0.05);
+        addPouch(0, 0.5, 0.17, 0.15, 0.15, 0.05);
+        addPouch(-0.2, 0.5, 0.17, 0.15, 0.15, 0.05);
+        
+        // Radio pouch
+        addPouch(-0.25, 0.6, 0, 0.08, 0.2, 0.3);
+        
+        // Create helmet with proper shape and details
         this.createPlayerHelmet();
         
-        // Face with facepaint
+        // Face with tactical facepaint
+        this.createPlayerFace();
+        
+        // Create limbs with improved textures
+        this.createPlayerLimbs(camoTexture);
+        
+        // Create modern assault rifle
+        this.createRifle();
+    }
+    
+    createPlayerFace() {
+        // Face with tactical facepaint
         const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
         
         // Create face texture with facepaint
         const faceCanvas = document.createElement('canvas');
-        faceCanvas.width = 128;
-        faceCanvas.height = 128;
+        faceCanvas.width = 256;
+        faceCanvas.height = 256;
         const faceCtx = faceCanvas.getContext('2d');
         
         // Base skin color
-        faceCtx.fillStyle = '#D2B48C';
-        faceCtx.fillRect(0, 0, 128, 128);
+        faceCtx.fillStyle = '#C4A484'; // Tactical tan
+        faceCtx.fillRect(0, 0, 256, 256);
         
-        // Add facepaint stripes
-        faceCtx.fillStyle = '#2d3a1a';
-        faceCtx.fillRect(0, 20, 128, 15);
-        faceCtx.fillRect(0, 60, 128, 15);
-        faceCtx.fillRect(0, 100, 128, 15);
+        // Create face features
+        // Eyes
+        faceCtx.fillStyle = '#FFFFFF';
+        faceCtx.fillRect(60, 100, 40, 20); // Left eye white
+        faceCtx.fillRect(156, 100, 40, 20); // Right eye white
+        
+        faceCtx.fillStyle = '#3E6B89'; // Blue eyes
+        faceCtx.fillRect(70, 105, 20, 10); // Left eye
+        faceCtx.fillRect(166, 105, 20, 10); // Right eye
+        
+        // Add tactical face paint
+        faceCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        
+        // Under eyes
+        faceCtx.fillRect(50, 125, 60, 15); // Left stripe
+        faceCtx.fillRect(146, 125, 60, 15); // Right stripe
+        
+        // Cheek stripes
+        faceCtx.fillRect(30, 150, 70, 10);
+        faceCtx.fillRect(156, 150, 70, 10);
+        
+        // Forehead and chin
+        faceCtx.fillRect(0, 30, 256, 25);
+        faceCtx.fillRect(0, 200, 256, 25);
         
         // Create texture from canvas
         const faceTexture = new THREE.CanvasTexture(faceCanvas);
@@ -2482,203 +2996,384 @@ class Game {
         const face = new THREE.Mesh(faceGeometry, faceMaterial);
         face.position.set(0, 0.95, 0.05);
         this.player.add(face);
-        
-        // Create limbs with improved textures
-        this.createPlayerLimbs(camoTexture);
-        
-        // Create rifle
-        this.createRifle();
     }
     
     createPlayerHelmet() {
-        // Head with camo helmet
-        const headGeometry = new THREE.BoxGeometry(0.35, 0.32, 0.35);
+        // Create tactical helmet with details like NVG mount and rails
         
-        // Create camo material with multiple colors
-        const camoColors = Constants.COLORS.CAMO;
+        // Base helmet using sphere for rounded shape
+        const helmetGeometry = new THREE.SphereGeometry(0.18, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
         
-        // Create a canvas to generate the camo pattern
+        // Create multicam material for helmet
         const camoCanvas = document.createElement('canvas');
-        camoCanvas.width = 128;
-        camoCanvas.height = 128;
+        camoCanvas.width = 256;
+        camoCanvas.height = 256;
         const ctx = camoCanvas.getContext('2d');
         
         // Fill with base color
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillStyle = '#5D5D3E';
+        ctx.fillRect(0, 0, 256, 256);
         
-        // Add random camo spots
-        for (let i = 0; i < 40; i++) {
-            const x = Math.random() * 128;
-            const y = Math.random() * 128;
-            const size = 10 + Math.random() * 20;
+        // Add irregular camo spots
+        const camoColors = ['#798461', '#B5A276', '#4D5940'];
+        for (let i = 0; i < 30; i++) {
+            const x = Math.random() * 256;
+            const y = Math.random() * 256;
+            const size = 20 + Math.random() * 40;
             const colorIndex = Math.floor(Math.random() * camoColors.length);
-            ctx.fillStyle = '#' + camoColors[colorIndex].toString(16);
+            
+            ctx.fillStyle = camoColors[colorIndex];
             ctx.beginPath();
-            ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            
+            // Create irregular shapes
+            const points = 6 + Math.floor(Math.random() * 5);
+            for (let j = 0; j < points; j++) {
+                const angle = (j / points) * Math.PI * 2;
+                const radius = size * (0.7 + Math.random() * 0.3);
+                const px = x + Math.cos(angle) * radius;
+                const py = y + Math.sin(angle) * radius;
+                
+                if (j === 0) {
+                    ctx.moveTo(px, py);
+                } else {
+                    ctx.lineTo(px, py);
+                }
+            }
+            
+            ctx.closePath();
             ctx.fill();
         }
         
         // Create texture from canvas
-        const camoTexture = new THREE.CanvasTexture(camoCanvas);
+        const helmetTexture = new THREE.CanvasTexture(camoCanvas);
         
         // Create helmet material
-        const helmetMaterial = new THREE.MeshBasicMaterial({ map: camoTexture });
+        const helmetMaterial = new THREE.MeshStandardMaterial({ 
+            map: helmetTexture,
+            roughness: 0.8,
+            metalness: 0.2
+        });
         
         // Create the helmet
-        const helmet = new THREE.Mesh(headGeometry, helmetMaterial);
-        helmet.position.y = 1;
+        const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
+        helmet.rotation.x = -0.2; // Tilt slightly forward
+        helmet.position.set(0, 1.05, 0);
+        helmet.scale.set(1.2, 1, 1.2); // Slightly oval shape
         this.player.add(helmet);
         
-        // Add helmet rim - a small flat cylinder around the helmet's bottom
-        const rimGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 8);
-        const rimMaterial = new THREE.MeshBasicMaterial({ color: 0x3a421a });
-        const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-        rim.position.set(0, 0.88, 0);
-        this.player.add(rim);
+        // Add tactical details
+        const blackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.7,
+            metalness: 0.3
+        });
+        
+        // NVG mount on front
+        const nvgMountGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+        const nvgMount = new THREE.Mesh(nvgMountGeometry, blackMaterial);
+        nvgMount.position.set(0, 1.13, 0.16);
+        this.player.add(nvgMount);
+        
+        // Side rails
+        const railGeometry = new THREE.BoxGeometry(0.03, 0.02, 0.15);
+        
+        const leftRail = new THREE.Mesh(railGeometry, blackMaterial);
+        leftRail.position.set(0.17, 1.05, 0.05);
+        leftRail.rotation.y = Math.PI / 2 - 0.3;
+        this.player.add(leftRail);
+        
+        const rightRail = new THREE.Mesh(railGeometry, blackMaterial);
+        rightRail.position.set(-0.17, 1.05, 0.05);
+        rightRail.rotation.y = -Math.PI / 2 + 0.3;
+        this.player.add(rightRail);
+        
+        // Helmet cover band
+        const bandGeometry = new THREE.CylinderGeometry(0.19, 0.19, 0.03, 16, 1, true);
+        const band = new THREE.Mesh(bandGeometry, blackMaterial);
+        band.position.set(0, 1.05, 0);
+        this.player.add(band);
     }
     
     createPlayerLimbs(camoTexture) {
-        // Legs with camo texture
-        const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const legMaterial = new THREE.MeshStandardMaterial({ 
+        // Create more realistic limbs with tactical gear
+        
+        // Materials
+        const camoMaterial = new THREE.MeshStandardMaterial({ 
             map: camoTexture,
             roughness: 0.8,
             metalness: 0.1
         });
         
-        const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-        leftLeg.position.set(0.15, -0.3, 0);
-        this.player.add(leftLeg);
-        
-        const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-        rightLeg.position.set(-0.15, -0.3, 0);
-        this.player.add(rightLeg);
-        
-        // Black boots
-        const bootGeometry = new THREE.BoxGeometry(0.22, 0.15, 0.25);
-        const bootMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x111111,
+        const blackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
             roughness: 0.7,
-            metalness: 0.3
+            metalness: 0.2
         });
         
-        const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-        leftBoot.position.set(0.15, -0.675, 0.02);
+        // Legs with improved shape - using cylinders for more realistic form
+        // Thighs
+        const thighGeometry = new THREE.CylinderGeometry(0.1, 0.09, 0.4, 8);
+        
+        const leftThigh = new THREE.Mesh(thighGeometry, camoMaterial);
+        leftThigh.position.set(0.15, 0.1, 0);
+        leftThigh.rotation.z = 0.1;
+        this.player.add(leftThigh);
+        
+        const rightThigh = new THREE.Mesh(thighGeometry, camoMaterial);
+        rightThigh.position.set(-0.15, 0.1, 0);
+        rightThigh.rotation.z = -0.1;
+        this.player.add(rightThigh);
+        
+        // Calves
+        const calfGeometry = new THREE.CylinderGeometry(0.08, 0.06, 0.4, 8);
+        
+        const leftCalf = new THREE.Mesh(calfGeometry, camoMaterial);
+        leftCalf.position.set(0.15, -0.3, 0);
+        this.player.add(leftCalf);
+        
+        const rightCalf = new THREE.Mesh(calfGeometry, camoMaterial);
+        rightCalf.position.set(-0.15, -0.3, 0);
+        this.player.add(rightCalf);
+        
+        // Tactical boots
+        const bootGeometry = new THREE.BoxGeometry(0.12, 0.16, 0.25);
+        
+        const leftBoot = new THREE.Mesh(bootGeometry, blackMaterial);
+        leftBoot.position.set(0.15, -0.55, 0.05);
         this.player.add(leftBoot);
         
-        const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
-        rightBoot.position.set(-0.15, -0.675, 0.02);
+        const rightBoot = new THREE.Mesh(bootGeometry, blackMaterial);
+        rightBoot.position.set(-0.15, -0.55, 0.05);
         this.player.add(rightBoot);
         
-        // Arms with camo texture - positioned for holding rifle
-        const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const armMaterial = new THREE.MeshStandardMaterial({ 
-            map: camoTexture,
-            roughness: 0.8,
-            metalness: 0.1
-        });
-        
-        // Left arm positioned forward to hold rifle
-        this.leftArm = new THREE.Mesh(armGeometry, armMaterial);
-        this.leftArm.position.set(0.35, 0.4, -0.1);
-        this.leftArm.rotation.set(0, 0, -0.3);
-        this.player.add(this.leftArm);
-        
-        // Right arm positioned to hold rifle trigger
-        this.rightArm = new THREE.Mesh(armGeometry, armMaterial);
-        this.rightArm.position.set(-0.35, 0.4, -0.1);
-        this.rightArm.rotation.set(0, 0, 0.3);
-        this.player.add(this.rightArm);
-    }
-    
-    createRifle() {
-        const rifle = new THREE.Group();
-        
-        // Rifle body
-        const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8);
-        const rifleMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x111111,
-            roughness: 0.7,
-            metalness: 0.3
-        });
-        const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
-        rifle.add(rifleBody);
-        
-        // Rifle barrel
-        const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 8);
-        const barrel = new THREE.Mesh(barrelGeometry, rifleMaterial);
-        barrel.rotation.x = Math.PI / 2;
-        barrel.position.z = 0.6;
-        rifle.add(barrel);
-        
-        // Rifle stock
-        const stockGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.4);
-        const stockMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x8B4513,
+        // Add knee pads
+        const kneePadGeometry = new THREE.CylinderGeometry(0.09, 0.09, 0.06, 8, 1, false, Math.PI / 2, Math.PI);
+        const kneePadMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x444444,
             roughness: 0.9,
             metalness: 0.1
         });
+        
+        const leftKneePad = new THREE.Mesh(kneePadGeometry, kneePadMaterial);
+        leftKneePad.rotation.x = Math.PI / 2;
+        leftKneePad.position.set(0.15, -0.1, 0.08);
+        this.player.add(leftKneePad);
+        
+        const rightKneePad = new THREE.Mesh(kneePadGeometry, kneePadMaterial);
+        rightKneePad.rotation.x = Math.PI / 2;
+        rightKneePad.position.set(-0.15, -0.1, 0.08);
+        this.player.add(rightKneePad);
+        
+        // Arms with tactical sleeves
+        // Upper arms
+        const upperArmGeometry = new THREE.CylinderGeometry(0.08, 0.07, 0.3, 8);
+        
+        this.leftUpperArm = new THREE.Mesh(upperArmGeometry, camoMaterial);
+        this.leftUpperArm.position.set(0.3, 0.65, 0);
+        this.leftUpperArm.rotation.z = -0.3;
+        this.player.add(this.leftUpperArm);
+        
+        this.rightUpperArm = new THREE.Mesh(upperArmGeometry, camoMaterial);
+        this.rightUpperArm.position.set(-0.3, 0.65, 0);
+        this.rightUpperArm.rotation.z = 0.3;
+        this.player.add(this.rightUpperArm);
+        
+        // Forearms
+        const forearmGeometry = new THREE.CylinderGeometry(0.06, 0.05, 0.3, 8);
+        
+        this.leftForearm = new THREE.Mesh(forearmGeometry, camoMaterial);
+        this.leftForearm.position.set(0.45, 0.5, 0);
+        this.leftForearm.rotation.z = -0.3;
+        this.player.add(this.leftForearm);
+        
+        this.rightForearm = new THREE.Mesh(forearmGeometry, camoMaterial);
+        this.rightForearm.position.set(-0.45, 0.5, 0);
+        this.rightForearm.rotation.z = 0.3;
+        this.player.add(this.rightForearm);
+        
+        // Tactical gloves
+        const handGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
+        const glovesMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x333333,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        
+        this.leftHand = new THREE.Mesh(handGeometry, glovesMaterial);
+        this.leftHand.position.set(0.58, 0.42, 0);
+        this.player.add(this.leftHand);
+        
+        this.rightHand = new THREE.Mesh(handGeometry, glovesMaterial);
+        this.rightHand.position.set(-0.58, 0.42, 0);
+        this.player.add(this.rightHand);
+        
+        // Store references to limbs for animation
+        this.leftLeg = {
+            thigh: leftThigh,
+            calf: leftCalf,
+            foot: leftBoot
+        };
+        
+        this.rightLeg = {
+            thigh: rightThigh,
+            calf: rightCalf,
+            foot: rightBoot
+        };
+        
+        // Store arm references for the rifle positioning
+        this.leftArm = {
+            upper: this.leftUpperArm,
+            lower: this.leftForearm,
+            hand: this.leftHand
+        };
+        
+        this.rightArm = {
+            upper: this.rightUpperArm,
+            lower: this.rightForearm,
+            hand: this.rightHand
+        };
+    }
+    
+    createRifle() {
+        // Create a more detailed modern assault rifle like an M4/HK416
+        const rifle = new THREE.Group();
+        
+        // Materials
+        const blackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.7,
+            metalness: 0.5
+        });
+        
+        const darkGrayMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.8,
+            metalness: 0.4
+        });
+        
+        const stockMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.9,
+            metalness: 0.2
+        });
+        
+        const metalMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x777777,
+            roughness: 0.4,
+            metalness: 0.8
+        });
+        
+        // Main receiver
+        const receiverGeometry = new THREE.BoxGeometry(0.05, 0.08, 0.4);
+        const receiver = new THREE.Mesh(receiverGeometry, blackMaterial);
+        rifle.add(receiver);
+        
+        // Barrel
+        const barrelGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.5, 8);
+        const barrel = new THREE.Mesh(barrelGeometry, metalMaterial);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.z = 0.45;
+        rifle.add(barrel);
+        
+        // Flash hider
+        const flashHiderGeometry = new THREE.CylinderGeometry(0.02, 0.025, 0.08, 8);
+        const flashHider = new THREE.Mesh(flashHiderGeometry, blackMaterial);
+        flashHider.rotation.x = Math.PI / 2;
+        flashHider.position.z = 0.71;
+        rifle.add(flashHider);
+        
+        // Handguard with rails
+        const handguardGeometry = new THREE.BoxGeometry(0.07, 0.07, 0.35);
+        const handguard = new THREE.Mesh(handguardGeometry, darkGrayMaterial);
+        handguard.position.z = 0.25;
+        handguard.position.y = -0.01;
+        rifle.add(handguard);
+        
+        // Top rail
+        const topRailGeometry = new THREE.BoxGeometry(0.025, 0.01, 0.5);
+        const topRail = new THREE.Mesh(topRailGeometry, blackMaterial);
+        topRail.position.y = 0.045;
+        topRail.position.z = 0.15;
+        rifle.add(topRail);
+        
+        // Pistol grip
+        const gripGeometry = new THREE.BoxGeometry(0.04, 0.12, 0.05);
+        const grip = new THREE.Mesh(gripGeometry, blackMaterial);
+        grip.position.y = -0.10;
+        grip.position.z = -0.06;
+        grip.rotation.x = Math.PI / 8;
+        rifle.add(grip);
+        
+        // Stock - more modern retractable style
+        const stockGeometry = new THREE.BoxGeometry(0.04, 0.06, 0.25);
         const stock = new THREE.Mesh(stockGeometry, stockMaterial);
-        stock.position.z = -0.4;
+        stock.position.z = -0.28;
         rifle.add(stock);
         
-        // Rifle sight
-        const sightGeometry = new THREE.BoxGeometry(0.05, 0.08, 0.05);
-        const sight = new THREE.Mesh(sightGeometry, rifleMaterial);
-        sight.position.y = 0.08;
-        sight.position.z = 0.1;
-        rifle.add(sight);
+        // Buffer tube
+        const bufferTubeGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.15, 8);
+        const bufferTube = new THREE.Mesh(bufferTubeGeometry, darkGrayMaterial);
+        bufferTube.rotation.x = Math.PI / 2;
+        bufferTube.position.z = -0.15;
+        bufferTube.position.y = 0.01;
+        rifle.add(bufferTube);
         
-        // Rifle magazine
-        const magazineGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.1);
-        const magazine = new THREE.Mesh(magazineGeometry, rifleMaterial);
+        // Magazine
+        const magazineGeometry = new THREE.BoxGeometry(0.04, 0.15, 0.06);
+        const magazine = new THREE.Mesh(magazineGeometry, blackMaterial);
         magazine.position.y = -0.12;
-        magazine.position.z = 0.1;
+        magazine.position.z = 0.05;
         rifle.add(magazine);
         
+        // Optic sight/scope
+        const opticBodyGeometry = new THREE.BoxGeometry(0.04, 0.04, 0.1);
+        const opticBody = new THREE.Mesh(opticBodyGeometry, blackMaterial);
+        opticBody.position.y = 0.08;
+        opticBody.position.z = 0.1;
+        rifle.add(opticBody);
+        
+        // Optic lens
+        const lensGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.02, 16);
+        const lensMaterial = new THREE.MeshStandardMaterial({
+            color: 0x88CCFF,
+            transparent: true,
+            opacity: 0.7,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+        const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+        lens.rotation.x = Math.PI / 2;
+        lens.position.y = 0.08;
+        lens.position.z = 0.06;
+        rifle.add(lens);
+        
+        // Rifle foregrip
+        const foregrip = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.015, 0.02, 0.1, 8),
+            blackMaterial
+        );
+        foregrip.position.set(0, -0.09, 0.25);
+        rifle.add(foregrip);
+        
         // Muzzle flash (initially invisible)
-        const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
+        const muzzleGeometry = new THREE.ConeGeometry(0.04, 0.15, 16);
         const muzzleMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xFFFF00,
+            color: 0xFFAA44,
             transparent: true,
             opacity: 0.8
         });
         this.muzzleFlash = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
-        this.muzzleFlash.position.z = 0.9;
+        this.muzzleFlash.position.z = 0.75;
         this.muzzleFlash.rotation.x = Math.PI / 2;
         this.muzzleFlash.visible = false;
         rifle.add(this.muzzleFlash);
         
-        // Create hands to hold the rifle
-        this.createHands(rifle);
-        
-        // Position rifle for standard third-person shooter position
-        rifle.position.set(0.3, 0.4, 0.3); // Positioned in front of player
+        // Position rifle in standard third-person shooter position
+        rifle.position.set(0.35, 0.45, 0.3);
+        rifle.rotation.y = -Math.PI / 16; // Slight angle
         
         this.player.add(rifle);
         this.rifle = rifle;
-    }
-    
-    // Add hands to hold the rifle
-    createHands(rifle) {
-        const handMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
-        
-        // Left hand (forward grip)
-        const leftHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
-        const leftHand = new THREE.Mesh(leftHandGeometry, handMaterial);
-        leftHand.position.set(0, -0.05, 0.3);
-        rifle.add(leftHand);
-        
-        // Right hand (trigger hand)
-        const rightHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
-        const rightHand = new THREE.Mesh(rightHandGeometry, handMaterial);
-        rightHand.position.set(0, -0.05, -0.1);
-        rifle.add(rightHand);
-        
-        // Store references to the hands
-        this.leftHand = leftHand;
-        this.rightHand = rightHand;
     }
     
     setupControls() {
@@ -2715,26 +3410,26 @@ class Game {
             }
         });
         
-        // Mouse controls with corrected up/down movement
+        // Mouse controls for standard third-person shooter
         this.container.addEventListener('click', () => {
             this.container.requestPointerLock();
         });
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Update horizontal rotation (player turning)
+                // In standard third-person shooter controls:
+                // - Horizontal mouse movement rotates the player character (not just the camera)
+                // - Vertical mouse movement only adjusts the camera pitch
+                
+                // Update player rotation based on horizontal mouse movement
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
-                // Update vertical camera angle with constraints
-                // Standard third-person camera vertical rotation
-                this.cameraAngles.vertical += e.movementY * 0.002;
-                
-                // Constrain vertical look to prevent flipping
+                // Update camera pitch (vertical angle) with tighter constraints for better control
                 this.cameraAngles.vertical = Math.max(
                     -Math.PI / 4, // Look up limit (less extreme)
                     Math.min(
-                        Math.PI / 6, // Look down limit
-                        this.cameraAngles.vertical
+                        Math.PI / 8, // Look down limit (less extreme)
+                        this.cameraAngles.vertical + e.movementY * 0.002
                     )
                 );
             }
@@ -3037,43 +3732,38 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Ensure camera angles are initialized
-        if (!this.cameraAngles) {
-            this.cameraAngles = {
-                vertical: 0,
-                horizontal: 0
-            };
-            console.warn('Camera angles were not initialized, creating default values');
+        // Fixed third-person shooter camera implementation
+        
+        // Calculate camera position directly behind player
+        // Use a fixed distance for the camera to prevent circular panning
+        const cameraDistance = Constants.PLAYER.CAMERA_OFFSET.z;
+        const cameraHeight = Constants.PLAYER.CAMERA_OFFSET.y;
+        
+        // Calculate camera position directly behind player based on player's rotation
+        const cameraPosition = new THREE.Vector3(
+            this.playerState.position.x - Math.sin(this.playerState.rotation.y) * cameraDistance,
+            this.playerState.position.y + cameraHeight,
+            this.playerState.position.z - Math.cos(this.playerState.rotation.y) * cameraDistance
+        );
+        
+        this.camera.position.copy(cameraPosition);
+        
+        // Calculate target position - player position plus height offset
+        const targetHeight = 1.0; // Look at player head height
+        const targetPosition = this.playerState.position.clone();
+        targetPosition.y += targetHeight;
+        
+        // Apply vertical tilt if needed
+        if (this.cameraAngles.vertical !== 0) {
+            // Calculate a point above or below the player based on vertical angle
+            const verticalOffset = Math.tan(this.cameraAngles.vertical) * cameraDistance;
+            targetPosition.y += verticalOffset;
         }
         
-        // Calculate camera position based on player position and offset
-        const cameraOffset = this.cameraOffset.clone();
+        // Point camera at target
+        this.camera.lookAt(targetPosition);
         
-        // First rotate the offset around the Y axis (horizontal rotation)
-        cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
-        
-        // Then apply vertical rotation only to the z and y components
-        // This prevents the corkscrewing effect by keeping the camera's x position relative to player consistent
-        const distance = Math.sqrt(cameraOffset.z * cameraOffset.z + cameraOffset.y * cameraOffset.y);
-        const currentAngle = Math.atan2(cameraOffset.y, cameraOffset.z);
-        const newAngle = currentAngle + this.cameraAngles.vertical;
-        
-        cameraOffset.y = distance * Math.sin(newAngle);
-        cameraOffset.z = distance * Math.cos(newAngle);
-        
-        // Set camera position
-        const targetPosition = this.playerState.position.clone().add(cameraOffset);
-        this.camera.position.copy(targetPosition);
-        
-        // Calculate look target (where the camera points)
-        // Always look at the player's position plus a small height offset
-        const lookTarget = this.playerState.position.clone();
-        lookTarget.y += 1; // Look at the player's head level
-        
-        // Make the camera look at the target
-        this.camera.lookAt(lookTarget);
-        
-        // Calculate aim direction for the rifle
+        // Calculate aim point for weapon
         const aimDirection = new THREE.Vector3(0, 0, -1);
         aimDirection.applyEuler(new THREE.Euler(
             this.cameraAngles.vertical,
@@ -3082,11 +3772,11 @@ class Game {
             'YXZ'
         ));
         
-        // Aim target is ahead in the direction we're facing
         const aimTarget = this.playerState.position.clone();
+        aimTarget.y += 1.0; // Aim from eye level
         aimTarget.add(aimDirection.multiplyScalar(20));
         
-        // Update rifle aim to match aim direction
+        // Update rifle aim
         this.updateRifleAim(aimTarget);
     }
     
@@ -3108,19 +3798,55 @@ class Game {
         this.rifle.rotation.z = 0; // Prevent any roll rotation
         
         // Position rifle in front of player
-        this.rifle.position.set(0.3, 0.4, 0.3);
+        this.rifle.position.set(0.35, 0.45, 0.3);
         
         // Update arm positions to naturally hold the rifle
         if (this.leftArm && this.rightArm) {
-            // Left arm forward to hold rifle
-            this.leftArm.rotation.x = rifleRotation.x * 0.7;
-            this.leftArm.rotation.y = rifleRotation.y * 0.5;
-            this.leftArm.rotation.z = 0; // Prevent any roll rotation
+            // Position arms to naturally hold the rifle based on where it's pointing
             
-            // Right arm to hold trigger
-            this.rightArm.rotation.x = rifleRotation.x * 0.7;
-            this.rightArm.rotation.y = rifleRotation.y * 0.5;
-            this.rightArm.rotation.z = 0; // Prevent any roll rotation
+            // Left arm (forward grip)
+            if (this.leftArm.upper && this.leftArm.lower && this.leftArm.hand) {
+                // Upper arm rotation
+                this.leftArm.upper.rotation.x = rifleRotation.x * 0.3;
+                this.leftArm.upper.rotation.y = rifleRotation.y * 0.4;
+                this.leftArm.upper.rotation.z = -0.3; // Keep basic pose
+                
+                // Forearm rotation - point toward the rifle foregrip
+                this.leftArm.lower.rotation.x = rifleRotation.x * 0.5;
+                this.leftArm.lower.rotation.y = rifleRotation.y * 0.6;
+                this.leftArm.lower.rotation.z = -0.3;
+                
+                // Hand position
+                this.leftArm.hand.position.x = 0.58 + rifleRotation.y * 0.05;
+                this.leftArm.hand.position.y = 0.42 - rifleRotation.x * 0.1;
+                this.leftArm.hand.position.z = rifleRotation.x * 0.1;
+                
+                // Hand rotation
+                this.leftArm.hand.rotation.x = rifleRotation.x;
+                this.leftArm.hand.rotation.y = rifleRotation.y;
+            }
+            
+            // Right arm (trigger hand)
+            if (this.rightArm.upper && this.rightArm.lower && this.rightArm.hand) {
+                // Upper arm rotation
+                this.rightArm.upper.rotation.x = rifleRotation.x * 0.3;
+                this.rightArm.upper.rotation.y = rifleRotation.y * 0.4;
+                this.rightArm.upper.rotation.z = 0.3; // Keep basic pose
+                
+                // Forearm rotation - point toward the rifle trigger
+                this.rightArm.lower.rotation.x = rifleRotation.x * 0.5;
+                this.rightArm.lower.rotation.y = rifleRotation.y * 0.6;
+                this.rightArm.lower.rotation.z = 0.3;
+                
+                // Hand position
+                this.rightArm.hand.position.x = -0.58 + rifleRotation.y * 0.05;
+                this.rightArm.hand.position.y = 0.42 - rifleRotation.x * 0.1;
+                this.rightArm.hand.position.z = rifleRotation.x * 0.1;
+                
+                // Hand rotation
+                this.rightArm.hand.rotation.x = rifleRotation.x;
+                this.rightArm.hand.rotation.y = rifleRotation.y;
+            }
         }
     }
     
@@ -3392,6 +4118,181 @@ class Game {
             console.error('Error creating dinosaur:', error);
             this.debug.innerHTML += `<br>Error creating dinosaur: ${error.message}<br>Stack: ${error.stack}`;
         }
+    }
+    
+    createDinosaurTexture() {
+        // Create a procedural texture for the dinosaur skin
+        const canvas = document.createElement('canvas');
+        const size = 512;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // Base color - dark green
+        ctx.fillStyle = '#2d8659';
+        ctx.fillRect(0, 0, size, size);
+        
+        // Create scale pattern
+        const scaleSize = 10;
+        const rows = size / scaleSize;
+        const cols = size / scaleSize;
+        
+        // Draw scales
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                // Offset every other row
+                const offsetX = y % 2 === 0 ? 0 : scaleSize / 2;
+                
+                // Vary scale colors slightly for realism
+                const hue = 140 + Math.random() * 20; // Green hue
+                const saturation = 40 + Math.random() * 20;
+                const lightness = 30 + Math.random() * 15;
+                
+                ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                
+                // Draw rounded scale shape
+                ctx.beginPath();
+                ctx.arc(
+                    x * scaleSize + offsetX,
+                    y * scaleSize,
+                    scaleSize / 2 - 1,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+        
+        // Add some larger pattern variations
+        for (let i = 0; i < 20; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+            const r = 20 + Math.random() * 40;
+            
+            // Create darker patches
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.ellipse(x, y, r, r * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Add some highlights
+        for (let i = 0; i < 30; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+            const r = 5 + Math.random() * 15;
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Create texture from canvas
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2, 2);
+        
+        return texture;
+    }
+    
+    createDinosaurNormalMap() {
+        // Create a normal map for the dinosaur skin to give it bumpy texture
+        const canvas = document.createElement('canvas');
+        const size = 512;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // Fill with neutral normal color (rgb(128,128,255))
+        ctx.fillStyle = 'rgb(128,128,255)';
+        ctx.fillRect(0, 0, size, size);
+        
+        // Create bumpy scales
+        const scaleSize = 10;
+        const rows = size / scaleSize;
+        const cols = size / scaleSize;
+        
+        // Draw scale bumps in normal map format
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                // Offset every other row
+                const offsetX = y % 2 === 0 ? 0 : scaleSize / 2;
+                
+                // Create gradient for each scale to simulate bump
+                const centerX = x * scaleSize + offsetX;
+                const centerY = y * scaleSize;
+                
+                const gradient = ctx.createRadialGradient(
+                    centerX, centerY, 0,
+                    centerX, centerY, scaleSize / 2
+                );
+                
+                // Normal map colors: RGB = XYZ displacement
+                // Brighter = raised, darker = depressed
+                gradient.addColorStop(0, 'rgb(160,160,255)'); // Center is raised (brighter)
+                gradient.addColorStop(0.8, 'rgb(128,128,255)'); // Neutral normal
+                gradient.addColorStop(1, 'rgb(100,100,255)'); // Edge is lower (darker)
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, scaleSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Add some larger bumps and creases
+        for (let i = 0; i < 30; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+            const r = 20 + Math.random() * 30;
+            
+            // Randomly decide if this is a bump (brighter) or depression (darker)
+            const isBump = Math.random() > 0.5;
+            const innerColor = isBump ? 'rgba(180,180,255,0.7)' : 'rgba(90,90,255,0.7)';
+            
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+            gradient.addColorStop(0, innerColor);
+            gradient.addColorStop(1, 'rgba(128,128,255,0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Create some wrinkles
+        for (let i = 0; i < 20; i++) {
+            const x1 = Math.random() * size;
+            const y1 = Math.random() * size;
+            const x2 = x1 + (Math.random() - 0.5) * 100;
+            const y2 = y1 + (Math.random() - 0.5) * 100;
+            const width = 2 + Math.random() * 8;
+            
+            ctx.strokeStyle = 'rgb(90,90,255)';
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            
+            // Add highlight to one side of the wrinkle
+            ctx.strokeStyle = 'rgb(160,160,255)';
+            ctx.lineWidth = width / 2;
+            ctx.beginPath();
+            ctx.moveTo(x1 + 2, y1 + 2);
+            ctx.lineTo(x2 + 2, y2 + 2);
+            ctx.stroke();
+        }
+        
+        // Create texture from canvas
+        const normalMap = new THREE.CanvasTexture(canvas);
+        normalMap.wrapS = THREE.RepeatWrapping;
+        normalMap.wrapT = THREE.RepeatWrapping;
+        normalMap.repeat.set(3, 3);
+        
+        return normalMap;
     }
 }
 
