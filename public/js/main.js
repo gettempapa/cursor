@@ -171,7 +171,7 @@ function createHumanoidMesh() {
     
     // Create separate group for aiming parts
     playerAimHelper = new THREE.Group();
-    playerAimHelper.position.y = 1.2; // Position at shoulder height
+    playerAimHelper.position.set(0, 1.2, 0); // Position at shoulder height and centered
     playerGroup.add(playerAimHelper);
     
     // Modern tactical color scheme
@@ -298,16 +298,14 @@ function createHumanoidMesh() {
     leftGlove.position.set(0, -0.5, 0);
     leftArmGroup.add(leftGlove);
     
-    // Create right arm group for positioning
+    // Create right arm group for positioning - position it relative to the shoulder area of the vest
     const rightArmGroup = new THREE.Group();
-    // Move the right arm to the proper shoulder position on the body, not on the aim helper
-    rightArmGroup.position.set(0.25, 1.1, 0.05);
+    rightArmGroup.position.set(0.28, -0.1, 0.05); // Position relative to playerAimHelper, which is at shoulder height
     // Rotate right arm to hold the gun properly on the trigger/grip
     rightArmGroup.rotation.x = Math.PI * 0.15; // More tilt forward for trigger hand
     rightArmGroup.rotation.z = Math.PI * 0.15; // Angle inward toward body
     rightArmGroup.rotation.y = -Math.PI * 0.05; // Slight rotation for better grip position
-    // Attach directly to player group, not the aim helper
-    playerGroup.add(rightArmGroup);
+    playerAimHelper.add(rightArmGroup);
     
     // Right upper arm
     const rightUpperArm = new THREE.Mesh(upperArmGeometry, upperArmMaterial);
@@ -486,8 +484,8 @@ function createHumanoidMesh() {
     gunGroup.add(rearSlingPoint);
     
     // Position the rifle in proper aiming position
-    // Move the gun up toward shoulder level for aiming but attached to the hand
-    gunGroup.position.set(0.05, -0.5, 0.2);
+    // Move the gun up toward shoulder level for aiming
+    gunGroup.position.set(0.05, 0.17, 0.25);
     
     // Tilt the gun slightly to align with soldier's eye line
     gunGroup.rotation.x = -Math.PI * 0.03;
@@ -497,7 +495,7 @@ function createHumanoidMesh() {
     gunGroup.rotation.z = Math.PI * 0.02;
     
     // Connect the right hand to the rifle grip
-    rightGlove.add(gunGroup);
+    rightArmGroup.add(gunGroup);
     
     // Add visual aim indicator (laser sight from gun)
     const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.8);
@@ -921,20 +919,6 @@ function animate() {
     
     // Apply vertical aiming only to the playerAimHelper 
     playerAimHelper.rotation.x = mouseY;
-    
-    // Update the arm to match the aiming direction
-    // This keeps the arm attached to the body but rotates to follow aim
-    if (rightArmGroup) {
-        // Base rotation values - natural position
-        let baseRotX = Math.PI * 0.15;
-        let baseRotY = -Math.PI * 0.05;
-        let baseRotZ = Math.PI * 0.15;
-        
-        // Add some of the aim rotation to make the arm follow slightly
-        // but not so much that it detaches from the body
-        rightArmGroup.rotation.y = baseRotY + mouseX * 0.3;
-        rightArmGroup.rotation.x = baseRotX + mouseY * 0.3;
-    }
     
     // Update camera position relative to player
     camera.position.x = player.position.x - Math.sin(mouseX) * cameraOffset.z;
