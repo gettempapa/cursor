@@ -1,0 +1,9 @@
+name: cursor-app
+static_sites:
+- name: static-site
+  github:
+    repo: gettempapa/cursor
+    branch: main
+  build_command: echo "Static site - no build needed"
+  output_dir: /
+  error_document: index.html 

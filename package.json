@@ -1,0 +1,14 @@
+{
+  "name": "cursor-app",
+  "version": "1.0.0",
+  "description": "Simple static website",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+} 
