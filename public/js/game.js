@@ -42,7 +42,7 @@ class Game {
         this.currentZoomDistance = this.defaultCameraDistance;
         this.minZoomDistance = this.defaultCameraDistance * 0.5; // 50% closer
         this.maxZoomDistance = this.defaultCameraDistance * 1.5; // 50% further
-        this.zoomSpeed = 0.0005;
+        this.zoomSpeed = 0.0015;
         
         // Shooting state
         this.isShooting = false;
@@ -74,6 +74,10 @@ class Game {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.gunshotBuffer = null;
         this.loadGunshotSound();
+        
+        // Add death state
+        this.isDead = false;
+        this.deathMessageContainer = null;
         
         // Set up basic scene
         this.setupScene();
@@ -281,6 +285,9 @@ class Game {
 
         // Add bunker
         this.createBunker();
+        
+        // Add bridge
+        this.createBridge();
 
         // Add fog for misty mountains
         this.scene.fog = new THREE.Fog(0xcccccc, 30, 100);
@@ -320,16 +327,19 @@ class Game {
         // Add ground
         const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x3498db, // Changed to water blue
-            roughness: 0.8,
-            metalness: 0.2
+            color: 0x2d5a27, // Grass green
+            roughness: 0.9,
+            metalness: 0.1
         });
         
-        // Add some height variation to the ground
+        // Add grass texture through vertex displacement
         const vertices2 = groundGeometry.attributes.position.array;
         for (let i = 0; i < vertices2.length; i += 3) {
             if (Math.abs(vertices2[i]) > 5 || Math.abs(vertices2[i + 2]) > 5) {
                 vertices2[i + 1] = Math.random() * 0.5; // Add small hills
+                // Add small random displacement for grass effect
+                vertices2[i] += (Math.random() - 0.5) * 0.3;
+                vertices2[i + 2] += (Math.random() - 0.5) * 0.3;
             }
         }
         groundGeometry.attributes.position.needsUpdate = true;
@@ -498,11 +508,11 @@ class Game {
             this.scene.add(tree);
         }
         
-        // Create and add soldier model
+        // Create and add soldier model at a safe starting position
         this.soldier = this.createSoldier(false);
         this.player = new THREE.Group();
         this.player.add(this.soldier);
-        this.player.position.y = 1;
+        this.player.position.set(5, 1, 5); // Start away from stream
         this.scene.add(this.player);
         
         // Set up camera (now separate from player)
@@ -512,15 +522,7 @@ class Game {
         // Create and add enemy
         this.enemy = this.createSoldier(true);
         this.enemy.scale.set(1, 1, 1);
-        
-        // Position enemy randomly within level bounds
-        const randomAngle = Math.random() * Math.PI * 2;
-        const randomRadius = Math.random() * this.levelRadius;
-        this.enemy.position.set(
-            Math.cos(randomAngle) * randomRadius,
-            1,
-            Math.sin(randomAngle) * randomRadius
-        );
+        this.enemy.position.set(-5, 1, -5);
         this.scene.add(this.enemy);
         
         // Start enemy AI
@@ -593,15 +595,25 @@ class Game {
             }
         });
 
-        // Resume audio context on first click
+        // Add respawn handler
+        document.addEventListener('keydown', () => {
+            if (this.isDead) {
+                this.respawn();
+            }
+        });
+
         this.container.addEventListener('click', () => {
-            if (this.audioContext.state === 'suspended') {
+            if (this.isDead) {
+                this.respawn();
+            } else if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
             }
-        }, { once: true });
+        });
     }
     
     updateMovement() {
+        if (this.isDead) return; // No movement when dead
+        
         // Update vertical movement (jumping/falling)
         if (!this.isGrounded) {
             this.velocity.y += this.gravity;
@@ -648,7 +660,18 @@ class Game {
                 this.player.position.z + direction.z * this.moveSpeed
             );
             
-            // Check for collisions before updating position
+            // Check for stream collision if not on bridge
+            if (!this.bridgeBox.containsPoint(newPosition) && this.checkStreamCollision(newPosition)) {
+                if (!this.isDead) {
+                    this.isDead = true;
+                    this.showDeathMessage();
+                    // Make player fall over
+                    this.soldier.rotation.z = Math.PI / 2;
+                }
+                return;
+            }
+            
+            // Check for other collisions before updating position
             if (!this.checkCollisions(newPosition)) {
                 this.player.position.copy(newPosition);
             }
@@ -719,8 +742,8 @@ class Game {
         // Create crosshair container
         const crosshairContainer = document.createElement('div');
         crosshairContainer.style.position = 'absolute';
-        crosshairContainer.style.top = '40%';
-        crosshairContainer.style.left = '55%';
+        crosshairContainer.style.top = '50%';
+        crosshairContainer.style.left = '50%';
         crosshairContainer.style.transform = 'translate(-50%, -50%)';
         crosshairContainer.style.width = '24px';
         crosshairContainer.style.height = '24px';
@@ -770,20 +793,31 @@ class Game {
     }
 
     loadGunshotSound() {
-        // Create a more powerful gunshot sound with longer duration
-        const duration = 0.3; // Increased duration
+        // Create a powerful AR-15 style gunshot sound
+        const duration = 0.4; // Longer duration for more bass and echo
         const sampleRate = this.audioContext.sampleRate;
         this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
         const data = this.gunshotBuffer.getChannelData(0);
         
-        // Generate a much punchier sound
+        // Generate a powerful crack with deep bass
         for (let i = 0; i < data.length; i++) {
             const t = i / sampleRate;
-            // Mix noise with an even sharper attack and longer decay
-            const attack = Math.exp(-t * 150); // Sharper attack
-            const decay = Math.exp(-t * 8); // Longer decay
-            const noise = Math.random() * 2 - 1;
-            data[i] = (noise * attack * 0.7 + noise * decay * 0.6) * 2.0; // Increased amplitude
+            
+            // Initial supersonic crack (very sharp attack)
+            const crack = Math.exp(-t * 500) * (Math.random() * 2 - 1);
+            
+            // Deep bass impact
+            const bass = Math.exp(-t * 30) * Math.sin(2 * Math.PI * 80 * t);
+            
+            // Mid-frequency body
+            const mid = Math.exp(-t * 100) * Math.sin(2 * Math.PI * 400 * t);
+            
+            // Combine components with proper mixing
+            data[i] = (
+                crack * 0.7 +    // Sharp crack
+                bass * 0.6 +     // Deep bass
+                mid * 0.4        // Mid frequencies
+            ) * 3.0;            // Increased overall volume
         }
     }
 
@@ -793,72 +827,72 @@ class Game {
         const source = this.audioContext.createBufferSource();
         source.buffer = this.gunshotBuffer;
         
-        // Enhanced bass with lower frequency
+        // Enhanced bass frequencies
         const lowpass = this.audioContext.createBiquadFilter();
         lowpass.type = 'lowpass';
-        lowpass.frequency.value = 800;
-        lowpass.Q.value = 5.0; // Resonance for more punch
+        lowpass.frequency.value = 400;
+        lowpass.Q.value = 8.0; // Sharper resonance for punchier bass
         
-        // Sharper crack
+        // Supersonic crack frequencies
         const highpass = this.audioContext.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 2000;
+        highpass.frequency.value = 2500;
+        highpass.Q.value = 5.0;
         
-        // More aggressive distortion
-        const distortion = this.audioContext.createWaveShaper();
-        function makeDistortionCurve(amount) {
-            const k = amount;
-            const samples = 44100;
-            const curve = new Float32Array(samples);
-            for (let i = 0; i < samples; ++i) {
-                const x = (i * 2) / samples - 1;
-                curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 0.3) * 3;
-            }
-            return curve;
-        }
-        distortion.curve = makeDistortionCurve(100);
+        // Aggressive compression for that powerful sound
+        const compressor = this.audioContext.createDynamicsCompressor();
+        compressor.threshold.value = -24;
+        compressor.knee.value = 0;
+        compressor.ratio.value = 12;
+        compressor.attack.value = 0;
+        compressor.release.value = 0.25;
         
-        // Create canyon-like echo effect
+        // Create powerful echo effect
         const convolver = this.audioContext.createConvolver();
-        const reverbTime = 3.0; // Longer reverb time for canyon effect
+        const reverbTime = 3.0;
         const rate = this.audioContext.sampleRate;
         const length = rate * reverbTime;
         const impulse = this.audioContext.createBuffer(2, length, rate);
         const left = impulse.getChannelData(0);
         const right = impulse.getChannelData(1);
         
-        // Create multiple echo reflections
+        // Create multiple distinct echo reflections
         for (let i = 0; i < length; i++) {
             const t = i / rate;
-            // Create distinct echo peaks
-            const echoPeaks = [0.1, 0.3, 0.6, 1.0, 1.5, 2.0];
+            // Distinct echo peaks for AR-15 style reflection pattern
+            const echoPeaks = [0.05, 0.1, 0.15, 0.25, 0.4, 0.6];
             let echoSum = 0;
             for (const delay of echoPeaks) {
-                echoSum += Math.exp(-8 * Math.abs(t - delay)) * (1 - t / reverbTime);
+                // Sharper echo peaks with less noise
+                echoSum += Math.exp(-12 * Math.abs(t - delay)) * (1 - t / reverbTime);
             }
-            const decay = Math.exp(-2 * i / length);
-            left[i] = (Math.random() * 2 - 1) * decay * (1 + echoSum);
-            right[i] = (Math.random() * 2 - 1) * decay * (1 + echoSum);
+            const decay = Math.exp(-1.5 * i / length);
+            // Less random noise in the echo, more defined reflections
+            left[i] = decay * (1 + echoSum) * 0.7;
+            right[i] = decay * (1 + echoSum) * 0.7;
         }
         convolver.buffer = impulse;
         
         // Volume controls
         const mainGain = this.audioContext.createGain();
-        mainGain.gain.value = 0.5; // Main volume
+        mainGain.gain.value = 0.8; // Increased main volume
         
         const reverbGain = this.audioContext.createGain();
-        reverbGain.gain.value = 0.4; // Stronger echo
+        reverbGain.gain.value = 0.6; // Stronger echo
         
-        // Connect the audio nodes
-        source.connect(distortion);
-        distortion.connect(lowpass);
+        // Connect the audio processing chain
+        source.connect(compressor);
+        compressor.connect(lowpass);
         lowpass.connect(highpass);
         
-        // Main signal path
-        highpass.connect(mainGain);
+        // Split into two paths: direct sound and echo
+        const directGain = this.audioContext.createGain();
+        directGain.gain.value = 0.7;
+        highpass.connect(directGain);
+        directGain.connect(mainGain);
         mainGain.connect(this.audioContext.destination);
         
-        // Canyon echo path
+        // Echo path with more defined reflections
         highpass.connect(convolver);
         convolver.connect(reverbGain);
         reverbGain.connect(this.audioContext.destination);
@@ -976,60 +1010,153 @@ class Game {
             metalness: 0.3
         });
 
-        // Main bunker structure (5x3x4 meters)
-        const bunkerGeometry = new THREE.BoxGeometry(5, 3, 4);
+        // Main bunker structure (8x4x6 meters - increased size)
+        const bunkerGeometry = new THREE.BoxGeometry(8, 4, 6);
         const bunker = new THREE.Mesh(bunkerGeometry, wallMaterial);
-        bunker.position.set(8, 1.5, -8); // Position in the scene
+        bunker.position.set(12, 2, -12); // Moved further out
         
-        // Create windows
-        const windowWidth = 1;
-        const windowHeight = 0.8;
+        // Create windows (scaled up)
+        const windowWidth = 1.5;
+        const windowHeight = 1.2;
         const windowDepth = 0.3;
         const windowGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, windowDepth);
         
         // Front windows
         const frontWindow1 = new THREE.Mesh(windowGeometry, windowMaterial);
-        frontWindow1.position.set(-1.5, 0.5, 2);
+        frontWindow1.position.set(-2.5, 0.5, 3);
         bunker.add(frontWindow1);
         
         const frontWindow2 = new THREE.Mesh(windowGeometry, windowMaterial);
-        frontWindow2.position.set(1.5, 0.5, 2);
+        frontWindow2.position.set(2.5, 0.5, 3);
         bunker.add(frontWindow2);
         
         // Side windows
         const sideWindow1 = new THREE.Mesh(windowGeometry, windowMaterial);
         sideWindow1.rotation.y = Math.PI / 2;
-        sideWindow1.position.set(2.5, 0.5, 0);
+        sideWindow1.position.set(4, 0.5, 0);
         bunker.add(sideWindow1);
         
         const sideWindow2 = new THREE.Mesh(windowGeometry, windowMaterial);
         sideWindow2.rotation.y = Math.PI / 2;
-        sideWindow2.position.set(-2.5, 0.5, 0);
+        sideWindow2.position.set(-4, 0.5, 0);
         bunker.add(sideWindow2);
         
         // Add entrance (no door, just an opening)
-        const entranceWidth = 1.2;
-        const entranceHeight = 2;
+        const entranceWidth = 2;
+        const entranceHeight = 2.5;
         const entranceGeometry = new THREE.BoxGeometry(entranceWidth, entranceHeight, 0.3);
         const entrance = new THREE.Mesh(entranceGeometry, windowMaterial);
-        entrance.position.set(0, -0.5, -2);
+        entrance.position.set(0, -0.5, -3);
         bunker.add(entrance);
         
         // Add roof overhang
-        const roofGeometry = new THREE.BoxGeometry(5.5, 0.2, 4.5);
+        const roofGeometry = new THREE.BoxGeometry(8.5, 0.3, 6.5);
         const roof = new THREE.Mesh(roofGeometry, wallMaterial);
-        roof.position.set(0, 1.6, 0);
+        roof.position.set(0, 2.1, 0);
         bunker.add(roof);
         
         bunkerGroup.add(bunker);
         this.scene.add(bunkerGroup);
         
-        // Add bunker collision box (slightly smaller than visual model to allow player to enter)
+        // Update bunker collision box
         const bunkerBox = new THREE.Box3(
-            new THREE.Vector3(6, 0, -10),  // min point
-            new THREE.Vector3(10, 3, -6)   // max point
+            new THREE.Vector3(8, 0, -15),  // min point
+            new THREE.Vector3(16, 4, -9)   // max point
         );
         this.bunkerBox = bunkerBox;
+    }
+
+    createBridge() {
+        const bridgeGroup = new THREE.Group();
+        
+        // Bridge materials
+        const woodMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        
+        // Main bridge platform
+        const bridgeGeometry = new THREE.BoxGeometry(4, 0.2, 6);
+        const bridge = new THREE.Mesh(bridgeGeometry, woodMaterial);
+        bridge.position.set(0, 0.3, 0);
+        bridgeGroup.add(bridge);
+        
+        // Add railings
+        const railingGeometry = new THREE.BoxGeometry(0.1, 0.5, 6);
+        const leftRailing = new THREE.Mesh(railingGeometry, woodMaterial);
+        leftRailing.position.set(-1.9, 0.5, 0);
+        bridgeGroup.add(leftRailing);
+        
+        const rightRailing = new THREE.Mesh(railingGeometry, woodMaterial);
+        rightRailing.position.set(1.9, 0.5, 0);
+        bridgeGroup.add(rightRailing);
+        
+        // Add support posts
+        const postGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const positions = [
+            [-1.9, -0.1, -2.9],
+            [-1.9, -0.1, 2.9],
+            [1.9, -0.1, -2.9],
+            [1.9, -0.1, 2.9]
+        ];
+        
+        positions.forEach(pos => {
+            const post = new THREE.Mesh(postGeometry, woodMaterial);
+            post.position.set(...pos);
+            bridgeGroup.add(post);
+        });
+        
+        // Position bridge over stream
+        bridgeGroup.position.set(0, 0, 0);
+        this.scene.add(bridgeGroup);
+        
+        // Store bridge bounds for collision detection
+        this.bridgeBox = new THREE.Box3(
+            new THREE.Vector3(-2, 0, -3),
+            new THREE.Vector3(2, 0.5, 3)
+        );
+    }
+
+    checkStreamCollision(position) {
+        // Get stream position (it meanders, so we need to check along its path)
+        const streamX = Math.sin(position.z * 0.1) * 2;
+        const streamWidth = 1.5; // Half the actual stream width
+        
+        // Check if player is within stream bounds
+        return Math.abs(position.x - streamX) < streamWidth;
+    }
+
+    showDeathMessage() {
+        if (!this.deathMessageContainer) {
+            this.deathMessageContainer = document.createElement('div');
+            this.deathMessageContainer.style.position = 'absolute';
+            this.deathMessageContainer.style.top = '50%';
+            this.deathMessageContainer.style.left = '50%';
+            this.deathMessageContainer.style.transform = 'translate(-50%, -50%)';
+            this.deathMessageContainer.style.color = 'red';
+            this.deathMessageContainer.style.fontSize = '48px';
+            this.deathMessageContainer.style.fontWeight = 'bold';
+            this.deathMessageContainer.style.textShadow = '2px 2px 4px black';
+            this.deathMessageContainer.style.fontFamily = 'Arial, sans-serif';
+            this.deathMessageContainer.textContent = 'YOU DIED';
+            this.container.appendChild(this.deathMessageContainer);
+        }
+        this.deathMessageContainer.style.display = 'block';
+    }
+
+    hideDeathMessage() {
+        if (this.deathMessageContainer) {
+            this.deathMessageContainer.style.display = 'none';
+        }
+    }
+
+    respawn() {
+        this.isDead = false;
+        this.hideDeathMessage();
+        this.player.position.set(5, 1, 5);
+        this.player.rotation.set(0, 0, 0);
+        this.soldier.rotation.set(0, 0, 0);
     }
 }
 
