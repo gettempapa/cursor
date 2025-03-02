@@ -18,7 +18,11 @@ export class Game {
         // Initialize game components
         this.environment = new Environment(this.scene);
         this.player = new Player(this.scene);
-        this.enemy = new Enemy(this.scene);
+        
+        // Initialize enemy with a specific position
+        this.enemy = new Enemy(this.scene, new THREE.Vector3(-10, 1, -10));
+        this.scene.add(this.enemy.object); // Explicitly add enemy to scene
+        
         this.ui = new UI(this.container);
         
         // Set up controls
@@ -53,12 +57,7 @@ export class Game {
                 case 'KeyS': this.player.moveState.backward = true; break;
                 case 'KeyA': this.player.moveState.left = true; break;
                 case 'KeyD': this.player.moveState.right = true; break;
-                case 'Space': 
-                    if (this.player.isGrounded) {
-                        this.player.velocity.y = this.player.jumpForce;
-                        this.player.isGrounded = false;
-                    }
-                    break;
+                case 'Space': this.player.moveState.jump = true; break;
                 case 'KeyR':
                     this.player.weaponSystem.reload();
                     this.ui.showReloadIndicator();
@@ -88,6 +87,7 @@ export class Game {
                 case 'KeyS': this.player.moveState.backward = false; break;
                 case 'KeyA': this.player.moveState.left = false; break;
                 case 'KeyD': this.player.moveState.right = false; break;
+                case 'Space': this.player.moveState.jump = false; break;
             }
         });
         
@@ -95,13 +95,10 @@ export class Game {
         this.container.addEventListener('mousedown', (e) => {
             if (document.pointerLockElement === this.container && e.button === 0) {
                 const didShoot = this.player.weaponSystem.shoot(this.player.camera, (hit) => {
-                    if (hit.object === this.enemy.object) {
+                    if (hit && hit.object === this.enemy.object) {
                         const remainingHealth = this.enemy.takeDamage(20);
                         if (remainingHealth <= 0) {
-                            this.enemy.destroy();
-                            setTimeout(() => {
-                                this.enemy = new Enemy(this.scene);
-                            }, 5000);
+                            setTimeout(() => this.respawnEnemy(), 5000); // Respawn after 5 seconds
                         }
                     }
                 });
@@ -139,12 +136,15 @@ export class Game {
         // Update game state
         this.player.update(this.environment);
         
-        if (this.enemy) {
+        if (this.enemy && this.enemy.object) {
+            // Update enemy AI and animations
             this.enemy.update(this.player, this.environment);
             
-            // Update enemy health bar
-            const distanceToEnemy = this.player.getPosition().distanceTo(this.enemy.getPosition());
-            this.ui.updateEnemyHealthBar(this.enemy.health, this.enemy.maxHealth, distanceToEnemy);
+            // Update enemy health bar if enemy is alive
+            const distanceToEnemy = this.player.object.position.distanceTo(this.enemy.object.position);
+            if (distanceToEnemy < 30) { // Only show health bar when enemy is nearby
+                this.ui.updateEnemyHealthBar(this.enemy.health, this.enemy.maxHealth, distanceToEnemy);
+            }
         }
         
         // Update HUD
@@ -156,6 +156,26 @@ export class Game {
         
         // Render scene
         this.renderer.render(this.scene, this.player.camera);
+    }
+
+    // Update enemy respawn logic
+    respawnEnemy() {
+        if (this.enemy) {
+            this.enemy.destroy();
+            this.scene.remove(this.enemy.object);
+        }
+        
+        // Spawn enemy at a random position away from player
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 15 + Math.random() * 5; // Spawn 15-20 units away
+        const position = new THREE.Vector3(
+            Math.cos(angle) * radius,
+            1,
+            Math.sin(angle) * radius
+        );
+        
+        this.enemy = new Enemy(this.scene, position);
+        this.scene.add(this.enemy.object);
     }
 }
 
