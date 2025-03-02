@@ -87,17 +87,30 @@ class Game {
         );
         this.camera.position.set(0, 5, 10); // Set an initial position in case player setup fails
         
-        // Create renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Create renderer with enhanced settings
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: "high-performance",
+            precision: "highp"
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x87CEEB); // Sky blue
+        
+        // Enable and configure shadows
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.physicallyCorrectLights = true;
+        
+        // Add output encoding for better colors
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
+        
         this.container.appendChild(this.renderer.domElement);
 
         // Do a test render to verify the renderer works
         this.renderer.render(this.scene, this.camera);
-        this.debug.innerHTML += '<br>Test render complete';
+        this.debug.innerHTML += '<br>Test render complete with enhanced graphics';
         
         // Handle window resizing
         window.addEventListener('resize', () => {
@@ -108,62 +121,126 @@ class Game {
     }
     
     createEnvironment() {
-        // Create simple ground (no textures to minimize errors)
+        // Create ground with better material
         const groundSize = 100;
-        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x2d5a27 });
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2d5a27,
+            roughness: 0.8,
+            metalness: 0.2
+        });
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
         this.ground.rotation.x = -Math.PI / 2;
+        this.ground.receiveShadow = true;
         this.scene.add(this.ground);
         
-        // Add trees using basic materials (no textures)
+        // Add trees using better materials
+        this.trees = [];
         this.createSimpleTrees();
         
-        // Add log cabin
+        // Add improved log cabin
         this.createLogCabin();
         
-        // Add simple lighting
+        // Add improved lighting
         this.createSimpleLighting();
     }
     
     createSimpleTrees() {
-        // Create just a few simple trees
-        const treeCount = 30;
+        // Create more realistic pine trees
+        const treeCount = 40;
         
         for (let i = 0; i < treeCount; i++) {
             const tree = new THREE.Group();
             
-            // Tree trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
-            const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+            // Tree trunk with better material
+            const trunkHeight = 2 + Math.random() * 2;
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, trunkHeight, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B4513,
+                roughness: 0.9,
+                metalness: 0.1
+            });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = 1;
+            trunk.position.y = trunkHeight / 2;
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
             tree.add(trunk);
             
-            // Tree foliage - use cones for pine trees
-            const foliageGeometry = new THREE.ConeGeometry(1, 3, 8);
-            const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x2E8B57 });
-            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-            foliage.position.y = 3;
-            tree.add(foliage);
+            // Create multiple layers of foliage for pine tree
+            const foliageMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x2E8B57,
+                roughness: 0.8,
+                metalness: 0.05
+            });
             
-            // Add a second smaller cone on top for more pine tree look
-            const topFoliageGeometry = new THREE.ConeGeometry(0.7, 2, 8);
-            const topFoliage = new THREE.Mesh(topFoliageGeometry, foliageMaterial);
-            topFoliage.position.y = 5;
-            tree.add(topFoliage);
+            // Each tree gets 3-5 layers of foliage
+            const foliageLayers = 3 + Math.floor(Math.random() * 2);
+            const maxRadius = 1.4 + Math.random() * 0.6;
+            
+            for (let j = 0; j < foliageLayers; j++) {
+                // Calculate position and size for this layer
+                const layerHeight = 1.2 + Math.random() * 0.5;
+                const layerRadius = maxRadius * (1 - j / foliageLayers * 0.4);
+                
+                // Create pine foliage cone
+                const foliageGeometry = new THREE.ConeGeometry(layerRadius, layerHeight, 8);
+                const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                
+                // Position each cone with slight variations
+                const layerPosition = trunkHeight * 0.5 + j * layerHeight * 0.7;
+                foliage.position.y = layerPosition;
+                
+                foliage.castShadow = true;
+                foliage.receiveShadow = true;
+                tree.add(foliage);
+            }
             
             // Position tree randomly in forest
-            const radius = 15 + Math.random() * 40; // Between 15-55 units from center
-            const angle = Math.random() * Math.PI * 2;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
+            let validPosition = false;
+            let x, z;
+            
+            // Keep trying until we find a valid position
+            while (!validPosition) {
+                validPosition = true;
+                
+                // Generate random position
+                const radius = 15 + Math.random() * 40; // Between 15-55 units from center
+                const angle = Math.random() * Math.PI * 2;
+                x = Math.cos(angle) * radius;
+                z = Math.sin(angle) * radius;
+                
+                // Ensure trees aren't too close to cabin
+                if (x > -25 && x < -15 && z > -15 && z < -5) {
+                    validPosition = false;
+                    continue;
+                }
+                
+                // Ensure trees aren't too close to each other
+                for (const existingTree of this.trees) {
+                    const dx = existingTree.position.x - x;
+                    const dz = existingTree.position.z - z;
+                    const distSquared = dx * dx + dz * dz;
+                    
+                    if (distSquared < 25) { // Min distance of 5 units between tree centers
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
             
             // Randomize tree size
             const scale = 0.7 + Math.random() * 0.6; // 0.7-1.3 scale
             tree.scale.set(scale, scale, scale);
             
+            // Position tree
             tree.position.set(x, 0, z);
+            
+            // Store tree for collision detection
+            this.trees.push({
+                position: new THREE.Vector3(x, 0, z),
+                radius: 0.8 * scale // Collision radius
+            });
+            
             this.scene.add(tree);
         }
     }
@@ -171,66 +248,213 @@ class Game {
     createLogCabin() {
         const cabin = new THREE.Group();
         
-        // Cabin base
-        const baseGeometry = new THREE.BoxGeometry(10, 0.5, 8);
-        const woodMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
-        const base = new THREE.Mesh(baseGeometry, woodMaterial);
+        // Cabin base/foundation
+        const baseGeometry = new THREE.BoxGeometry(12, 0.5, 10);
+        const stoneMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x777777,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const base = new THREE.Mesh(baseGeometry, stoneMaterial);
         base.position.y = 0.25;
+        base.receiveShadow = true;
         cabin.add(base);
         
-        // Cabin walls
-        const wallHeight = 3;
+        // Log material
+        const logMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513,
+            roughness: 0.8,
+            metalness: 0.1
+        });
         
-        // Front wall (with door cutout)
-        const frontWallGeometry = new THREE.BoxGeometry(10, wallHeight, 0.5);
-        const frontWall = new THREE.Mesh(frontWallGeometry, woodMaterial);
-        frontWall.position.set(0, wallHeight / 2 + 0.5, 4);
-        cabin.add(frontWall);
+        // Create walls using horizontal logs (cylinders)
+        const wallHeight = 3;
+        const logRadius = 0.2;
+        const logCount = Math.floor(wallHeight / (logRadius * 2));
+        
+        // Function to create a log wall
+        const createLogWall = (width, depth, posX, posZ, rotation) => {
+            const logLength = rotation ? depth : width;
+            
+            for (let i = 0; i < logCount; i++) {
+                const logGeometry = new THREE.CylinderGeometry(logRadius, logRadius, logLength, 8);
+                const log = new THREE.Mesh(logGeometry, logMaterial);
+                
+                // Position log correctly
+                log.position.y = (i * logRadius * 2) + logRadius + 0.5; // +0.5 for foundation height
+                log.position.x = posX;
+                log.position.z = posZ;
+                
+                // Rotate log to be horizontal and in correct orientation
+                log.rotation.z = Math.PI / 2; // Make cylinder horizontal
+                if (rotation) {
+                    log.rotation.y = Math.PI / 2; // Rotate 90 degrees for side walls
+                }
+                
+                log.castShadow = true;
+                log.receiveShadow = true;
+                cabin.add(log);
+            }
+        };
+        
+        // Front wall with door frame
+        createLogWall(10, 8, 0, 4, false);
         
         // Back wall
-        const backWall = new THREE.Mesh(frontWallGeometry, woodMaterial);
-        backWall.position.set(0, wallHeight / 2 + 0.5, -4);
-        cabin.add(backWall);
+        createLogWall(10, 8, 0, -4, false);
         
-        // Left and right walls
-        const sideWallGeometry = new THREE.BoxGeometry(0.5, wallHeight, 8);
-        const leftWall = new THREE.Mesh(sideWallGeometry, woodMaterial);
-        leftWall.position.set(5, wallHeight / 2 + 0.5, 0);
-        cabin.add(leftWall);
+        // Left wall
+        createLogWall(8, 8, 5, 0, true);
         
-        const rightWall = new THREE.Mesh(sideWallGeometry, woodMaterial);
-        rightWall.position.set(-5, wallHeight / 2 + 0.5, 0);
-        cabin.add(rightWall);
+        // Right wall
+        createLogWall(8, 8, -5, 0, true);
         
-        // Roof (simple triangular prism)
-        const roofGeometry = new THREE.BoxGeometry(11, 0.5, 9);
-        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
-        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof.position.y = wallHeight + 0.5 + 1;
-        roof.rotation.z = Math.PI * 0.12;
-        cabin.add(roof);
+        // Create door
+        const doorGeometry = new THREE.BoxGeometry(2, 2.5, 0.1);
+        const doorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x6D4C41,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const door = new THREE.Mesh(doorGeometry, doorMaterial);
+        door.position.set(0, 1.75, 4.05);
+        door.castShadow = true;
+        door.receiveShadow = true;
+        cabin.add(door);
         
-        // Second roof panel (mirrored)
+        // Add door handle
+        const handleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const handleMaterial = new THREE.MeshStandardMaterial({
+            color: 0xB87333,
+            roughness: 0.5,
+            metalness: 0.7
+        });
+        const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+        handle.position.set(0.6, 1.5, 4.11);
+        cabin.add(handle);
+        
+        // Create windows
+        const createWindow = (posX, posZ, rotY) => {
+            // Window frame
+            const frameGeometry = new THREE.BoxGeometry(1.5, 1.5, 0.1);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0x6D4C41,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(posX, 2, posZ);
+            frame.rotation.y = rotY;
+            frame.castShadow = true;
+            frame.receiveShadow = true;
+            cabin.add(frame);
+            
+            // Window glass
+            const glassGeometry = new THREE.BoxGeometry(1.2, 1.2, 0.05);
+            const glassMaterial = new THREE.MeshStandardMaterial({
+                color: 0xD4F1F9,
+                roughness: 0.2,
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.6
+            });
+            const glass = new THREE.Mesh(glassGeometry, glassMaterial);
+            glass.position.set(posX, 2, posZ);
+            if (rotY === 0) {
+                glass.position.z += 0.04;
+            } else {
+                glass.position.x += 0.04;
+            }
+            glass.rotation.y = rotY;
+            cabin.add(glass);
+        };
+        
+        // Add windows to each wall
+        createWindow(-3, 4.05, 0); // Front
+        createWindow(3, 4.05, 0);  // Front
+        createWindow(0, -4.05, 0); // Back
+        createWindow(5.05, 2, Math.PI/2); // Left
+        createWindow(5.05, -2, Math.PI/2); // Left
+        createWindow(-5.05, 0, Math.PI/2); // Right
+        
+        // Create roof with better structure
+        const roofMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B0000,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        
+        // Create sloped roof
+        const roofGeometry = new THREE.BoxGeometry(13, 0.5, 12);
+        
+        // First roof panel
+        const roof1 = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof1.position.y = wallHeight + 1;
+        roof1.rotation.z = Math.PI * 0.15;
+        roof1.position.x = -1.5;
+        roof1.castShadow = true;
+        roof1.receiveShadow = true;
+        cabin.add(roof1);
+        
+        // Second roof panel
         const roof2 = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof2.position.y = wallHeight + 0.5 + 1;
-        roof2.rotation.z = -Math.PI * 0.12;
+        roof2.position.y = wallHeight + 1;
+        roof2.rotation.z = -Math.PI * 0.15;
+        roof2.position.x = 1.5;
+        roof2.castShadow = true;
+        roof2.receiveShadow = true;
         cabin.add(roof2);
+        
+        // Chimney
+        const chimneyGeometry = new THREE.BoxGeometry(1, 3, 1);
+        const chimney = new THREE.Mesh(chimneyGeometry, stoneMaterial);
+        chimney.position.set(-3.5, wallHeight + 2.5, -2);
+        chimney.castShadow = true;
+        chimney.receiveShadow = true;
+        cabin.add(chimney);
         
         // Position cabin
         cabin.position.set(-20, 0, -10);
         this.scene.add(cabin);
+        
+        // Store cabin for collision detection
+        this.cabin = {
+            position: new THREE.Vector3(-20, 0, -10),
+            size: new THREE.Vector3(12, wallHeight, 10)
+        };
     }
     
     createSimpleLighting() {
-        // Simple directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 5);
+        // Main directional light (sun)
+        const directionalLight = new THREE.DirectionalLight(0xfffaf0, 1.2);
+        directionalLight.position.set(20, 30, 20);
         directionalLight.castShadow = true;
+        
+        // Improve shadow quality
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 100;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -50;
+        directionalLight.shadow.bias = -0.0005;
+        
         this.scene.add(directionalLight);
         
-        // Ambient light for general illumination
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        // Secondary fill light
+        const fillLight = new THREE.DirectionalLight(0xc7e5ff, 0.5);
+        fillLight.position.set(-20, 20, -20);
+        this.scene.add(fillLight);
+        
+        // Ambient light for general illumination - warmer tone
+        const ambientLight = new THREE.AmbientLight(0x909fb9, 0.4);
         this.scene.add(ambientLight);
+        
+        // Add subtle hemisphere light
+        const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x362c12, 0.4);
+        this.scene.add(hemisphereLight);
     }
     
     createPlayer() {
@@ -301,7 +525,7 @@ class Game {
         this.scene.add(this.player);
         
         // Setup camera for third-person view
-        this.cameraOffset = new THREE.Vector3(0.5, 1.8, 4); // Adjusted: slightly to the right, higher up, and further back
+        this.cameraOffset = new THREE.Vector3(0, 1.8, 5); // Directly behind and above player
         this.updatePlayerCamera();
         
         // Create audio for weapon
@@ -351,10 +575,8 @@ class Game {
         this.muzzleFlash.visible = false;
         rifle.add(this.muzzleFlash);
         
-        // Position the rifle in player's hands - FIXED DIRECTION
-        // Adjust to point forward instead of toward camera
-        rifle.position.set(0.3, 0.4, 0.2);
-        rifle.rotation.y = Math.PI / 10; // Rotated to point forward
+        // Position the rifle in player's hands
+        rifle.position.set(0.3, 0.4, 0.3);
         this.player.add(rifle);
         this.rifle = rifle;
     }
@@ -367,9 +589,8 @@ class Game {
         // Create the rifle sound
         this.rifleSound = new THREE.Audio(this.listener);
         
-        // Load sound file - we're using a simple approach for the demo
-        // In production, you would use a proper audio file loader
-        const audioURL = 'https://assets.codepen.io/21542/Gun%2BShotgun.mp3'; // Placeholder URL
+        // Load sound file - using a more powerful rifle sound
+        const audioURL = 'https://freesound.org/data/previews/362/362046_5349517-lq.mp3'; // M4A1 rifle sound
         
         // Create audio loader and load sound
         const audioLoader = new THREE.AudioLoader();
@@ -377,15 +598,23 @@ class Game {
             audioURL,
             (buffer) => {
                 this.rifleSound.setBuffer(buffer);
-                this.rifleSound.setVolume(0.5);
+                this.rifleSound.setVolume(0.7); // Increased volume
                 this.rifleSound.setPlaybackRate(1);
                 
-                // Add reverb
-                const convolver = new THREE.AudioListener().context.createConvolver();
-                // Normally you would load an impulse response file for the reverb
-                // For simplicity, we'll just set up the connections
+                // Add reverb effect for outdoor echo
+                const convolver = this.listener.context.createConvolver();
                 
-                this.debug.innerHTML += '<br>Audio loaded';
+                // Create dynamic compressor for better sound
+                const compressor = this.listener.context.createDynamicsCompressor();
+                compressor.threshold.setValueAtTime(-50, this.listener.context.currentTime);
+                compressor.knee.setValueAtTime(40, this.listener.context.currentTime);
+                compressor.ratio.setValueAtTime(12, this.listener.context.currentTime);
+                compressor.attack.setValueAtTime(0, this.listener.context.currentTime);
+                compressor.release.setValueAtTime(0.25, this.listener.context.currentTime);
+                
+                this.rifleSound.setFilter(compressor);
+                
+                this.debug.innerHTML += '<br>Enhanced rifle audio loaded';
             },
             (xhr) => {
                 this.debug.innerHTML = `Audio ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`;
@@ -393,6 +622,13 @@ class Game {
             (error) => {
                 console.error('Audio loading error:', error);
                 this.debug.innerHTML += '<br>Audio loading error: ' + error.message;
+                
+                // Try fallback audio
+                const fallbackURL = 'https://assets.codepen.io/21542/Gun%2BShotgun.mp3';
+                audioLoader.load(fallbackURL, (buffer) => {
+                    this.rifleSound.setBuffer(buffer);
+                    this.rifleSound.setVolume(0.7);
+                });
             }
         );
     }
@@ -437,10 +673,10 @@ class Game {
                 // Rotate player with mouse
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
-                // Limit vertical camera movement
+                // Limit up/down camera movement
                 const verticalLook = e.movementY * 0.002;
-                // Prevent looking too far up or down
-                this.cameraOffset.y = Math.max(1, Math.min(2.5, this.cameraOffset.y - verticalLook));
+                // Adjust height slightly based on vertical look, but keep it constrained
+                this.cameraOffset.y = Math.max(1.4, Math.min(2.2, this.cameraOffset.y - verticalLook));
             }
         });
         
@@ -510,10 +746,17 @@ class Game {
             direction.normalize();
             direction.applyEuler(this.playerState.rotation);
             
-            // Update position (x and z only)
+            // Calculate new position but don't apply it yet
             const movement = direction.multiplyScalar(this.playerState.moveSpeed);
-            this.playerState.position.x += movement.x;
-            this.playerState.position.z += movement.z;
+            const newPosition = this.playerState.position.clone();
+            newPosition.x += movement.x;
+            newPosition.z += movement.z;
+            
+            // Check for collisions before applying movement
+            if (!this.checkCollisions(newPosition)) {
+                // No collision, apply movement
+                this.playerState.position.copy(newPosition);
+            }
             
             // Update player mesh rotation
             this.player.rotation.y = this.playerState.rotation.y;
@@ -575,21 +818,35 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Position camera behind player
+        // Position camera directly behind player
         const cameraOffset = this.cameraOffset.clone();
         cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
         
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Adjust player position to be down and to the left of the center/crosshair
-        // This is done by adjusting where the camera looks
+        // Look directly at the player's back
         const lookTarget = this.playerState.position.clone();
-        lookTarget.y += 1.2; // Look slightly above player's head
-        lookTarget.x -= 0.5; // Offset to the left
-        lookTarget.z -= 1.0; // Offset forward, in front of player
+        lookTarget.y += 1.0; // Look at player's upper back/head level
         
         this.camera.lookAt(lookTarget);
+        
+        // Update rifle to point at center of screen/crosshair
+        if (this.rifle) {
+            // Get direction from camera to center of screen
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            
+            // Calculate angle between player's forward direction and camera direction
+            const playerForward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
+            
+            // Adjust rifle to point toward camera direction
+            this.rifle.rotation.y = this.playerState.rotation.y;
+            
+            // Slightly adjust the rifle position based on player's rotation
+            const rightHandPos = new THREE.Vector3(0.3, 0.4, 0.3);
+            this.rifle.position.copy(rightHandPos);
+        }
     }
     
     animate() {
@@ -605,6 +862,36 @@ class Game {
             console.error('Animation error:', animateError);
             this.debug.innerHTML += `<br>Animation error: ${animateError.message}`;
         }
+    }
+
+    // Add a method to check for collisions
+    checkCollisions(position) {
+        // Check collisions with trees
+        for (const tree of this.trees) {
+            const dx = tree.position.x - position.x;
+            const dz = tree.position.z - position.z;
+            const distSquared = dx * dx + dz * dz;
+            
+            if (distSquared < tree.radius * tree.radius) {
+                return true; // Collision detected
+            }
+        }
+        
+        // Check collision with cabin
+        if (this.cabin) {
+            const cabinPos = this.cabin.position;
+            const cabinSize = this.cabin.size;
+            
+            // Check if player is inside cabin bounds (rectangular collision)
+            if (
+                position.x > cabinPos.x - cabinSize.x/2 && position.x < cabinPos.x + cabinSize.x/2 &&
+                position.z > cabinPos.z - cabinSize.z/2 && position.z < cabinPos.z + cabinSize.z/2
+            ) {
+                return true; // Collision with cabin
+            }
+        }
+        
+        return false; // No collision
     }
 }
 
