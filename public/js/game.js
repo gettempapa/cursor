@@ -1,6 +1,38 @@
 // Direct import with URL - no import map needed
 import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
 
+// Constants module for better organization
+const Constants = {
+    // Player settings
+    PLAYER: {
+        MOVE_SPEED: 0.12,
+        TURN_SPEED: 0.02,
+        JUMP_HEIGHT: 2.0,
+        JUMP_SPEED: 0.15,
+        GRAVITY: 0.008,
+        SHOT_COOLDOWN: 100, // milliseconds between shots
+        CAMERA_OFFSET: new THREE.Vector3(1.5, 1.8, 5)
+    },
+    
+    // Game settings
+    GAME: {
+        FOG_DENSITY: 0.005,
+        GROUND_SIZE: 100,
+        MAX_DELTA_TIME: 0.1
+    },
+    
+    // Colors
+    COLORS: {
+        SKY: 0x87CEEB,
+        GROUND: 0x2d5a27,
+        TREE_TRUNK: 0x8B4513,
+        TREE_FOLIAGE: 0x2E8B57,
+        SOLDIER_BODY: 0x2F4F4F,
+        SOLDIER_FACE: 0xD2B48C,
+        CAMO: [0x4b5320, 0x3a421a, 0x5d6d21, 0x2c3317]
+    }
+};
+
 class Game {
     constructor() {
         // Enhanced debug mode
@@ -27,45 +59,8 @@ class Game {
             // Add fallback cube immediately to test rendering
             this.addFallbackCube();
             
-            // Create environment with error handling
-            try {
-                this.createEnvironment();
-                this.debug.innerHTML += '<br>Environment created';
-            } catch (envError) {
-                this.debug.innerHTML += `<br>Environment creation failed: ${envError.message}`;
-                console.error('Environment creation failed:', envError);
-            }
-            
-            // Create player with error handling
-            try {
-                this.createPlayer();
-                this.debug.innerHTML += '<br>Player created';
-            } catch (playerError) {
-                this.debug.innerHTML += `<br>Player creation failed: ${playerError.message}`;
-                console.error('Player creation failed:', playerError);
-            }
-            
-            // Setup controls with error handling
-            try {
-                this.setupControls();
-                this.debug.innerHTML += '<br>Controls setup complete';
-            } catch (controlsError) {
-                this.debug.innerHTML += `<br>Controls setup failed: ${controlsError.message}`;
-                console.error('Controls setup failed:', controlsError);
-            }
-            
-            // Setup audio with error handling
-            try {
-                this.setupAudio();
-                this.debug.innerHTML += '<br>Rifle audio loaded and tested';
-            } catch (audioError) {
-                this.debug.innerHTML += `<br>Rifle audio setup failed: ${audioError.message}`;
-                console.error('Rifle audio setup failed:', audioError);
-            }
-            
-            // Hide loading screen
-            const loadingScreen = document.getElementById('loadingScreen');
-            if (loadingScreen) loadingScreen.style.display = 'none';
+            // Initialize game components with error handling
+            this.initializeGameComponents();
             
             // Start animation loop
             this.animate();
@@ -77,6 +72,49 @@ class Game {
         }
     }
     
+    // Initialize all game components with proper error handling
+    initializeGameComponents() {
+        // Create environment with error handling
+        try {
+            this.createEnvironment();
+            this.debug.innerHTML += '<br>Environment created';
+        } catch (envError) {
+            this.debug.innerHTML += `<br>Environment creation failed: ${envError.message}`;
+            console.error('Environment creation failed:', envError);
+        }
+        
+        // Create player with error handling
+        try {
+            this.createPlayer();
+            this.debug.innerHTML += '<br>Player created';
+        } catch (playerError) {
+            this.debug.innerHTML += `<br>Player creation failed: ${playerError.message}`;
+            console.error('Player creation failed:', playerError);
+        }
+        
+        // Setup controls with error handling
+        try {
+            this.setupControls();
+            this.debug.innerHTML += '<br>Controls setup complete';
+        } catch (controlsError) {
+            this.debug.innerHTML += `<br>Controls setup failed: ${controlsError.message}`;
+            console.error('Controls setup failed:', controlsError);
+        }
+        
+        // Setup audio with error handling
+        try {
+            this.setupAudio();
+            this.debug.innerHTML += '<br>Rifle audio loaded and tested';
+        } catch (audioError) {
+            this.debug.innerHTML += `<br>Rifle audio setup failed: ${audioError.message}`;
+            console.error('Rifle audio setup failed:', audioError);
+        }
+        
+        // Hide loading screen
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) loadingScreen.style.display = 'none';
+    }
+    
     setupCore() {
         // Get container
         this.container = document.getElementById('gameContainer');
@@ -84,8 +122,8 @@ class Game {
         
         // Create scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
-        this.scene.fog = new THREE.FogExp2(0x88BBEE, 0.005); // Add fog for forest feel
+        this.scene.background = new THREE.Color(Constants.COLORS.SKY);
+        this.scene.fog = new THREE.FogExp2(0x88BBEE, Constants.GAME.FOG_DENSITY);
         
         // Create camera - will be positioned by the player's update method
         this.camera = new THREE.PerspectiveCamera(
@@ -103,7 +141,7 @@ class Game {
             precision: "highp"
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0x87CEEB); // Sky blue
+        this.renderer.setClearColor(Constants.COLORS.SKY);
         
         // Enable and configure shadows
         this.renderer.shadowMap.enabled = true;
@@ -131,9 +169,9 @@ class Game {
     
     createEnvironment() {
         // Create ground with better material
-        const groundSize = 100;
+        const groundSize = Constants.GAME.GROUND_SIZE;
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2d5a27,
+            color: Constants.COLORS.GROUND,
             roughness: 0.8,
             metalness: 0.2
         });
@@ -165,7 +203,7 @@ class Game {
             const trunkHeight = 2 + Math.random() * 2;
             const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, trunkHeight, 8);
             const trunkMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x8B4513,
+                color: Constants.COLORS.TREE_TRUNK,
                 roughness: 0.9,
                 metalness: 0.1
             });
@@ -177,7 +215,7 @@ class Game {
             
             // Create multiple layers of foliage for pine tree
             const foliageMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x2E8B57,
+                color: Constants.COLORS.TREE_FOLIAGE,
                 roughness: 0.8,
                 metalness: 0.05
             });
@@ -551,39 +589,70 @@ class Game {
     }
     
     createPlayer() {
-        // Player state
+        // Player state with constants
         this.playerState = {
             position: new THREE.Vector3(0, 1, 0),
             rotation: new THREE.Euler(0, 0, 0, 'YXZ'),
-            moveSpeed: 0.12,
-            turnSpeed: 0.02,
+            moveSpeed: Constants.PLAYER.MOVE_SPEED,
+            turnSpeed: Constants.PLAYER.TURN_SPEED,
             moving: false,
             shooting: false,
             lastShot: 0,
-            shotCooldown: 100, // milliseconds between shots
+            shotCooldown: Constants.PLAYER.SHOT_COOLDOWN,
             // Jump properties
             isJumping: false,
-            jumpHeight: 2.0,
-            jumpSpeed: 0.15,
+            jumpHeight: Constants.PLAYER.JUMP_HEIGHT,
+            jumpSpeed: Constants.PLAYER.JUMP_SPEED,
             jumpVelocity: 0,
-            gravity: 0.008
+            gravity: Constants.PLAYER.GRAVITY
         };
         
+        // Create player model using a more modular approach
+        this.createPlayerModel();
+        
+        // Position player and add to scene
+        this.player.position.copy(this.playerState.position);
+        this.scene.add(this.player);
+        
+        // Setup camera for third-person view
+        this.cameraOffset = Constants.PLAYER.CAMERA_OFFSET.clone();
+        this.updatePlayerCamera();
+    }
+    
+    createPlayerModel() {
         // Create simple soldier model using basic materials
         this.player = new THREE.Group();
         
         // Body
         const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F }); // Dark slate gray
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY }); 
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 0.4;
         this.player.add(body);
         
+        // Create helmet with camo pattern
+        this.createPlayerHelmet();
+        
+        // Face (visible under the helmet)
+        const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+        const faceMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        const face = new THREE.Mesh(faceGeometry, faceMaterial);
+        face.position.set(0, 0.95, 0.05); // Position slightly lower than helmet and forward
+        this.player.add(face);
+        
+        // Create limbs
+        this.createPlayerLimbs();
+        
+        // Create rifle
+        this.createRifle();
+    }
+    
+    createPlayerHelmet() {
         // Head with camo helmet
         const headGeometry = new THREE.BoxGeometry(0.35, 0.32, 0.35);
         
         // Create camo material with multiple colors
-        const camoColors = [0x4b5320, 0x3a421a, 0x5d6d21, 0x2c3317]; // Different shades of green
+        const camoColors = Constants.COLORS.CAMO;
         
         // Create a canvas to generate the camo pattern
         const camoCanvas = document.createElement('canvas');
@@ -624,17 +693,12 @@ class Game {
         const rim = new THREE.Mesh(rimGeometry, rimMaterial);
         rim.position.set(0, 0.88, 0);
         this.player.add(rim);
-        
-        // Face (visible under the helmet)
-        const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
-        const faceMaterial = new THREE.MeshBasicMaterial({ color: 0xD2B48C });
-        const face = new THREE.Mesh(faceGeometry, faceMaterial);
-        face.position.set(0, 0.95, 0.05); // Position slightly lower than helmet and forward
-        this.player.add(face);
-        
+    }
+    
+    createPlayerLimbs() {
         // Legs
         const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
+        const legMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY });
         
         const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
         leftLeg.position.set(0.15, -0.3, 0);
@@ -646,7 +710,7 @@ class Game {
         
         // Arms
         const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const armMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
+        const armMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY });
         
         const leftArm = new THREE.Mesh(armGeometry, armMaterial);
         leftArm.position.set(0.35, 0.4, 0);
@@ -655,20 +719,6 @@ class Game {
         const rightArm = new THREE.Mesh(armGeometry, armMaterial);
         rightArm.position.set(-0.35, 0.4, 0);
         this.player.add(rightArm);
-        
-        // Create rifle using basic shapes
-        this.createRifle();
-        
-        // Position player and add to scene
-        this.player.position.copy(this.playerState.position);
-        this.scene.add(this.player);
-        
-        // Setup camera for third-person view - positioned to show player in lower left
-        this.cameraOffset = new THREE.Vector3(1.5, 1.8, 5); // Offset to the right and up from player
-        this.updatePlayerCamera();
-        
-        // Create audio for weapon
-        this.setupAudio();
     }
     
     createRifle() {
@@ -725,59 +775,66 @@ class Game {
         this.listener = new THREE.AudioListener();
         this.camera.add(this.listener);
         
-        // Create the rifle sound
+        // Create the rifle sound - now using programmatic sound generation
         this.rifleSound = new THREE.Audio(this.listener);
         
-        // Load sound file - using a more reliable rifle sound URL
-        const audioURL = 'https://assets.codepen.io/21542/Gun%2BShotgun.mp3'; // Use more reliable source as primary
+        // Create AudioContext
+        const audioContext = this.listener.context;
         
-        // Create audio loader and load sound
-        const audioLoader = new THREE.AudioLoader();
-        audioLoader.load(
-            audioURL,
-            (buffer) => {
-                this.rifleSound.setBuffer(buffer);
-                this.rifleSound.setVolume(1.0); // Increased volume to maximum
-                this.rifleSound.setPlaybackRate(1.2); // Slightly faster for more impact
-                
-                // Create dynamic compressor for better sound
-                const compressor = this.listener.context.createDynamicsCompressor();
-                compressor.threshold.setValueAtTime(-50, this.listener.context.currentTime);
-                compressor.knee.setValueAtTime(40, this.listener.context.currentTime);
-                compressor.ratio.setValueAtTime(12, this.listener.context.currentTime);
-                compressor.attack.setValueAtTime(0, this.listener.context.currentTime);
-                compressor.release.setValueAtTime(0.25, this.listener.context.currentTime);
-                
-                this.rifleSound.setFilter(compressor);
-                
-                // Test the sound on load to ensure it works
-                if (this.rifleSound.buffer) {
-                    this.rifleSound.play();
-                    console.log("Playing rifle sound");
-                }
-                
-                this.debug.innerHTML += '<br>Rifle audio loaded and tested';
-            },
-            (xhr) => {
-                this.debug.innerHTML = `Audio ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`;
-            },
-            (error) => {
-                console.error('Audio loading error:', error);
-                this.debug.innerHTML += '<br>Audio loading error: ' + error.message;
-                
-                // Try fallback audio
-                const fallbackURL = 'https://freesound.org/data/previews/362/362046_5349517-lq.mp3';
-                audioLoader.load(fallbackURL, (buffer) => {
-                    this.rifleSound.setBuffer(buffer);
-                    this.rifleSound.setVolume(1.0);
-                    
-                    // Test the sound on load to ensure it works
-                    if (this.rifleSound.buffer) {
-                        this.rifleSound.play();
-                    }
-                });
-            }
-        );
+        // Create a buffer for our gun sound
+        const sampleRate = audioContext.sampleRate;
+        const duration = 0.3; // sound duration in seconds
+        const bufferSize = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
+        
+        // Get the channel data for processing
+        const channelData = buffer.getChannelData(0);
+        
+        // Generate a gunshot sound
+        // First part: Initial explosion/crack (high amplitude noise)
+        const attackTime = sampleRate * 0.01; // 10ms attack
+        for (let i = 0; i < attackTime; i++) {
+            channelData[i] = (Math.random() * 2 - 1) * 0.9; // High amplitude white noise
+        }
+        
+        // Second part: Quick decay
+        const decayTime = sampleRate * 0.05; // 50ms decay
+        for (let i = 0; i < decayTime; i++) {
+            const index = i + attackTime;
+            const amplitude = 0.9 * (1 - i / decayTime); // Linear decay
+            channelData[index] = (Math.random() * 2 - 1) * amplitude;
+        }
+        
+        // Third part: Reverb/echo tail
+        const reverbStart = attackTime + decayTime;
+        const reverbTime = bufferSize - reverbStart;
+        for (let i = 0; i < reverbTime; i++) {
+            const index = i + reverbStart;
+            // Exponential decay for the reverb tail
+            const amplitude = 0.3 * Math.exp(-3.0 * i / reverbTime);
+            channelData[index] = (Math.random() * 2 - 1) * amplitude;
+        }
+        
+        // Set the buffer to our audio
+        this.rifleSound.setBuffer(buffer);
+        this.rifleSound.setVolume(1.0);
+        
+        // Add some processing for more bass/impact
+        const compressor = audioContext.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
+        compressor.knee.setValueAtTime(40, audioContext.currentTime);
+        compressor.ratio.setValueAtTime(12, audioContext.currentTime);
+        compressor.attack.setValueAtTime(0, audioContext.currentTime);
+        compressor.release.setValueAtTime(0.25, audioContext.currentTime);
+        
+        this.rifleSound.setFilter(compressor);
+        
+        // Test the sound
+        if (this.rifleSound.buffer) {
+            this.rifleSound.play();
+            console.log("Playing generated rifle sound");
+            this.debug.innerHTML += '<br>Programmatic rifle sound created and tested';
+        }
     }
     
     setupControls() {
@@ -853,27 +910,16 @@ class Game {
         
         this.playerState.lastShot = now;
         
-        // Play sound - using more robust sound playback code
-        if (this.rifleSound) {
-            // Stop any currently playing sound
-            if (this.rifleSound.isPlaying) {
-                this.rifleSound.stop();
-            }
+        // Play programmatically generated sound
+        if (this.rifleSound && this.rifleSound.buffer) {
+            // Clone for overlapping shots
+            const soundClone = this.rifleSound.clone();
             
-            // Play the sound with a slight delay to ensure it's ready
-            if (this.rifleSound.buffer) {
-                // Clone the sound for overlapping shots
-                const soundClone = this.rifleSound.clone();
-                soundClone.setVolume(1.0);
-                soundClone.play();
-                
-                // Log to debug
-                console.log("Playing rifle sound");
-            } else {
-                console.warn("Rifle sound buffer not loaded yet");
-            }
-        } else {
-            console.warn("Rifle sound not initialized");
+            // Add slight random pitch variation for realism
+            const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
+            soundClone.setPlaybackRate(pitchVariation);
+            
+            soundClone.play();
         }
         
         // Show muzzle flash
@@ -922,94 +968,6 @@ class Game {
         }
         
         return false; // No collision
-    }
-    
-    updatePlayer() {
-        // Calculate movement
-        const direction = new THREE.Vector3(0, 0, 0);
-        
-        if (this.moveState.forward) direction.z -= 1;
-        if (this.moveState.backward) direction.z += 1;
-        if (this.moveState.left) direction.x -= 1;
-        if (this.moveState.right) direction.x += 1;
-        
-        this.playerState.moving = direction.length() > 0;
-        
-        // Handle horizontal movement
-        if (this.playerState.moving) {
-            // Normalize direction vector and apply rotation
-            direction.normalize();
-            direction.applyEuler(this.playerState.rotation);
-            
-            // Calculate new position but don't apply it yet
-            const movement = direction.multiplyScalar(this.playerState.moveSpeed);
-            const newPosition = this.playerState.position.clone();
-            newPosition.x += movement.x;
-            newPosition.z += movement.z;
-            
-            // Check for collisions before applying movement
-            if (!this.checkCollisions(newPosition)) {
-                // No collision, apply movement
-                this.playerState.position.copy(newPosition);
-            }
-            
-            // Update player mesh rotation
-            this.player.rotation.y = this.playerState.rotation.y;
-            
-            // Animate legs when moving
-            this.animatePlayerLegs();
-        } else {
-            // Reset leg positions when not moving
-            this.resetPlayerLegs();
-        }
-        
-        // Handle jumping and gravity
-        if (this.playerState.isJumping) {
-            // Apply jump velocity
-            this.playerState.position.y += this.playerState.jumpVelocity;
-            
-            // Apply gravity to reduce jump velocity
-            this.playerState.jumpVelocity -= this.playerState.gravity;
-            
-            // Check if player has landed
-            if (this.playerState.position.y <= 1 && this.playerState.jumpVelocity < 0) {
-                this.playerState.position.y = 1; // Reset to ground level
-                this.playerState.isJumping = false;
-                this.playerState.jumpVelocity = 0;
-            }
-        }
-        
-        // Update player mesh position
-        this.player.position.copy(this.playerState.position);
-        
-        // Update camera
-        this.updatePlayerCamera();
-        
-        // Handle continuous shooting
-        if (this.playerState.shooting) {
-            this.shoot();
-        }
-    }
-    
-    animatePlayerLegs() {
-        const time = performance.now() * 0.005;
-        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
-        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
-        
-        if (leftLeg && rightLeg) {
-            leftLeg.rotation.x = Math.sin(time) * 0.4;
-            rightLeg.rotation.x = Math.sin(time + Math.PI) * 0.4;
-        }
-    }
-    
-    resetPlayerLegs() {
-        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
-        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
-        
-        if (leftLeg && rightLeg) {
-            leftLeg.rotation.x = 0;
-            rightLeg.rotation.x = 0;
-        }
     }
     
     updatePlayerCamera() {
@@ -1067,17 +1025,163 @@ class Game {
     }
     
     animate() {
+        // Use proper game loop with delta time
+        const now = performance.now();
+        this.deltaTime = (now - (this.lastTime || now)) / 1000; // Convert to seconds
+        this.lastTime = now;
+
+        // Cap delta time to avoid huge jumps if tab was inactive
+        if (this.deltaTime > Constants.GAME.MAX_DELTA_TIME) {
+            this.deltaTime = Constants.GAME.MAX_DELTA_TIME;
+        }
+
+        // Track FPS
+        if (!this.fpsCounter) {
+            this.fpsCounter = {
+                frameCount: 0,
+                lastCheck: now,
+                fps: 0
+            };
+        }
+        
+        this.fpsCounter.frameCount++;
+        if (now - this.fpsCounter.lastCheck >= 1000) {
+            // Update FPS once per second
+            this.fpsCounter.fps = this.fpsCounter.frameCount;
+            this.fpsCounter.frameCount = 0;
+            this.fpsCounter.lastCheck = now;
+        }
+
         requestAnimationFrame(() => this.animate());
         
         try {
-            // Update player
-            this.updatePlayer();
+            // Update player with delta time
+            this.updatePlayer(this.deltaTime);
             
             // Render scene
             this.renderer.render(this.scene, this.camera);
+            
+            // Update debug info occasionally
+            if (now % 100 < 16) { // Update about every 100ms
+                this.updateDebugInfo();
+            }
         } catch (animateError) {
             console.error('Animation error:', animateError);
             this.debug.innerHTML += `<br>Animation error: ${animateError.message}`;
+        }
+    }
+
+    updateDebugInfo() {
+        // Only update if debug is visible
+        if (this.debug.style.display === 'block') {
+            const position = this.playerState.position;
+            const posText = `Position: ${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}`;
+            const rotText = `Rotation: ${(this.playerState.rotation.y * 180 / Math.PI).toFixed(1)}°`;
+            const fpsText = `FPS: ${this.fpsCounter?.fps || 0}`;
+            
+            // Update debug info without clearing previous messages
+            const debugLines = this.debug.innerHTML.split('<br>');
+            const staticInfo = debugLines.slice(0, 5).join('<br>'); // Keep initialization messages
+            
+            this.debug.innerHTML = `${staticInfo}<br>${posText}<br>${rotText}<br>${fpsText}`;
+        }
+    }
+    
+    updatePlayer(deltaTime) {
+        // Calculate movement with delta time for consistent speed
+        const direction = new THREE.Vector3(0, 0, 0);
+        
+        if (this.moveState.forward) direction.z -= 1;
+        if (this.moveState.backward) direction.z += 1;
+        if (this.moveState.left) direction.x -= 1;
+        if (this.moveState.right) direction.x += 1;
+        
+        this.playerState.moving = direction.length() > 0;
+        
+        // Handle horizontal movement with delta time
+        if (this.playerState.moving) {
+            // Normalize direction vector and apply rotation
+            direction.normalize();
+            direction.applyEuler(this.playerState.rotation);
+            
+            // Apply delta time to movement speed
+            const scaledSpeed = this.playerState.moveSpeed * deltaTime * 60; // Normalize to 60fps
+            
+            // Calculate new position but don't apply it yet
+            const movement = direction.multiplyScalar(scaledSpeed);
+            const newPosition = this.playerState.position.clone();
+            newPosition.x += movement.x;
+            newPosition.z += movement.z;
+            
+            // Check for collisions before applying movement
+            if (!this.checkCollisions(newPosition)) {
+                // No collision, apply movement
+                this.playerState.position.copy(newPosition);
+            }
+            
+            // Update player mesh rotation
+            this.player.rotation.y = this.playerState.rotation.y;
+            
+            // Animate legs when moving
+            this.animatePlayerLegs(deltaTime);
+        } else {
+            // Reset leg positions when not moving
+            this.resetPlayerLegs();
+        }
+        
+        // Handle jumping and gravity with delta time
+        if (this.playerState.isJumping) {
+            // Scale gravity and jump velocity by delta time
+            const scaledGravity = this.playerState.gravity * deltaTime * 60;
+            const scaledVelocity = this.playerState.jumpVelocity * deltaTime * 60;
+            
+            // Apply jump velocity
+            this.playerState.position.y += scaledVelocity;
+            
+            // Apply gravity to reduce jump velocity
+            this.playerState.jumpVelocity -= scaledGravity;
+            
+            // Check if player has landed
+            if (this.playerState.position.y <= 1 && this.playerState.jumpVelocity < 0) {
+                this.playerState.position.y = 1; // Reset to ground level
+                this.playerState.isJumping = false;
+                this.playerState.jumpVelocity = 0;
+            }
+        }
+        
+        // Update player mesh position
+        this.player.position.copy(this.playerState.position);
+        
+        // Update camera
+        this.updatePlayerCamera();
+        
+        // Handle continuous shooting
+        if (this.playerState.shooting) {
+            this.shoot();
+        }
+    }
+    
+    animatePlayerLegs(deltaTime) {
+        // Use real time for smoother animation that's independent of frame rate
+        const time = performance.now() * 0.005;
+        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+        
+        if (leftLeg && rightLeg) {
+            // Animation speed based on movement speed
+            const animSpeed = 5.0 * this.playerState.moveSpeed; 
+            leftLeg.rotation.x = Math.sin(time * animSpeed) * 0.4;
+            rightLeg.rotation.x = Math.sin(time * animSpeed + Math.PI) * 0.4;
+        }
+    }
+    
+    resetPlayerLegs() {
+        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+        
+        if (leftLeg && rightLeg) {
+            leftLeg.rotation.x = 0;
+            rightLeg.rotation.x = 0;
         }
     }
 }
