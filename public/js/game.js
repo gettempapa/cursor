@@ -580,6 +580,9 @@ class Game {
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
         
+        // Add scenic hill with path
+        this.createScenicHill();
+        
         // Add trees using better materials
         this.trees = [];
         this.createSimpleTrees();
@@ -589,6 +592,241 @@ class Game {
         
         // Add improved lighting
         this.createSimpleLighting();
+    }
+    
+    createScenicHill() {
+        // Create the hill using a heightmap
+        const hillSize = 60;
+        const hillSegments = 100;
+        const hillHeight = 25;
+        const hillGeometry = new THREE.PlaneGeometry(hillSize, hillSize, hillSegments, hillSegments);
+        
+        // Generate height data for the hill
+        const vertices = hillGeometry.attributes.position.array;
+        const pathPoints = [];
+        
+        // Create a winding path up the hill
+        for (let i = 0; i <= 10; i++) {
+            const t = i / 10;
+            const angle = t * Math.PI * 1.5; // Winding factor
+            const radius = (1 - t) * hillSize * 0.4;
+            pathPoints.push(new THREE.Vector3(
+                Math.cos(angle) * radius,
+                t * hillHeight,
+                Math.sin(angle) * radius
+            ));
+        }
+        
+        // Create a smooth curve for the path
+        const pathCurve = new THREE.CatmullRomCurve3(pathPoints);
+        
+        // Modify vertices to create hill and path
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            
+            // Distance from center
+            const distance = Math.sqrt(x * x + z * z);
+            const maxDistance = hillSize * 0.5;
+            
+            // Calculate base height using smooth falloff
+            let height = Math.cos(distance / maxDistance * Math.PI * 0.5);
+            height = Math.max(0, height) * hillHeight;
+            
+            // Add some noise for natural look
+            height += (Math.random() * 0.5 - 0.25) * (height / hillHeight) * 2;
+            
+            // Check if point is near the path
+            const nearestPoint = pathCurve.getPointAt(
+                pathCurve.getUtoTmapping(0, distance / maxDistance)
+            );
+            const distanceToPath = Math.sqrt(
+                Math.pow(x - nearestPoint.x, 2) + 
+                Math.pow(z - nearestPoint.z, 2)
+            );
+            
+            // Flatten area around path
+            if (distanceToPath < 2) {
+                const pathBlend = (2 - distanceToPath) / 2;
+                height = nearestPoint.y + (height - nearestPoint.y) * (1 - pathBlend);
+            }
+            
+            vertices[i + 1] = height;
+        }
+        
+        // Update geometry
+        hillGeometry.computeVertexNormals();
+        
+        // Create materials
+        const hillMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a5d32, // Slightly darker green for hill
+            roughness: 0.8,
+            metalness: 0.1,
+            flatShading: true
+        });
+        
+        // Create hill mesh
+        const hill = new THREE.Mesh(hillGeometry, hillMaterial);
+        hill.rotation.x = -Math.PI / 2;
+        hill.position.set(50, 0, -30); // Position the hill
+        hill.castShadow = true;
+        hill.receiveShadow = true;
+        this.scene.add(hill);
+        
+        // Create the dirt path
+        const pathWidth = 2;
+        const pathPoints2D = [];
+        for (let i = 0; i <= 100; i++) {
+            const point = pathCurve.getPointAt(i / 100);
+            pathPoints2D.push(new THREE.Vector2(point.x, point.z));
+        }
+        
+        const pathShape = new THREE.Shape();
+        const pathGeometry = new THREE.BufferGeometry();
+        const pathVertices = [];
+        const pathNormals = [];
+        
+        // Generate vertices for the path
+        for (let i = 0; i < pathPoints2D.length - 1; i++) {
+            const current = pathPoints2D[i];
+            const next = pathPoints2D[i + 1];
+            const direction = next.clone().sub(current).normalize();
+            const normal = new THREE.Vector2(-direction.y, direction.x);
+            
+            // Create path vertices
+            pathVertices.push(
+                current.x + normal.x * pathWidth, 0, current.y + normal.y * pathWidth,
+                current.x - normal.x * pathWidth, 0, current.y - normal.y * pathWidth,
+                next.x + normal.x * pathWidth, 0, next.y + normal.y * pathWidth,
+                next.x - normal.x * pathWidth, 0, next.y - normal.y * pathWidth
+            );
+            
+            // Add normals
+            for (let j = 0; j < 4; j++) {
+                pathNormals.push(0, 1, 0);
+            }
+        }
+        
+        // Create path geometry
+        pathGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pathVertices, 3));
+        pathGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(pathNormals, 3));
+        
+        // Create path material
+        const pathMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513, // Dirt brown
+            roughness: 1,
+            metalness: 0
+        });
+        
+        // Create path mesh
+        const path = new THREE.Mesh(pathGeometry, pathMaterial);
+        path.position.copy(hill.position);
+        path.position.y += 0.01; // Slightly above the hill to prevent z-fighting
+        path.receiveShadow = true;
+        this.scene.add(path);
+        
+        // Add trees on the hill
+        this.createHillTrees(hill, pathCurve, hillSize, hillHeight);
+    }
+    
+    createHillTrees(hill, pathCurve, hillSize, hillHeight) {
+        const treeCount = 100; // Number of trees to add on the hill
+        const hillCenter = hill.position;
+        
+        for (let i = 0; i < treeCount; i++) {
+            // Generate random position on the hill
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * hillSize * 0.45; // Keep within hill bounds
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Calculate height at this point
+            const distance = Math.sqrt(x * x + z * z);
+            const maxDistance = hillSize * 0.5;
+            let height = Math.cos(distance / maxDistance * Math.PI * 0.5);
+            height = Math.max(0, height) * hillHeight;
+            
+            // Check distance from path
+            const nearestPoint = pathCurve.getPointAt(
+                pathCurve.getUtoTmapping(0, distance / maxDistance)
+            );
+            const distanceToPath = Math.sqrt(
+                Math.pow(x - nearestPoint.x, 2) + 
+                Math.pow(z - nearestPoint.z, 2)
+            );
+            
+            // Only place trees if they're not too close to the path
+            if (distanceToPath > 3) {
+                const tree = new THREE.Group();
+                
+                // Create tree with size variation based on height
+                const heightFactor = height / hillHeight;
+                const trunkHeight = (1.5 + Math.random()) * (0.8 + heightFactor * 0.4);
+                
+                // Create trunk
+                const trunkGeometry = new THREE.CylinderGeometry(0.15, 0.2, trunkHeight, 8);
+                const trunkMaterial = new THREE.MeshStandardMaterial({
+                    color: Constants.COLORS.TREE_TRUNK,
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.y = trunkHeight / 2;
+                trunk.castShadow = true;
+                trunk.receiveShadow = true;
+                tree.add(trunk);
+                
+                // Create foliage layers
+                const foliageMaterial = new THREE.MeshStandardMaterial({
+                    color: Constants.COLORS.TREE_FOLIAGE,
+                    roughness: 0.8,
+                    metalness: 0.05
+                });
+                
+                const layers = 2 + Math.floor(Math.random() * 2);
+                const maxRadius = (0.8 + Math.random() * 0.4) * (0.8 + heightFactor * 0.4);
+                
+                for (let j = 0; j < layers; j++) {
+                    const layerHeight = 1 + Math.random() * 0.3;
+                    const layerRadius = maxRadius * (1 - j / layers * 0.3);
+                    
+                    const foliageGeometry = new THREE.ConeGeometry(layerRadius, layerHeight, 8);
+                    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                    
+                    foliage.position.y = trunkHeight * 0.6 + j * layerHeight * 0.7;
+                    foliage.castShadow = true;
+                    foliage.receiveShadow = true;
+                    tree.add(foliage);
+                }
+                
+                // Position tree on hill
+                tree.position.set(
+                    hillCenter.x + x,
+                    hillCenter.y + height,
+                    hillCenter.z + z
+                );
+                
+                // Random rotation
+                tree.rotation.y = Math.random() * Math.PI * 2;
+                
+                // Add slight tilt based on height
+                const tiltAngle = (1 - heightFactor) * 0.2;
+                tree.rotation.x = (Math.random() - 0.5) * tiltAngle;
+                tree.rotation.z = (Math.random() - 0.5) * tiltAngle;
+                
+                this.scene.add(tree);
+                
+                // Store for collision detection
+                this.trees.push({
+                    position: new THREE.Vector3(
+                        hillCenter.x + x,
+                        hillCenter.y + height,
+                        hillCenter.z + z
+                    ),
+                    radius: maxRadius * 0.8
+                });
+            }
+        }
     }
     
     createSimpleTrees() {
