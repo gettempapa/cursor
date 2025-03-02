@@ -340,27 +340,19 @@ class Game {
         // Audio initialized flag
         this.audioInitialized = false;
 
-        // Add a basic cube as fallback if other elements fail
-        this.addFallbackCube = () => {
-            this.debug.innerHTML += '<br>Adding fallback cube for visibility test';
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const cube = new THREE.Mesh(geometry, material);
-            cube.position.set(0, 0, 0);
-            this.scene.add(cube);
-            this.renderer.render(this.scene, this.camera);
-        };
-
         try {
             // Core setup
             this.setupCore();
             this.debug.innerHTML += '<br>Core setup complete';
             
-            // Add fallback cube immediately to test rendering
-            this.addFallbackCube();
-            
             // Initialize game components with error handling
             this.initializeGameComponents();
+            
+            // Remove fallback cube after successful initialization
+            const fallbackCube = this.scene.getObjectByName('fallbackCube');
+            if (fallbackCube) {
+                this.scene.remove(fallbackCube);
+            }
             
             // Start animation loop
             this.animate();
@@ -372,6 +364,53 @@ class Game {
         }
     }
     
+    // Create enemy function - moved here to ensure it's properly defined
+    createEnemy() {
+        try {
+            // Generate a random position away from the player
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 20 + Math.random() * 30; // Between 20-50 units from center
+            const position = new THREE.Vector3(
+                Math.cos(angle) * distance,
+                1,
+                Math.sin(angle) * distance
+            );
+            
+            // Check if position is valid (not inside objects)
+            let validPosition = true;
+            
+            // Check collision with trees
+            for (const tree of this.trees) {
+                const dx = tree.position.x - position.x;
+                const dz = tree.position.z - position.z;
+                const distSquared = dx * dx + dz * dz;
+                
+                if (distSquared < (tree.radius + 1) * (tree.radius + 1)) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            // If position is valid, create the enemy
+            if (validPosition) {
+                const enemy = new Enemy(this.scene, position);
+                this.enemies.push(enemy);
+                
+                // Pass audio context to enemy if available
+                if (this.audioInitialized && this.listener) {
+                    enemy.listener = this.listener;
+                    enemy.audioInitialized = true;
+                }
+            } else {
+                // Try again with a different position
+                this.createEnemy();
+            }
+        } catch (error) {
+            console.error('Error creating enemy:', error);
+            this.debug.innerHTML += `<br>Error creating enemy: ${error.message}`;
+        }
+    }
+    
     // Initialize all game components with proper error handling
     initializeGameComponents() {
         // Initialize arrays before using them
@@ -379,13 +418,20 @@ class Game {
         this.enemies = [];
         this.maxEnemies = 3; // Reduced number of enemies
         
+        // Initialize camera angles before player creation
+        this.cameraAngles = {
+            vertical: 0,
+            horizontal: 0
+        };
+        
         // Create environment with error handling
         try {
             this.createEnvironment();
             this.debug.innerHTML += '<br>Environment created';
         } catch (envError) {
-            this.debug.innerHTML += `<br>Environment creation failed: ${envError.message}`;
             console.error('Environment creation failed:', envError);
+            this.debug.innerHTML += `<br>Environment creation failed: ${envError.message}`;
+            throw envError; // Rethrow to prevent further initialization
         }
         
         // Create player with error handling
@@ -393,8 +439,9 @@ class Game {
             this.createPlayer();
             this.debug.innerHTML += '<br>Player created';
         } catch (playerError) {
-            this.debug.innerHTML += `<br>Player creation failed: ${playerError.message}`;
             console.error('Player creation failed:', playerError);
+            this.debug.innerHTML += `<br>Player creation failed: ${playerError.message}`;
+            throw playerError;
         }
         
         // Setup controls with error handling
@@ -402,21 +449,36 @@ class Game {
             this.setupControls();
             this.debug.innerHTML += '<br>Controls setup complete';
         } catch (controlsError) {
-            this.debug.innerHTML += `<br>Controls setup failed: ${controlsError.message}`;
             console.error('Controls setup failed:', controlsError);
+            this.debug.innerHTML += `<br>Controls setup failed: ${controlsError.message}`;
+            throw controlsError;
         }
         
         // Audio setup will be initialized on first user interaction
         this.prepareAudioForLaterInitialization();
         this.debug.innerHTML += '<br>Audio will initialize on first interaction';
         
+        // Create enemies after environment is set up - but make it optional
+        if (typeof this.createEnemy === 'function') {
+            try {
+                for (let i = 0; i < this.maxEnemies; i++) {
+                    this.createEnemy();
+                }
+                this.debug.innerHTML += '<br>Enemies created';
+            } catch (enemyError) {
+                console.error('Enemy creation failed:', enemyError);
+                this.debug.innerHTML += `<br>Enemy creation failed: ${enemyError.message}`;
+                // Don't throw here - game can still run without enemies
+            }
+        } else {
+            console.warn('createEnemy function not available - skipping enemy creation');
+            this.debug.innerHTML += '<br>Enemy creation skipped (function not available)';
+        }
+        
         // Hide loading screen
         const loadingScreen = document.getElementById('loadingScreen');
-        if (loadingScreen) loadingScreen.style.display = 'none';
-
-        // Create enemies after environment is set up
-        for (let i = 0; i < this.maxEnemies; i++) {
-            this.createEnemy();
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
         }
     }
     
@@ -430,39 +492,42 @@ class Game {
         this.scene.background = new THREE.Color(Constants.COLORS.SKY);
         this.scene.fog = new THREE.FogExp2(0x88BBEE, Constants.GAME.FOG_DENSITY);
         
-        // Create camera - will be positioned by the player's update method
+        // Create camera
         this.camera = new THREE.PerspectiveCamera(
             70, // FOV
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        this.camera.position.set(0, 5, 10); // Set an initial position in case player setup fails
+        this.camera.position.set(0, 5, 10);
         
-        // Create renderer with enhanced settings
+        // Create renderer with updated properties for Three.js compatibility
         this.renderer = new THREE.WebGLRenderer({ 
             antialias: true,
-            powerPreference: "high-performance",
-            precision: "highp"
+            powerPreference: "high-performance"
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(Constants.COLORS.SKY);
-        
-        // Enable and configure shadows
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.physicallyCorrectLights = true;
         
-        // Add output encoding for better colors
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.2;
+        // Set modern properties (not deprecated ones)
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.useLegacyLights = false;
         
         this.container.appendChild(this.renderer.domElement);
 
-        // Do a test render to verify the renderer works
+        // Add a temporary fallback cube for visibility testing
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(0, 0, 0);
+        cube.name = 'fallbackCube';
+        this.scene.add(cube);
+        
+        // Do a test render
         this.renderer.render(this.scene, this.camera);
-        this.debug.innerHTML += '<br>Test render complete with enhanced graphics';
+        this.debug.innerHTML += '<br>Test render complete';
         
         // Handle window resizing
         window.addEventListener('resize', () => {
@@ -1336,6 +1401,14 @@ class Game {
     }
     
     createPlayer() {
+        // Ensure camera angles are initialized
+        if (!this.cameraAngles) {
+            this.cameraAngles = {
+                vertical: 0,
+                horizontal: 0
+            };
+        }
+        
         // Player state with constants
         this.playerState = {
             position: new THREE.Vector3(0, 1, 0),
@@ -1561,11 +1634,7 @@ class Game {
             jump: false
         };
 
-        // Initialize camera angles
-        this.cameraAngles = {
-            vertical: 0,
-            horizontal: 0
-        };
+        // Camera angles are now initialized in initializeGameComponents
         
         // Track mouse state for shooting
         this.mouseDown = false;
@@ -1702,6 +1771,15 @@ class Game {
     }
     
     updatePlayerCamera() {
+        // Ensure camera angles are initialized
+        if (!this.cameraAngles) {
+            this.cameraAngles = {
+                vertical: 0,
+                horizontal: 0
+            };
+            console.warn('Camera angles were not initialized, creating default values');
+        }
+        
         // Calculate camera position based on player position and offset
         const cameraOffset = this.cameraOffset.clone();
         
