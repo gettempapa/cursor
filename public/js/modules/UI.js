@@ -1,14 +1,18 @@
 export class UI {
     constructor(container) {
         this.container = container;
-        this.setupUI();
-    }
-    
-    setupUI() {
+        
+        // Create HUD elements
         this.setupHUD();
+        
+        // Create weapon menu
         this.setupWeaponMenu();
-        this.setupCrosshair();
-        this.setupVisualFeedback();
+        
+        // Create reload indicator
+        this.setupReloadIndicator();
+        
+        // Create enemy health bar
+        this.setupEnemyHealthBar();
     }
     
     setupHUD() {
@@ -74,11 +78,12 @@ export class UI {
         this.weaponMenuContainer.style.fontSize = '24px';
         this.weaponMenuContainer.style.textAlign = 'left';
         this.weaponMenuContainer.style.minWidth = '200px';
+        this.weaponMenuContainer.style.zIndex = '1000';
         
         this.weaponMenuContainer.innerHTML = `
             <div style="margin-bottom: 20px; color: #ff0; text-align: center;">WEAPON SELECT</div>
-            <div style="margin: 10px 0;">1. Rifle</div>
-            <div style="margin: 10px 0;">2. Pistol</div>
+            <div style="margin: 10px 0; cursor: pointer;" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Digit1'}))">1. Rifle</div>
+            <div style="margin: 10px 0; cursor: pointer;" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Digit2'}))">2. Pistol</div>
         `;
         
         this.container.appendChild(this.weaponMenuContainer);

@@ -7,6 +7,8 @@ import { UI } from './modules/UI.js';
 export class Game {
     constructor() {
         this.container = document.getElementById('gameContainer');
+        
+        // Initialize core systems
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -15,29 +17,31 @@ export class Game {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
         
-        // Initialize game components
+        // Initialize environment
         this.environment = new Environment(this.scene);
+        
+        // Initialize player and UI
         this.player = new Player(this.scene);
-        
-        // Initialize enemy with a specific position
-        this.enemy = new Enemy(this.scene, new THREE.Vector3(-10, 1, -10));
-        this.scene.add(this.enemy.object); // Explicitly add enemy to scene
-        
         this.ui = new UI(this.container);
+        
+        // Initialize enemy
+        this.enemy = new Enemy(this.scene);
         
         // Set up controls
         this.setupControls();
         
+        // Start animation loop
+        this.animate();
+        
         // Handle window resizing
         window.addEventListener('resize', () => this.onWindowResize(), false);
         
-        // Lock pointer on click
+        // Request pointer lock on click
         this.container.addEventListener('click', () => {
-            this.container.requestPointerLock();
+            if (!document.pointerLockElement) {
+                this.container.requestPointerLock();
+            }
         });
-        
-        // Start the animation loop
-        this.animate();
     }
     
     setupControls() {
