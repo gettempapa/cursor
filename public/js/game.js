@@ -54,6 +54,15 @@ class Game {
                 console.error('Controls setup failed:', controlsError);
             }
             
+            // Setup audio with error handling
+            try {
+                this.setupAudio();
+                this.debug.innerHTML += '<br>Rifle audio loaded and tested';
+            } catch (audioError) {
+                this.debug.innerHTML += `<br>Rifle audio setup failed: ${audioError.message}`;
+                console.error('Rifle audio setup failed:', audioError);
+            }
+            
             // Hide loading screen
             const loadingScreen = document.getElementById('loadingScreen');
             if (loadingScreen) loadingScreen.style.display = 'none';
@@ -173,7 +182,16 @@ class Game {
             rotation: new THREE.Euler(0, 0, 0, 'YXZ'),
             moveSpeed: 0.12,
             turnSpeed: 0.02,
-            moving: false
+            moving: false,
+            shooting: false,
+            lastShot: 0,
+            shotCooldown: 100, // milliseconds between shots
+            // Jump properties
+            isJumping: false,
+            jumpHeight: 2.0,
+            jumpSpeed: 0.15,
+            jumpVelocity: 0,
+            gravity: 0.008
         };
         
         // Create simple soldier model using basic materials
@@ -181,14 +199,14 @@ class Game {
         
         // Body
         const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F }); // Basic material
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F }); // Dark slate gray
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 0.4;
         this.player.add(body);
         
         // Head
         const headGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-        const headMaterial = new THREE.MeshBasicMaterial({ color: 0xD2B48C }); // Basic material
+        const headMaterial = new THREE.MeshBasicMaterial({ color: 0xD2B48C }); // Tan
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.position.y = 1;
         this.player.add(head);
@@ -217,13 +235,19 @@ class Game {
         rightArm.position.set(-0.35, 0.4, 0);
         this.player.add(rightArm);
         
+        // Create rifle using basic shapes
+        this.createRifle();
+        
         // Position player and add to scene
         this.player.position.copy(this.playerState.position);
         this.scene.add(this.player);
         
-        // Setup camera defaults for third-person view
-        this.cameraOffset = new THREE.Vector3(0, 2, 5); // Behind and above the player
+        // Setup camera for third-person view - positioned to show player in lower left
+        this.cameraOffset = new THREE.Vector3(1.5, 1.8, 5); // Offset to the right and up from player
         this.updatePlayerCamera();
+        
+        // Create audio for weapon
+        this.setupAudio();
     }
     
     setupControls() {
@@ -326,17 +350,117 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Position camera behind player
+        // Position camera with offset to keep player in the lower left
         const cameraOffset = this.cameraOffset.clone();
         cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
         
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Make camera look at player's head height
-        const lookTarget = this.playerState.position.clone();
-        lookTarget.y += 1; // Look at the player's head
+        // Calculate a target point in front of the player
+        // This will be where the crosshair is positioned
+        const forwardDirection = new THREE.Vector3(0, 0, -1);
+        forwardDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
+        forwardDirection.multiplyScalar(20); // Look 20 units ahead
+        
+        // Create the look target in front of the player
+        const lookTarget = this.playerState.position.clone().add(forwardDirection);
+        lookTarget.y += 1.0; // Adjust height to match player's eye level
+        
+        // Add a slight offset to the look target to shift the player left and down in the view
+        lookTarget.x += 0.5; // Shift the target right to move player left in view
+        lookTarget.y -= 0.3; // Shift the target up to move player down in view
+        
+        // Have the camera look at this target (this is where the crosshair is)
         this.camera.lookAt(lookTarget);
+        
+        // Update rifle to point at the center of screen/crosshair (which is our look target)
+        if (this.rifle) {
+            // Reset the rifle's local rotation
+            this.rifle.rotation.set(0, 0, 0);
+            
+            // Calculate the direction vector from the player to the look target
+            const rifleDirection = lookTarget.clone().sub(this.playerState.position);
+            rifleDirection.normalize();
+            
+            // Position the rifle in the player's hand but pointed at the crosshair
+            // Convert the world direction to a local rotation for the rifle
+            const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
+            
+            // Calculate the angle between the player's forward direction and the rifle direction
+            const yAngle = Math.atan2(rifleDirection.x, rifleDirection.z);
+            
+            // Apply the calculated rotation
+            this.rifle.rotation.y = yAngle;
+            
+            // Pitch the rifle up/down to aim at the crosshair's height
+            const xzDistance = Math.sqrt(rifleDirection.x * rifleDirection.x + rifleDirection.z * rifleDirection.z);
+            const xAngle = -Math.atan2(rifleDirection.y, xzDistance);
+            this.rifle.rotation.x = xAngle;
+            
+            // Position the rifle in the player's right hand
+            this.rifle.position.set(0.3, 0.4, 0.3);
+        }
+    }
+    
+    setupAudio() {
+        // Create audio listener and attach to camera
+        this.listener = new THREE.AudioListener();
+        this.camera.add(this.listener);
+        
+        // Create the rifle sound
+        this.rifleSound = new THREE.Audio(this.listener);
+        
+        // Load sound file - using a more reliable rifle sound URL
+        const audioURL = 'https://assets.codepen.io/21542/Gun%2BShotgun.mp3'; // Use more reliable source as primary
+        
+        // Create audio loader and load sound
+        const audioLoader = new THREE.AudioLoader();
+        audioLoader.load(
+            audioURL,
+            (buffer) => {
+                this.rifleSound.setBuffer(buffer);
+                this.rifleSound.setVolume(1.0); // Increased volume to maximum
+                this.rifleSound.setPlaybackRate(1.2); // Slightly faster for more impact
+                
+                // Create dynamic compressor for better sound
+                const compressor = this.listener.context.createDynamicsCompressor();
+                compressor.threshold.setValueAtTime(-50, this.listener.context.currentTime);
+                compressor.knee.setValueAtTime(40, this.listener.context.currentTime);
+                compressor.ratio.setValueAtTime(12, this.listener.context.currentTime);
+                compressor.attack.setValueAtTime(0, this.listener.context.currentTime);
+                compressor.release.setValueAtTime(0.25, this.listener.context.currentTime);
+                
+                this.rifleSound.setFilter(compressor);
+                
+                // Test the sound on load to ensure it works
+                if (this.rifleSound.buffer) {
+                    this.rifleSound.play();
+                    console.log("Playing test rifle sound");
+                }
+                
+                this.debug.innerHTML += '<br>Rifle audio loaded and tested';
+            },
+            (xhr) => {
+                this.debug.innerHTML = `Audio ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`;
+            },
+            (error) => {
+                console.error('Audio loading error:', error);
+                this.debug.innerHTML += '<br>Audio loading error: ' + error.message;
+                
+                // Try fallback audio
+                const fallbackURL = 'https://freesound.org/data/previews/362/362046_5349517-lq.mp3';
+                audioLoader.load(fallbackURL, (buffer) => {
+                    this.rifleSound.setBuffer(buffer);
+                    this.rifleSound.setVolume(1.0);
+                    
+                    // Test the sound on load to ensure it works
+                    if (this.rifleSound.buffer) {
+                        this.rifleSound.play();
+                    }
+                });
+            }
+        );
     }
     
     animate() {
@@ -351,6 +475,47 @@ class Game {
         } catch (animateError) {
             console.error('Animation error:', animateError);
             this.debug.innerHTML += `<br>Animation error: ${animateError.message}`;
+        }
+    }
+
+    shoot() {
+        // Check cooldown
+        const now = performance.now();
+        if (now - this.playerState.lastShot < this.playerState.shotCooldown) {
+            return;
+        }
+        
+        this.playerState.lastShot = now;
+        
+        // Play sound - using more robust sound playback code
+        if (this.rifleSound) {
+            // Stop any currently playing sound
+            if (this.rifleSound.isPlaying) {
+                this.rifleSound.stop();
+            }
+            
+            // Play the sound with a slight delay to ensure it's ready
+            if (this.rifleSound.buffer) {
+                // Clone the sound for overlapping shots
+                const soundClone = this.rifleSound.clone();
+                soundClone.setVolume(1.0);
+                soundClone.play();
+                
+                // Log to debug
+                console.log("Playing rifle sound");
+            } else {
+                console.warn("Rifle sound buffer not loaded yet");
+            }
+        } else {
+            console.warn("Rifle sound not initialized");
+        }
+        
+        // Show muzzle flash
+        if (this.muzzleFlash) {
+            this.muzzleFlash.visible = true;
+            setTimeout(() => {
+                this.muzzleFlash.visible = false;
+            }, 50);
         }
     }
 }
