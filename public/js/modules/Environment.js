@@ -18,8 +18,7 @@ export class Environment {
             color: 0x2d5a27, // Rich grass green
             roughness: 0.8,
             metalness: 0.0,
-            side: THREE.DoubleSide,
-            receiveShadow: true
+            side: THREE.DoubleSide
         });
         
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);

@@ -8,8 +8,11 @@ export class UI {
         // Create weapon menu
         this.setupWeaponMenu();
         
-        // Create reload indicator
-        this.setupReloadIndicator();
+        // Create crosshair
+        this.setupCrosshair();
+        
+        // Create visual feedback elements
+        this.setupVisualFeedback();
         
         // Create enemy health bar
         this.setupEnemyHealthBar();
@@ -34,9 +37,6 @@ export class UI {
         // Create ammo display
         this.ammoDisplay = document.createElement('div');
         this.hudContainer.appendChild(this.ammoDisplay);
-        
-        // Create enemy health bar
-        this.setupEnemyHealthBar();
         
         this.container.appendChild(this.hudContainer);
     }
@@ -143,31 +143,30 @@ export class UI {
     }
     
     setupVisualFeedback() {
-        // Damage overlay
-        this.damageOverlay = document.createElement('div');
-        this.damageOverlay.style.position = 'absolute';
-        this.damageOverlay.style.top = '0';
-        this.damageOverlay.style.left = '0';
-        this.damageOverlay.style.width = '100%';
-        this.damageOverlay.style.height = '100%';
-        this.damageOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0)';
-        this.damageOverlay.style.pointerEvents = 'none';
-        this.damageOverlay.style.transition = 'background-color 0.1s ease-in-out';
-        this.container.appendChild(this.damageOverlay);
-        
-        // Reload indicator
+        // Create reload indicator
         this.reloadIndicator = document.createElement('div');
         this.reloadIndicator.style.position = 'absolute';
         this.reloadIndicator.style.top = '50%';
         this.reloadIndicator.style.left = '50%';
         this.reloadIndicator.style.transform = 'translate(-50%, -50%)';
         this.reloadIndicator.style.color = 'white';
-        this.reloadIndicator.style.fontSize = '24px';
         this.reloadIndicator.style.fontFamily = 'Arial, sans-serif';
+        this.reloadIndicator.style.fontSize = '24px';
         this.reloadIndicator.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
         this.reloadIndicator.style.display = 'none';
-        this.reloadIndicator.textContent = 'RELOADING';
+        this.reloadIndicator.textContent = 'Reloading...';
         this.container.appendChild(this.reloadIndicator);
+        
+        // Create damage overlay
+        this.damageOverlay = document.createElement('div');
+        this.damageOverlay.style.position = 'absolute';
+        this.damageOverlay.style.top = '0';
+        this.damageOverlay.style.left = '0';
+        this.damageOverlay.style.width = '100%';
+        this.damageOverlay.style.height = '100%';
+        this.damageOverlay.style.backgroundColor = 'rgba(255,0,0,0.3)';
+        this.damageOverlay.style.display = 'none';
+        this.container.appendChild(this.damageOverlay);
         
         // Low ammo warning
         this.lowAmmoWarning = document.createElement('div');
@@ -248,10 +247,17 @@ export class UI {
     }
     
     showReloadIndicator() {
-        this.reloadIndicator.style.display = 'block';
+        if (this.reloadIndicator) {
+            this.reloadIndicator.style.display = 'block';
+            setTimeout(() => {
+                this.reloadIndicator.style.display = 'none';
+            }, 1500);
+        }
     }
     
     hideReloadIndicator() {
-        this.reloadIndicator.style.display = 'none';
+        if (this.reloadIndicator) {
+            this.reloadIndicator.style.display = 'none';
+        }
     }
 } 
