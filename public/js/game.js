@@ -3377,7 +3377,7 @@ class Game {
     }
     
     setupControls() {
-        // Movement
+        // Movement state
         this.moveState = {
             forward: false,
             backward: false,
@@ -3385,18 +3385,11 @@ class Game {
             right: false,
             jump: false
         };
-
-        // Ensure camera angles are initialized
-        if (!this.cameraAngles) {
-            this.cameraAngles = {
-                vertical: 0,
-                horizontal: 0
-            };
-        }
         
-        // Track mouse state for shooting
+        // Mouse state
         this.mouseDown = false;
         
+        // WASD controls
         document.addEventListener('keydown', (e) => {
             switch (e.code) {
                 case 'KeyW': this.moveState.forward = true; break;
@@ -3416,35 +3409,15 @@ class Game {
             }
         });
         
-        // Mouse controls for third-person shooter
+        // Mouse controls
         this.container.addEventListener('click', () => {
             this.container.requestPointerLock();
         });
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Classic third-person controls with separated axes
-                
-                // Horizontal rotation (yaw) - controls the player's facing direction
-                this.playerState.rotation.y -= e.movementX * 0.001;
-                
-                // Initialize camera angles if needed
-                if (!this.cameraAngles) {
-                    this.cameraAngles = { vertical: 0, horizontal: 0 };
-                }
-                
-                // Vertical rotation (pitch) - controls looking up/down
-                // Apply negative multiplier for proper direction
-                this.cameraAngles.vertical -= e.movementY * 0.001;
-                
-                // Constrain vertical rotation to prevent flipping
-                this.cameraAngles.vertical = Math.max(
-                    -Math.PI / 4, // Up limit (less than 90 degrees to prevent issues)
-                    Math.min(
-                        Math.PI / 6,  // Down limit
-                        this.cameraAngles.vertical
-                    )
-                );
+                // Update player rotation based on mouse X movement
+                this.playerState.rotation.y -= e.movementX * 0.002;
             }
         });
         
@@ -3745,182 +3718,24 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Fixed third-person camera implementation with no twisting
+        // Simple third-person camera implementation
+        const cameraOffset = new THREE.Vector3(0, 2, 5); // Height and distance behind player
         
-        // Get camera parameters
-        const cameraDistance = Math.abs(Constants.PLAYER.CAMERA_OFFSET.z);
-        const cameraHeight = Constants.PLAYER.CAMERA_OFFSET.y;
+        // Calculate camera position relative to player
+        const playerPosition = this.playerState.position.clone();
+        this.camera.position.copy(playerPosition);
         
-        // Position the camera using only simple transformations
-        // First position camera at player's position
-        this.camera.position.copy(this.playerState.position);
+        // Add offset based on player rotation
+        const rotatedOffset = cameraOffset.clone();
+        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
+        this.camera.position.add(rotatedOffset);
         
-        // Then offset it backward and up (no complex math)
-        this.camera.position.x -= Math.sin(this.playerState.rotation.y) * cameraDistance;
-        this.camera.position.z -= Math.cos(this.playerState.rotation.y) * cameraDistance;
-        this.camera.position.y += cameraHeight;
-        
-        // The critical fix: EXPLICITLY control all camera rotation values
-        // This prevents any unwanted roll that causes twisting
-        
-        // First, reset the camera rotation completely
-        this.camera.rotation.set(0, 0, 0, 'YXZ');
-        
-        // Set ONLY the rotations we want (no roll/z-rotation)
-        // Match player's Y rotation for horizontal look
-        this.camera.rotation.y = this.playerState.rotation.y;
-        
-        // Apply vertical tilt if present (X rotation)
-        if (this.cameraAngles && typeof this.cameraAngles.vertical === 'number') {
-            // Only apply pitch (X rotation) - this is what controls looking up/down
-            this.camera.rotation.x = this.cameraAngles.vertical;
-        }
-        
-        // EXPLICITLY zero out any roll to prevent twisting
-        this.camera.rotation.z = 0;
-        
-        // Calculate aim direction for the weapon
-        const aimDirection = new THREE.Vector3(0, 0, -1);
-        aimDirection.applyEuler(this.camera.rotation);
-        
-        // Set the rifle aim target
-        const aimTarget = this.playerState.position.clone();
-        aimTarget.y += 1.0; // Eye level
-        aimTarget.add(aimDirection.multiplyScalar(20));
-        
-        // Update rifle aiming
-        this.updateRifleAim(aimTarget);
-    }
-    
-    updateRifleAim(lookTarget) {
-        if (!this.rifle) return;
-        
-        // Calculate aim direction from player to look target
-        const aimDirection = lookTarget.clone().sub(this.playerState.position);
-        aimDirection.normalize();
-        
-        // Calculate rifle angles - use YXZ order to match camera rotation
-        const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
-        rifleRotation.y = Math.atan2(aimDirection.x, aimDirection.z);
-        rifleRotation.x = -Math.asin(aimDirection.y);
-        
-        // Update rifle rotation to match aim direction
-        this.rifle.rotation.x = rifleRotation.x;
-        this.rifle.rotation.y = rifleRotation.y;
-        this.rifle.rotation.z = 0; // Prevent any roll rotation
-        
-        // Position rifle in front of player
-        this.rifle.position.set(0.35, 0.45, 0.3);
-        
-        // Update arm positions to naturally hold the rifle
-        if (this.leftArm && this.rightArm) {
-            // Position arms to naturally hold the rifle based on where it's pointing
-            
-            // Left arm (forward grip)
-            if (this.leftArm.upper && this.leftArm.lower && this.leftArm.hand) {
-                // Upper arm rotation
-                this.leftArm.upper.rotation.x = rifleRotation.x * 0.3;
-                this.leftArm.upper.rotation.y = rifleRotation.y * 0.4;
-                this.leftArm.upper.rotation.z = -0.3; // Keep basic pose
-                
-                // Forearm rotation - point toward the rifle foregrip
-                this.leftArm.lower.rotation.x = rifleRotation.x * 0.5;
-                this.leftArm.lower.rotation.y = rifleRotation.y * 0.6;
-                this.leftArm.lower.rotation.z = -0.3;
-                
-                // Hand position
-                this.leftArm.hand.position.x = 0.58 + rifleRotation.y * 0.05;
-                this.leftArm.hand.position.y = 0.42 - rifleRotation.x * 0.1;
-                this.leftArm.hand.position.z = rifleRotation.x * 0.1;
-                
-                // Hand rotation
-                this.leftArm.hand.rotation.x = rifleRotation.x;
-                this.leftArm.hand.rotation.y = rifleRotation.y;
-            }
-            
-            // Right arm (trigger hand)
-            if (this.rightArm.upper && this.rightArm.lower && this.rightArm.hand) {
-                // Upper arm rotation
-                this.rightArm.upper.rotation.x = rifleRotation.x * 0.3;
-                this.rightArm.upper.rotation.y = rifleRotation.y * 0.4;
-                this.rightArm.upper.rotation.z = 0.3; // Keep basic pose
-                
-                // Forearm rotation - point toward the rifle trigger
-                this.rightArm.lower.rotation.x = rifleRotation.x * 0.5;
-                this.rightArm.lower.rotation.y = rifleRotation.y * 0.6;
-                this.rightArm.lower.rotation.z = 0.3;
-                
-                // Hand position
-                this.rightArm.hand.position.x = -0.58 + rifleRotation.y * 0.05;
-                this.rightArm.hand.position.y = 0.42 - rifleRotation.x * 0.1;
-                this.rightArm.hand.position.z = rifleRotation.x * 0.1;
-                
-                // Hand rotation
-                this.rightArm.hand.rotation.x = rifleRotation.x;
-                this.rightArm.hand.rotation.y = rifleRotation.y;
-            }
-        }
-    }
-    
-    animate() {
-        requestAnimationFrame(this.animate.bind(this));
-        
-        // Calculate delta time for smooth animation
-        const now = performance.now();
-        let deltaTime = (now - this.lastTime) / 1000;
-        
-        // Cap delta time to prevent large jumps after tab switch
-        deltaTime = Math.min(deltaTime, Constants.GAME.MAX_DELTA_TIME);
-        this.lastTime = now;
-        
-        // Update player
-        this.updatePlayer(deltaTime);
-        
-        // Update enemies
-        if (this.enemies) {
-            for (let i = this.enemies.length - 1; i >= 0; i--) {
-                this.enemies[i].update(deltaTime, this.playerState.position);
-            }
-        }
-        
-        // Update dinosaurs
-        if (this.dinosaurs && this.dinosaurs.length > 0) {
-            // Log dinosaur positions occasionally
-            if (Math.random() < 0.01) { // Log roughly once every 100 frames
-                console.log(`Dinosaurs: ${this.dinosaurs.length}, First dinosaur position:`, 
-                    this.dinosaurs[0].position);
-            }
-            
-            for (let i = this.dinosaurs.length - 1; i >= 0; i--) {
-                this.dinosaurs[i].update(deltaTime, this.playerState.position);
-            }
-        } else if (now % 5000 < 16) { // Check roughly every 5 seconds
-            console.log("No dinosaurs present in the scene");
-        }
-        
-        // Update debug info
-        this.updateDebugInfo();
-        
-        // Render scene
-        this.renderer.render(this.scene, this.camera);
+        // Look at player
+        const lookAtPosition = playerPosition.clone();
+        lookAtPosition.y += 1.5; // Look at head height
+        this.camera.lookAt(lookAtPosition);
     }
 
-    updateDebugInfo() {
-        // Only update if debug is visible
-        if (this.debug.style.display === 'block') {
-            const position = this.playerState.position;
-            const posText = `Position: ${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}`;
-            const rotText = `Rotation: ${(this.playerState.rotation.y * 180 / Math.PI).toFixed(1)}°`;
-            const fpsText = `FPS: ${this.fpsCounter?.fps || 0}`;
-            
-            // Update debug info without clearing previous messages
-            const debugLines = this.debug.innerHTML.split('<br>');
-            const staticInfo = debugLines.slice(0, 5).join('<br>'); // Keep initialization messages
-            
-            this.debug.innerHTML = `${staticInfo}<br>${posText}<br>${rotText}<br>${fpsText}`;
-        }
-    }
-    
     updatePlayer(deltaTime) {
         // Calculate movement direction based on WASD input
         const direction = new THREE.Vector3(0, 0, 0);
@@ -3935,96 +3750,38 @@ class Game {
         
         // Handle movement if there's input
         if (this.playerState.moving) {
-            // Normalize the direction vector to maintain consistent speed in all directions
+            // Normalize the direction vector
             direction.normalize();
             
-            // Apply player rotation to make movement relative to the player's facing direction
-            // This ensures WASD controls are relative to where the player is looking
+            // Rotate movement direction based on player rotation
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
             
-            // Apply movement speed with delta time for framerate independence
-            const scaledSpeed = this.playerState.moveSpeed * deltaTime * 60; // Normalize to 60fps
-            const movement = direction.multiplyScalar(scaledSpeed);
+            // Apply movement speed
+            const moveSpeed = this.playerState.moveSpeed * deltaTime * 60;
+            direction.multiplyScalar(moveSpeed);
             
-            // Calculate new position
+            // Update position
             const newPosition = this.playerState.position.clone();
-            newPosition.x += movement.x;
-            newPosition.z += movement.z;
+            newPosition.add(direction);
             
-            // Check for collisions before applying movement
+            // Check for collisions
             if (!this.checkCollisions(newPosition)) {
-                // No collision, apply movement
                 this.playerState.position.copy(newPosition);
                 
-                // Update Y position based on terrain height (for hill walking)
+                // Update Y position based on terrain
                 if (!this.playerState.isJumping) {
                     const terrainHeight = this.getHeightAtPosition(this.playerState.position);
                     this.playerState.position.y = terrainHeight;
                 }
-                
-                // Play footstep sound when moving
-                this.playFootstepSound();
             }
             
-            // Update player mesh rotation to match player state
+            // Update player model rotation
             if (this.player) {
                 this.player.rotation.y = this.playerState.rotation.y;
             }
-        }
-        
-        // Handle jumping and gravity with delta time
-        if (this.playerState.isJumping) {
-            // Scale gravity and jump velocity by delta time
-            const scaledGravity = this.playerState.gravity * deltaTime * 60;
-            const scaledVelocity = this.playerState.jumpVelocity * deltaTime * 60;
             
-            // Apply jump velocity
-            this.playerState.position.y += scaledVelocity;
-            
-            // Apply gravity to reduce jump velocity
-            this.playerState.jumpVelocity -= scaledGravity;
-            
-            // Get terrain height at current position
-            const terrainHeight = this.getHeightAtPosition(this.playerState.position);
-            
-            // Check if player has landed
-            if (this.playerState.position.y <= terrainHeight && this.playerState.jumpVelocity < 0) {
-                this.playerState.position.y = terrainHeight; // Reset to terrain level
-                this.playerState.isJumping = false;
-                this.playerState.jumpVelocity = 0;
-                
-                // Play landing sound
-                if (this.audioInitialized && this.footstepSounds && this.footstepSounds.length > 0) {
-                    try {
-                        // Check if audio context is available and running
-                        if (!this.listener || !this.listener.context) {
-                            console.warn('AudioListener or AudioContext not available for landing sound');
-                        } else if (this.listener.context.state !== 'running') {
-                            // Try to resume the audio context
-                            this.listener.context.resume().catch(e => {
-                                console.warn('Could not resume audio context:', e);
-                            });
-                        } else {
-                            // Play a landing sound
-                            const landSound = new THREE.Audio(this.listener);
-                            landSound.setBuffer(this.footstepSounds[0].buffer);
-                            landSound.setVolume(0.6); // Louder than regular footstep
-                            landSound.setPlaybackRate(0.7); // Slower for more weight
-                            landSound.play();
-                        }
-                    } catch (e) {
-                        console.warn('Error playing landing sound:', e);
-                    }
-                }
-            }
-        }
-        
-        // Update camera to follow player
-        this.updatePlayerCamera();
-        
-        // Update player model position
-        if (this.player) {
-            this.player.position.copy(this.playerState.position);
+            // Play footstep sound
+            this.playFootstepSound();
         }
     }
     
