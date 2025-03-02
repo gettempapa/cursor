@@ -511,12 +511,12 @@ function createHumanoidMesh() {
     
     // Position the rifle in proper aiming position
     // Move the gun up to be gripped properly by the hands
-    gunGroup.position.set(0.04, 0.15, 0.25);
+    gunGroup.position.set(0.04, 0.15, -0.25);
     
     // Slightly adjust rifle angle for proper hand alignment
     gunGroup.rotation.x = -Math.PI * 0.03;
-    // Rotate gun to point forward
-    gunGroup.rotation.y = Math.PI;
+    // No need to rotate to point forward since we fixed the position
+    // gunGroup.rotation.y = Math.PI; // Removed this line as it was making the gun point backward
     // Slight tilt for realistic aiming
     gunGroup.rotation.z = Math.PI * 0.02;
     
@@ -1041,7 +1041,7 @@ function animate() {
     // Make camera look at player
     camera.lookAt(
         player.position.x,
-        player.position.y + 1.2, // Look at upper body height
+        player.position.y + 1.2 + mouseY * 0.5, // Add mouseY influence to vertical camera target
         player.position.z
     );
     
