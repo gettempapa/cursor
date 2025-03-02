@@ -31,6 +31,10 @@ class Game {
         this.mouseX = 0;
         this.mouseY = 0;
         
+        this.trees = []; // Store tree references for collision detection
+        this.treeCollisionRadius = 1.5; // Collision radius for trees
+        this.playerCollisionRadius = 0.5; // Collision radius for player
+        
         // Set up basic scene
         this.setupScene();
         
@@ -47,6 +51,53 @@ class Game {
         
         // Start the animation loop
         this.animate();
+    }
+    
+    createSoldier() {
+        const soldier = new THREE.Group();
+        
+        // Body (torso)
+        const torsoGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.4);
+        const uniformMaterial = new THREE.MeshStandardMaterial({ color: 0x4a5243 }); // Military green
+        const torso = new THREE.Mesh(torsoGeometry, uniformMaterial);
+        torso.position.y = 0.4;
+        soldier.add(torso);
+        
+        // Head
+        const headGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        const skinMaterial = new THREE.MeshStandardMaterial({ color: 0xe0b59e }); // Skin color
+        const head = new THREE.Mesh(headGeometry, skinMaterial);
+        head.position.y = 0.95;
+        soldier.add(head);
+        
+        // Helmet
+        const helmetGeometry = new THREE.BoxGeometry(0.35, 0.2, 0.35);
+        const helmetMaterial = new THREE.MeshStandardMaterial({ color: 0x2f3230 }); // Dark gray
+        const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
+        helmet.position.y = 1.1;
+        soldier.add(helmet);
+        
+        // Legs
+        const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const leftLeg = new THREE.Mesh(legGeometry, uniformMaterial);
+        leftLeg.position.set(0.15, -0.3, 0);
+        soldier.add(leftLeg);
+        
+        const rightLeg = new THREE.Mesh(legGeometry, uniformMaterial);
+        rightLeg.position.set(-0.15, -0.3, 0);
+        soldier.add(rightLeg);
+        
+        // Arms
+        const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const leftArm = new THREE.Mesh(armGeometry, uniformMaterial);
+        leftArm.position.set(0.4, 0.4, 0);
+        soldier.add(leftArm);
+        
+        const rightArm = new THREE.Mesh(armGeometry, uniformMaterial);
+        rightArm.position.set(-0.4, 0.4, 0);
+        soldier.add(rightArm);
+        
+        return soldier;
     }
     
     createPineTree(x, z) {
@@ -80,7 +131,27 @@ class Game {
         createLayer(3.5, 2, 2);
         
         treeGroup.position.set(x, 0, z);
+        
+        // Store tree position and radius for collision detection
+        this.trees.push({
+            position: new THREE.Vector2(x, z),
+            radius: this.treeCollisionRadius
+        });
+        
         return treeGroup;
+    }
+    
+    checkCollisions(newPosition) {
+        const playerPosition = new THREE.Vector2(newPosition.x, newPosition.z);
+        
+        for (const tree of this.trees) {
+            const distance = playerPosition.distanceTo(tree.position);
+            if (distance < (this.playerCollisionRadius + tree.radius)) {
+                return true; // Collision detected
+            }
+        }
+        
+        return false; // No collision
     }
     
     setupScene() {
@@ -112,10 +183,10 @@ class Game {
             this.scene.add(tree);
         }
         
-        // Add player model
-        const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
-        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        this.player = new THREE.Mesh(playerGeometry, playerMaterial);
+        // Create and add soldier model
+        this.soldier = this.createSoldier();
+        this.player = new THREE.Group(); // Empty group for player root
+        this.player.add(this.soldier);
         this.player.position.y = 1;
         this.scene.add(this.player);
         
@@ -196,9 +267,17 @@ class Game {
             direction.normalize();
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
             
-            // Update player position
-            this.player.position.x += direction.x * this.moveSpeed;
-            this.player.position.z += direction.z * this.moveSpeed;
+            // Calculate new position
+            const newPosition = new THREE.Vector3(
+                this.player.position.x + direction.x * this.moveSpeed,
+                this.player.position.y,
+                this.player.position.z + direction.z * this.moveSpeed
+            );
+            
+            // Check for collisions before updating position
+            if (!this.checkCollisions(newPosition)) {
+                this.player.position.copy(newPosition);
+            }
         }
     }
     
