@@ -3423,26 +3423,28 @@ class Game {
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Standard third-person control:
-                // - Horizontal mouse movement rotates the player
-                // - Vertical mouse movement tilts the camera
+                // Very simple third-person controls:
+                // Horizontal mouse = rotate player
+                // Vertical mouse = tilt camera up/down
                 
-                // Update player rotation based on horizontal mouse movement
-                // Lower sensitivity for smoother control
+                // Horizontal rotation - apply directly to player
                 this.playerState.rotation.y -= e.movementX * 0.001;
                 
-                // Ensure this.cameraAngles exists
+                // Make sure cameraAngles is initialized
                 if (!this.cameraAngles) {
                     this.cameraAngles = { vertical: 0, horizontal: 0 };
                 }
                 
-                // Update camera vertical angle (looking up/down)
-                // Note: we invert the sign for more intuitive control
+                // Vertical tilt - kept separate from player rotation
+                // This is a direct angle, not applied to any quaternion or euler
+                const newVerticalAngle = this.cameraAngles.vertical + (e.movementY * 0.001);
+                
+                // Constrain to reasonable limits
                 this.cameraAngles.vertical = Math.max(
-                    -Math.PI / 6, // Look up limit (less extreme)
+                    -Math.PI / 6, // Up limit
                     Math.min(
-                        Math.PI / 12, // Look down limit (less extreme)
-                        this.cameraAngles.vertical + e.movementY * 0.001
+                        Math.PI / 8,  // Down limit
+                        newVerticalAngle
                     )
                 );
             }
