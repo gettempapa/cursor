@@ -279,20 +279,23 @@ class Game {
     
     setupScene() {
         // Add lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter ambient light
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity
-        directionalLight.position.set(1, 2, 1); // Adjusted light position
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(1, 2, 1);
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
 
+        // Add ground with enhanced texture
+        this.createGround();
+        
+        // Add bushes
+        this.createBushes();
+        
         // Add bunker
         this.createBunker();
         
         // Add crates
         this.createCrates();
-
-        // Add ground with enhanced texture
-        this.createGround();
         
         // Add varied trees
         this.createTrees();
@@ -943,34 +946,95 @@ class Game {
     createGround() {
         const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2d5a27, // Grass green
-            roughness: 0.7, // Less rough for better color
+            color: 0x2d5a27, // Rich grass green
+            roughness: 0.9, // More rough for grass texture
             metalness: 0.0, // No metalness for natural look
-            emissive: 0x0c2a07, // Slight emissive for better visibility
-            emissiveIntensity: 0.2 // Increased from 0.1
+            emissive: 0x1a3819, // Darker green emissive
+            emissiveIntensity: 0.2
         });
         
-        // Enhanced terrain displacement
+        // Simplified terrain with gentle undulation
         const vertices = groundGeometry.attributes.position.array;
         for (let i = 0; i < vertices.length; i += 3) {
             const x = vertices[i];
             const z = vertices[i + 2];
-            const distance = Math.sqrt(x * x + z * z);
             
-            // Create varied terrain with hills and valleys
-            if (distance > 5) {
-                vertices[i + 1] = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2 +  // Large terrain features
-                                 Math.sin(x * 0.5) * Math.cos(z * 0.5) * 0.5 + // Medium hills
-                                 (Math.random() - 0.5) * 0.3;                   // Small detail
-            }
+            // Create gentle rolling hills
+            vertices[i + 1] = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 0.5;
         }
         
         groundGeometry.attributes.position.needsUpdate = true;
         groundGeometry.computeVertexNormals();
         
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2; // Fix ground rotation
+        ground.rotation.x = -Math.PI / 2;
         this.scene.add(ground);
+    }
+
+    createBush(x, z, scale = 1) {
+        const bushGroup = new THREE.Group();
+        
+        // Create multiple spheres for a bush-like shape
+        const bushMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d5a27, // Match ground color
+            roughness: 0.8,
+            metalness: 0.0
+        });
+        
+        // Main bush body
+        const mainSphere = new THREE.SphereGeometry(0.5 * scale, 8, 8);
+        const main = new THREE.Mesh(mainSphere, bushMaterial);
+        bushGroup.add(main);
+        
+        // Add smaller spheres around the main one for detail
+        const positions = [
+            { x: 0.3, y: 0.1, z: 0.3, scale: 0.7 },
+            { x: -0.3, y: 0.2, z: 0.2, scale: 0.8 },
+            { x: 0.2, y: 0.3, z: -0.3, scale: 0.6 },
+            { x: -0.2, y: 0.15, z: -0.2, scale: 0.7 }
+        ];
+        
+        positions.forEach(pos => {
+            const smallSphere = new THREE.SphereGeometry(0.3 * scale * pos.scale, 8, 8);
+            const smallBush = new THREE.Mesh(smallSphere, bushMaterial);
+            smallBush.position.set(pos.x * scale, pos.y * scale, pos.z * scale);
+            bushGroup.add(smallBush);
+        });
+        
+        bushGroup.position.set(x, 0.5 * scale, z);
+        return bushGroup;
+    }
+
+    createBushes() {
+        const bushCount = 40; // Add plenty of bushes
+        
+        for (let i = 0; i < bushCount; i++) {
+            // Create bushes in clusters
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 5 + Math.random() * 25; // Spread them out
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            // Randomize bush size
+            const scale = 0.6 + Math.random() * 0.8;
+            
+            const bush = this.createBush(x, z, scale);
+            this.scene.add(bush);
+            
+            // 40% chance to add smaller bushes nearby for clusters
+            if (Math.random() < 0.4) {
+                const clusterCount = Math.floor(Math.random() * 3) + 1;
+                for (let j = 0; j < clusterCount; j++) {
+                    const offset = 1.5;
+                    const nearbyX = x + (Math.random() - 0.5) * offset;
+                    const nearbyZ = z + (Math.random() - 0.5) * offset;
+                    const nearbyScale = scale * (0.6 + Math.random() * 0.3);
+                    
+                    const nearbyBush = this.createBush(nearbyX, nearbyZ, nearbyScale);
+                    this.scene.add(nearbyBush);
+                }
+            }
+        }
     }
 
     showDeathMessage() {
