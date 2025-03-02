@@ -3718,22 +3718,29 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Simple third-person camera implementation
-        const cameraOffset = new THREE.Vector3(0, 2, 5); // Height and distance behind player
+        // Camera settings
+        const cameraHeight = 2;
+        const cameraDistance = 5;
         
-        // Calculate camera position relative to player
+        // Get player position
         const playerPosition = this.playerState.position.clone();
-        this.camera.position.copy(playerPosition);
+        playerPosition.y += 1.5; // Look at head height
         
-        // Add offset based on player rotation
-        const rotatedOffset = cameraOffset.clone();
-        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
-        this.camera.position.add(rotatedOffset);
+        // Calculate camera position
+        const cameraPosition = new THREE.Vector3(
+            -Math.sin(this.playerState.rotation.y) * cameraDistance,
+            cameraHeight,
+            -Math.cos(this.playerState.rotation.y) * cameraDistance
+        );
         
-        // Look at player
-        const lookAtPosition = playerPosition.clone();
-        lookAtPosition.y += 1.5; // Look at head height
-        this.camera.lookAt(lookAtPosition);
+        // Set camera position relative to player
+        this.camera.position.copy(playerPosition).add(cameraPosition);
+        
+        // Look directly at player - no tilting allowed
+        this.camera.lookAt(playerPosition);
+        
+        // Force camera up vector to be exactly vertical - this prevents any tilting
+        this.camera.up.set(0, 1, 0);
     }
 
     updatePlayer(deltaTime) {
