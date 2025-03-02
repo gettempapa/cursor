@@ -276,9 +276,9 @@ class Game {
     
     setupScene() {
         // Add lights
-        const ambientLight = new THREE.AmbientLight(0x404040);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter ambient light
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity
+        directionalLight.position.set(1, 2, 1); // Adjusted light position
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
 
@@ -292,7 +292,7 @@ class Game {
         this.createCrates();
 
         // Add enhanced fog for misty mountains
-        this.scene.fog = new THREE.Fog(0xcccccc, 50, 150);
+        this.scene.fog = new THREE.Fog(0x87ceeb, 50, 150); // Match sky color
         
         // Create epic mountains
         this.createMountains();
@@ -1234,9 +1234,11 @@ class Game {
         const treeTypes = ['pine', 'oak'];
         const treeCount = 25;
         
+        // Create trees in a more natural scattered pattern
         for (let i = 0; i < treeCount; i++) {
-            const angle = (i / treeCount) * Math.PI * 2;
-            const radius = 15 + Math.random() * 10;
+            // Use random angles and varying distances for more natural placement
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 10 + Math.random() * 15; // More varied distances
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             
@@ -1244,17 +1246,30 @@ class Game {
             const type = treeTypes[Math.floor(Math.random() * treeTypes.length)];
             const scale = 0.8 + Math.random() * 0.4;
             
+            // Add some clustering by occasionally placing trees close to each other
             const tree = this.createPineTree(x, z, scale, type);
             this.scene.add(tree);
+            
+            // 30% chance to add a smaller tree nearby
+            if (Math.random() < 0.3) {
+                const nearbyAngle = angle + (Math.random() - 0.5) * Math.PI / 4;
+                const nearbyRadius = radius + (Math.random() - 0.5) * 3;
+                const nearbyX = Math.cos(nearbyAngle) * nearbyRadius;
+                const nearbyZ = Math.sin(nearbyAngle) * nearbyRadius;
+                const nearbyTree = this.createPineTree(nearbyX, nearbyZ, scale * 0.8, type);
+                this.scene.add(nearbyTree);
+            }
         }
     }
 
     createGround() {
         const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2d5a27,
-            roughness: 0.9,
-            metalness: 0.1
+            color: 0x2d5a27, // Grass green
+            roughness: 0.7, // Less rough for better color
+            metalness: 0.0, // No metalness for natural look
+            emissive: 0x0c2a07, // Slight emissive for better visibility
+            emissiveIntensity: 0.2 // Increased from 0.1
         });
         
         // Enhanced terrain displacement
@@ -1276,7 +1291,7 @@ class Game {
         groundGeometry.computeVertexNormals();
         
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
+        ground.rotation.x = -Math.PI / 2; // Fix ground rotation
         this.scene.add(ground);
     }
 
@@ -1298,11 +1313,13 @@ class Game {
         // Create water surface with enhanced material
         const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
         const waterMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3498db,
-            metalness: 0.3,
-            roughness: 0.2,
+            color: 0x3498db, // Bright blue water
+            metalness: 0.9, // More metallic for better reflection
+            roughness: 0.1, // Smoother for water
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            emissive: 0x104a7a, // Slight blue emissive
+            emissiveIntensity: 0.4 // Increased intensity
         });
         
         // Create meandering stream path
