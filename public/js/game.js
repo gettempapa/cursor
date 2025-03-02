@@ -90,6 +90,26 @@ class Game {
         this.weaponMenuVisible = false;
         this.weaponMenuContainer = null;
         
+        // Add health system
+        this.playerHealth = 100;
+        this.enemyHealth = 100;
+        this.maxHealth = 100;
+        this.damageAmount = 20;
+        
+        // Add ammo system
+        this.ammo = {
+            rifle: { current: 30, max: 30, reserve: 90 },
+            pistol: { current: 12, max: 12, reserve: 48 }
+        };
+        this.isReloading = false;
+        this.reloadTime = 2000; // milliseconds
+        
+        // Add HUD
+        this.setupHUD();
+        
+        // Add visual feedback elements
+        this.setupVisualFeedback();
+        
         // Set up basic scene
         this.setupScene();
         
@@ -357,13 +377,16 @@ class Game {
             }
         });
         
-        // WASD and Space controls
+        // WASD, Space, and R controls
         document.addEventListener('keydown', (e) => {
+            if (this.isDead) return;
+            
             switch(e.code) {
                 case 'KeyW': this.moveState.forward = true; break;
                 case 'KeyS': this.moveState.backward = true; break;
                 case 'KeyA': this.moveState.left = true; break;
                 case 'KeyD': this.moveState.right = true; break;
+                case 'KeyR': this.reload(); break;
                 case 'Space': 
                     if (this.isGrounded) {
                         this.velocity.y = this.jumpForce;
@@ -734,7 +757,21 @@ class Game {
             
             // Show enemy muzzle flash
             this.enemyMuzzleFlash.material.opacity = 1;
-            this.enemyMuzzleLight.intensity = 3; // Increased intensity
+            this.enemyMuzzleLight.intensity = 3;
+            
+            // Calculate hit chance based on distance and add randomness
+            const distanceToPlayer = this.enemy.position.distanceTo(this.player.position);
+            const maxRange = 20;
+            const hitChance = Math.max(0, 1 - (distanceToPlayer / maxRange));
+            
+            if (Math.random() < hitChance * 0.3) {
+                this.playerHealth = Math.max(0, this.playerHealth - this.damageAmount);
+                this.showDamageEffect();
+                if (this.playerHealth <= 0 && !this.isDead) {
+                    this.die();
+                }
+                this.updateHUD();
+            }
             
             // Play gunshot sound
             this.playGunshot();
@@ -746,13 +783,50 @@ class Game {
             }, this.flashDuration);
             
         } else {
-            if (this.isShooting) return;
+            if (this.isShooting || this.isReloading) return;
+            
+            // Check ammo
+            const ammoInfo = this.ammo[this.currentWeapon];
+            if (ammoInfo.current <= 0) {
+                if (ammoInfo.reserve > 0) {
+                    this.reload();
+                }
+                return;
+            }
+            
             this.isShooting = true;
+            ammoInfo.current--;
             
             // Show player muzzle flash with increased intensity
             if (this.muzzleFlash) {
                 this.muzzleFlash.material.opacity = 1;
-                this.muzzleLight.intensity = 3; // Increased intensity
+                this.muzzleLight.intensity = 3;
+            }
+            
+            // Calculate hit detection
+            const raycaster = new THREE.Raycaster();
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            
+            // Add weapon spread
+            const spread = this.currentWeapon === 'rifle' ? 0.03 : 0.05;
+            cameraDirection.x += (Math.random() - 0.5) * spread;
+            cameraDirection.y += (Math.random() - 0.5) * spread;
+            cameraDirection.z += (Math.random() - 0.5) * spread;
+            
+            raycaster.set(this.camera.position, cameraDirection.normalize());
+            
+            // Check if enemy is hit
+            if (this.enemy) {
+                const enemyBoundingBox = new THREE.Box3().setFromObject(this.enemy);
+                const hit = raycaster.ray.intersectsBox(enemyBoundingBox);
+                
+                if (hit) {
+                    this.enemyHealth = Math.max(0, this.enemyHealth - this.damageAmount);
+                    if (this.enemyHealth <= 0) {
+                        this.killEnemy();
+                    }
+                }
             }
             
             // Ensure audio context is running and play gunshot
@@ -760,6 +834,11 @@ class Game {
                 this.audioContext.resume();
             }
             this.playGunshot();
+            
+            // Add recoil effect
+            const recoilAmount = this.currentWeapon === 'rifle' ? 0.02 : 0.03;
+            this.verticalAngle += recoilAmount;
+            this.verticalAngle = Math.min(this.maxVerticalAngle, this.verticalAngle);
             
             // Hide player muzzle flash after duration
             setTimeout(() => {
@@ -769,7 +848,56 @@ class Game {
                 }
                 this.isShooting = false;
             }, this.flashDuration);
+            
+            // Update HUD
+            this.updateHUD();
         }
+    }
+
+    reload() {
+        if (this.isReloading || this.isDead) return;
+        
+        const ammoInfo = this.ammo[this.currentWeapon];
+        if (ammoInfo.current === ammoInfo.max || ammoInfo.reserve <= 0) return;
+        
+        this.isReloading = true;
+        this.reloadIndicator.style.display = 'block';
+        
+        // Play reload animation/sound here
+        
+        setTimeout(() => {
+            const neededAmmo = ammoInfo.max - ammoInfo.current;
+            const reloadAmount = Math.min(neededAmmo, ammoInfo.reserve);
+            
+            ammoInfo.current += reloadAmount;
+            ammoInfo.reserve -= reloadAmount;
+            
+            this.isReloading = false;
+            this.reloadIndicator.style.display = 'none';
+            this.updateHUD();
+        }, this.reloadTime);
+    }
+    
+    die() {
+        this.isDead = true;
+        this.showDeathMessage();
+        // Optional: play death animation
+    }
+    
+    killEnemy() {
+        // Remove enemy from scene
+        this.scene.remove(this.enemy);
+        this.enemy = null;
+        
+        // Optional: play enemy death animation/effects
+        
+        // Respawn enemy after delay
+        setTimeout(() => {
+            this.enemy = this.createSoldier(true);
+            this.enemy.position.set(-5, 1, -5);
+            this.enemyHealth = this.maxHealth;
+            this.scene.add(this.enemy);
+        }, 5000);
     }
 
     updateEnemyTarget() {
@@ -789,20 +917,71 @@ class Game {
     updateEnemy() {
         if (!this.enemy) return;
 
+        // Calculate distance to player
+        const distanceToPlayer = this.enemy.position.distanceTo(this.player.position);
+        const idealRange = 10; // The enemy tries to maintain this distance
+        
+        // Enemy behavior states
+        const isTooClose = distanceToPlayer < idealRange * 0.7;
+        const isTooFar = distanceToPlayer > idealRange * 1.3;
+        const hasLineOfSight = this.checkLineOfSight();
+        
         // Move towards target
-        const direction = this.enemyTarget.clone().sub(this.enemy.position);
+        let targetPosition;
+        if (!hasLineOfSight) {
+            // If no line of sight, move towards player
+            targetPosition = this.player.position;
+        } else if (isTooClose) {
+            // Back away while facing player
+            const awayFromPlayer = this.enemy.position.clone().sub(this.player.position).normalize();
+            targetPosition = this.enemy.position.clone().add(awayFromPlayer.multiplyScalar(5));
+        } else if (isTooFar) {
+            // Move closer while maintaining some distance
+            const toPlayer = this.player.position.clone().sub(this.enemy.position).normalize();
+            targetPosition = this.enemy.position.clone().add(toPlayer.multiplyScalar(2));
+        } else {
+            // Strafe sideways when at ideal range
+            const toPlayer = this.player.position.clone().sub(this.enemy.position).normalize();
+            const strafeDir = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+            targetPosition = this.enemy.position.clone().add(strafeDir.multiplyScalar(Math.sin(Date.now() * 0.001) * 2));
+        }
+        
+        // Calculate movement direction
+        const direction = targetPosition.clone().sub(this.enemy.position);
         if (direction.length() > 0.1) {
             direction.normalize();
-            this.enemy.position.add(direction.multiplyScalar(this.enemyMoveSpeed));
             
-            // Animate legs while moving
-            const leftLeg = this.enemy.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
-            const rightLeg = this.enemy.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+            // Check for collisions before moving
+            const newPosition = this.enemy.position.clone().add(direction.multiplyScalar(this.enemyMoveSpeed));
+            const enemyPosition2D = new THREE.Vector2(newPosition.x, newPosition.z);
             
-            if (leftLeg && rightLeg) {
-                const time = performance.now() * 0.005;
-                leftLeg.rotation.x = Math.sin(time) * 0.5;
-                rightLeg.rotation.x = Math.sin(time + Math.PI) * 0.5;
+            let canMove = true;
+            
+            // Check tree collisions
+            for (const tree of this.trees) {
+                const distance = enemyPosition2D.distanceTo(tree.position);
+                if (distance < (this.playerCollisionRadius + tree.radius)) {
+                    canMove = false;
+                    break;
+                }
+            }
+            
+            // Move if no collision
+            if (canMove) {
+                this.enemy.position.copy(newPosition);
+                
+                // Animate legs while moving
+                const leftLeg = this.enemy.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+                const rightLeg = this.enemy.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+                
+                if (leftLeg && rightLeg) {
+                    const time = performance.now() * 0.005;
+                    leftLeg.rotation.x = Math.sin(time) * 0.5;
+                    rightLeg.rotation.x = Math.sin(time + Math.PI) * 0.5;
+                }
+            } else {
+                // If collision detected, get new target
+                this.updateEnemyTarget();
             }
         }
 
@@ -813,21 +992,37 @@ class Game {
 
         // Enemy shooting logic
         const currentTime = performance.now();
-        if (currentTime - this.enemyLastShot > this.enemyShootInterval) {
+        if (currentTime - this.enemyLastShot > this.enemyShootInterval && hasLineOfSight) {
             this.shoot(true);
             this.enemyLastShot = currentTime;
+            
+            // Randomize next shot interval
+            this.enemyShootInterval = 1500 + Math.random() * 1000;
         }
+    }
 
-        // Check for collisions with trees
-        const enemyPosition2D = new THREE.Vector2(this.enemy.position.x, this.enemy.position.z);
-        for (const tree of this.trees) {
-            const distance = enemyPosition2D.distanceTo(tree.position);
-            if (distance < (this.playerCollisionRadius + tree.radius)) {
-                // If collision detected, get new target
-                this.updateEnemyTarget();
-                break;
+    checkLineOfSight() {
+        if (!this.enemy) return false;
+        
+        const raycaster = new THREE.Raycaster();
+        const toPlayer = this.player.position.clone().sub(this.enemy.position);
+        const distance = toPlayer.length();
+        
+        raycaster.set(
+            this.enemy.position,
+            toPlayer.normalize()
+        );
+        
+        // Check for obstacles between enemy and player
+        const obstacles = [];
+        this.scene.traverse(object => {
+            if (object.isMesh && object !== this.enemy && object !== this.player) {
+                obstacles.push(object);
             }
-        }
+        });
+        
+        const intersects = raycaster.intersectObjects(obstacles);
+        return intersects.length === 0 || intersects[0].distance > distance;
     }
 
     createBunker() {
@@ -1255,6 +1450,135 @@ class Game {
         
         pistol.add(pistolBodyMesh);
         return pistol;
+    }
+
+    setupHUD() {
+        // Create HUD container
+        this.hudContainer = document.createElement('div');
+        this.hudContainer.style.position = 'absolute';
+        this.hudContainer.style.bottom = '20px';
+        this.hudContainer.style.left = '20px';
+        this.hudContainer.style.color = 'white';
+        this.hudContainer.style.fontFamily = 'Arial, sans-serif';
+        this.hudContainer.style.fontSize = '18px';
+        this.hudContainer.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
+        
+        // Create health display
+        this.healthDisplay = document.createElement('div');
+        this.healthDisplay.style.marginBottom = '10px';
+        this.hudContainer.appendChild(this.healthDisplay);
+        
+        // Create ammo display
+        this.ammoDisplay = document.createElement('div');
+        this.hudContainer.appendChild(this.ammoDisplay);
+        
+        // Create enemy health bar (top of screen)
+        this.enemyHealthBar = document.createElement('div');
+        this.enemyHealthBar.style.position = 'absolute';
+        this.enemyHealthBar.style.top = '20px';
+        this.enemyHealthBar.style.left = '50%';
+        this.enemyHealthBar.style.transform = 'translateX(-50%)';
+        this.enemyHealthBar.style.width = '200px';
+        this.enemyHealthBar.style.height = '20px';
+        this.enemyHealthBar.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        this.enemyHealthBar.style.border = '2px solid white';
+        this.enemyHealthBar.style.display = 'none';
+        
+        this.enemyHealthFill = document.createElement('div');
+        this.enemyHealthFill.style.width = '100%';
+        this.enemyHealthFill.style.height = '100%';
+        this.enemyHealthFill.style.backgroundColor = 'red';
+        this.enemyHealthFill.style.transition = 'width 0.3s ease-in-out';
+        this.enemyHealthBar.appendChild(this.enemyHealthFill);
+        
+        this.container.appendChild(this.hudContainer);
+        this.container.appendChild(this.enemyHealthBar);
+        
+        this.updateHUD();
+    }
+    
+    updateHUD() {
+        if (!this.hudContainer) return;
+        
+        // Update health display with color based on health level
+        const healthColor = this.playerHealth > 70 ? 'white' : 
+                          this.playerHealth > 30 ? 'yellow' : 'red';
+        this.healthDisplay.style.color = healthColor;
+        this.healthDisplay.innerHTML = `❤️ Health: ${this.playerHealth}`;
+        
+        // Update ammo display
+        const currentWeaponAmmo = this.ammo[this.currentWeapon];
+        this.ammoDisplay.innerHTML = `🎯 Ammo: ${currentWeaponAmmo.current}/${currentWeaponAmmo.reserve}`;
+        
+        // Show/hide low ammo warning
+        const lowAmmoThreshold = this.currentWeapon === 'rifle' ? 10 : 4;
+        this.lowAmmoWarning.style.display = 
+            currentWeaponAmmo.current <= lowAmmoThreshold ? 'block' : 'none';
+        
+        // Update enemy health bar
+        const distanceToEnemy = this.enemy ? 
+            this.player.position.distanceTo(this.enemy.position) : Infinity;
+        
+        if (distanceToEnemy < 15) {
+            this.enemyHealthBar.style.display = 'block';
+            this.enemyHealthFill.style.width = `${(this.enemyHealth / this.maxHealth) * 100}%`;
+            
+            // Update enemy health bar color based on health
+            const healthPercent = this.enemyHealth / this.maxHealth;
+            const r = Math.floor(255 * (1 - healthPercent));
+            const g = Math.floor(255 * healthPercent);
+            this.enemyHealthFill.style.backgroundColor = `rgb(${r}, ${g}, 0)`;
+        } else {
+            this.enemyHealthBar.style.display = 'none';
+        }
+    }
+
+    setupVisualFeedback() {
+        // Create damage overlay
+        this.damageOverlay = document.createElement('div');
+        this.damageOverlay.style.position = 'absolute';
+        this.damageOverlay.style.top = '0';
+        this.damageOverlay.style.left = '0';
+        this.damageOverlay.style.width = '100%';
+        this.damageOverlay.style.height = '100%';
+        this.damageOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0)';
+        this.damageOverlay.style.pointerEvents = 'none';
+        this.damageOverlay.style.transition = 'background-color 0.1s ease-in-out';
+        this.container.appendChild(this.damageOverlay);
+        
+        // Create reload indicator
+        this.reloadIndicator = document.createElement('div');
+        this.reloadIndicator.style.position = 'absolute';
+        this.reloadIndicator.style.top = '50%';
+        this.reloadIndicator.style.left = '50%';
+        this.reloadIndicator.style.transform = 'translate(-50%, -50%)';
+        this.reloadIndicator.style.color = 'white';
+        this.reloadIndicator.style.fontSize = '24px';
+        this.reloadIndicator.style.fontFamily = 'Arial, sans-serif';
+        this.reloadIndicator.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
+        this.reloadIndicator.style.display = 'none';
+        this.reloadIndicator.textContent = 'RELOADING';
+        this.container.appendChild(this.reloadIndicator);
+        
+        // Create low ammo warning
+        this.lowAmmoWarning = document.createElement('div');
+        this.lowAmmoWarning.style.position = 'absolute';
+        this.lowAmmoWarning.style.bottom = '60px';
+        this.lowAmmoWarning.style.left = '20px';
+        this.lowAmmoWarning.style.color = 'red';
+        this.lowAmmoWarning.style.fontSize = '18px';
+        this.lowAmmoWarning.style.fontFamily = 'Arial, sans-serif';
+        this.lowAmmoWarning.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
+        this.lowAmmoWarning.style.display = 'none';
+        this.lowAmmoWarning.textContent = 'LOW AMMO!';
+        this.container.appendChild(this.lowAmmoWarning);
+    }
+    
+    showDamageEffect() {
+        this.damageOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+        setTimeout(() => {
+            this.damageOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0)';
+        }, 100);
     }
 }
 
