@@ -317,8 +317,9 @@ function setupEventListeners() {
     document.addEventListener('mousemove', (event) => {
         if (!isPointerLocked) return;
         
-        // Reverse the sign to fix the direction
-        mouseX += event.movementX * aimSensitivity;
+        // Fix mouse X direction for standard third-person controls
+        // When mouse moves right (positive movementX), camera should rotate right (negative mouseX)
+        mouseX -= event.movementX * aimSensitivity;
         
         // Limit vertical rotation
         mouseY -= event.movementY * aimSensitivity;
@@ -514,15 +515,14 @@ function animate() {
     // Reset movement direction for this frame
     moveDirection.set(0, 0, 0);
     
-    // Forward/back - Z axis in Three.js (negative Z is forward)
+    // Get input from WASD keys
+    // The actual direction will be calculated relative to camera later
     if (keys['KeyW']) {
         moveDirection.z = -1; // Forward
     }
     if (keys['KeyS']) {
         moveDirection.z = 1; // Backward
     }
-    
-    // Strafe left/right - X axis in Three.js
     if (keys['KeyA']) {
         moveDirection.x = -1; // Left
     }
@@ -535,10 +535,38 @@ function animate() {
         moveDirection.normalize();
     }
     
-    // Convert move direction to camera-relative direction
-    direction.copy(moveDirection);
-    // Apply negative camera rotation to make W always forward relative to camera view
-    direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), -mouseX);
+    // Create a camera direction vector (where the camera is looking)
+    const cameraDirection = new THREE.Vector3(0, 0, -1);
+    // Rotate it based on the current camera rotation
+    cameraDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+    
+    // Forward vector is the camera direction
+    const forward = cameraDirection.clone();
+    
+    // Right vector is perpendicular to forward (cross product with up vector)
+    const right = new THREE.Vector3().crossVectors(
+        new THREE.Vector3(0, 1, 0), // Up vector
+        forward
+    ).normalize();
+    
+    // Set the direction based on camera orientation
+    direction.set(0, 0, 0);
+    
+    // Add components based on input
+    // W/S move along the camera's forward/backward axis
+    if (moveDirection.z !== 0) {
+        direction.add(forward.clone().multiplyScalar(moveDirection.z));
+    }
+    
+    // A/D move along the camera's left/right axis
+    if (moveDirection.x !== 0) {
+        direction.add(right.clone().multiplyScalar(moveDirection.x));
+    }
+    
+    // Normalize the final direction
+    if (direction.length() > 0) {
+        direction.normalize();
+    }
     
     // Apply acceleration based on input
     if (direction.length() > 0) {
@@ -582,9 +610,20 @@ function animate() {
     
     // Rotate the entire player to face movement direction
     if (direction.length() > 0.1) {
-        playerDirection.copy(direction).normalize();
-        const targetRotation = Math.atan2(playerDirection.x, playerDirection.z);
-        player.rotation.y = targetRotation;
+        // Calculate rotation from direction vector
+        const targetRotation = Math.atan2(direction.x, direction.z);
+        
+        // Apply smooth rotation
+        const rotationSpeed = 0.15; // How quickly the player turns to face direction
+        const currentRotation = player.rotation.y;
+        
+        // Calculate shortest rotation path
+        let rotationDiff = targetRotation - currentRotation;
+        if (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+        if (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+        
+        // Smooth rotation
+        player.rotation.y += rotationDiff * rotationSpeed;
     }
     
     // Update aim direction based on mouse
@@ -592,9 +631,8 @@ function animate() {
     playerAimHelper.rotation.x = mouseY;
     
     // Update camera position relative to player
-    const cameraAngle = mouseX;
-    camera.position.x = player.position.x + Math.sin(cameraAngle) * cameraOffset.z;
-    camera.position.z = player.position.z + Math.cos(cameraAngle) * cameraOffset.z;
+    camera.position.x = player.position.x - Math.sin(mouseX) * cameraOffset.z;
+    camera.position.z = player.position.z - Math.cos(mouseX) * cameraOffset.z;
     camera.position.y = player.position.y + cameraOffset.y;
     
     // Make camera look at player
