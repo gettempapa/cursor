@@ -40,6 +40,9 @@ class Game {
         this.debug.style.display = 'block';
         this.debug.innerHTML = 'Initializing game...<br>Checking Three.js: ' + (typeof THREE !== 'undefined' ? 'OK' : 'FAILED');
 
+        // Audio initialized flag
+        this.audioInitialized = false;
+
         // Add a basic cube as fallback if other elements fail
         this.addFallbackCube = () => {
             this.debug.innerHTML += '<br>Adding fallback cube for visibility test';
@@ -101,14 +104,9 @@ class Game {
             console.error('Controls setup failed:', controlsError);
         }
         
-        // Setup audio with error handling
-        try {
-            this.setupAudio();
-            this.debug.innerHTML += '<br>Rifle audio loaded and tested';
-        } catch (audioError) {
-            this.debug.innerHTML += `<br>Rifle audio setup failed: ${audioError.message}`;
-            console.error('Rifle audio setup failed:', audioError);
-        }
+        // Audio setup will be initialized on first user interaction
+        this.prepareAudioForLaterInitialization();
+        this.debug.innerHTML += '<br>Audio will initialize on first interaction';
         
         // Hide loading screen
         const loadingScreen = document.getElementById('loadingScreen');
@@ -165,6 +163,208 @@ class Game {
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
+    }
+    
+    // New method to prepare audio but defer actual initialization
+    prepareAudioForLaterInitialization() {
+        // Create audio listener and attach to camera
+        this.listener = new THREE.AudioListener();
+        this.camera.add(this.listener);
+        
+        // Create empty rifle sound container
+        this.rifleSound = null;
+        this.footstepSounds = [];
+        
+        // Setup event for first user interaction to initialize audio
+        const initAudioOnFirstInteraction = () => {
+            try {
+                this.setupAudio();
+                this.audioInitialized = true;
+                this.debug.innerHTML += '<br>Audio initialized after user interaction';
+            } catch (audioError) {
+                console.error('Audio initialization failed:', audioError);
+                this.debug.innerHTML += `<br>Audio initialization failed: ${audioError.message}`;
+            }
+            
+            // Remove event listeners once audio is initialized
+            document.removeEventListener('click', initAudioOnFirstInteraction);
+            document.removeEventListener('keydown', initAudioOnFirstInteraction);
+        };
+        
+        // Listen for user interaction to initialize audio
+        document.addEventListener('click', initAudioOnFirstInteraction);
+        document.addEventListener('keydown', initAudioOnFirstInteraction);
+    }
+    
+    setupAudio() {
+        try {
+            // Create the rifle sound
+            this.rifleSound = new THREE.Audio(this.listener);
+            
+            // Make sure listener and context are available
+            if (!this.listener || !this.listener.context) {
+                console.warn('AudioListener or AudioContext not available');
+                return;
+            }
+            
+            // Create AudioContext
+            const audioContext = this.listener.context;
+            
+            // Create a buffer for our gun sound
+            const sampleRate = audioContext.sampleRate;
+            const duration = 0.3; // sound duration in seconds
+            const bufferSize = sampleRate * duration;
+            const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
+            
+            // Get the channel data for processing
+            const channelData = buffer.getChannelData(0);
+            
+            // Generate a gunshot sound
+            // First part: Initial explosion/crack (high amplitude noise)
+            const attackTime = sampleRate * 0.01; // 10ms attack
+            for (let i = 0; i < attackTime; i++) {
+                channelData[i] = (Math.random() * 2 - 1) * 0.9; // High amplitude white noise
+            }
+            
+            // Second part: Quick decay
+            const decayTime = sampleRate * 0.05; // 50ms decay
+            for (let i = 0; i < decayTime; i++) {
+                const index = i + attackTime;
+                const amplitude = 0.9 * (1 - i / decayTime); // Linear decay
+                channelData[index] = (Math.random() * 2 - 1) * amplitude;
+            }
+            
+            // Third part: Reverb/echo tail
+            const reverbStart = attackTime + decayTime;
+            const reverbTime = bufferSize - reverbStart;
+            for (let i = 0; i < reverbTime; i++) {
+                const index = i + reverbStart;
+                // Exponential decay for the reverb tail
+                const amplitude = 0.3 * Math.exp(-3.0 * i / reverbTime);
+                channelData[index] = (Math.random() * 2 - 1) * amplitude;
+            }
+            
+            // Set the buffer to our audio
+            this.rifleSound.setBuffer(buffer);
+            this.rifleSound.setVolume(1.0);
+            
+            // Add some processing for more bass/impact
+            const compressor = audioContext.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
+            compressor.knee.setValueAtTime(40, audioContext.currentTime);
+            compressor.ratio.setValueAtTime(12, audioContext.currentTime);
+            compressor.attack.setValueAtTime(0, audioContext.currentTime);
+            compressor.release.setValueAtTime(0.25, audioContext.currentTime);
+            
+            this.rifleSound.setFilter(compressor);
+            
+            // Create footstep sounds - different variations
+            this.footstepSounds = [];
+            for (let i = 0; i < 4; i++) {
+                this.createFootstepSound(i);
+            }
+            
+            // Initialize footstep timers
+            this.lastFootstepTime = 0;
+            this.footstepInterval = 350; // ms between footsteps
+            
+            // Test the sound but don't actually play it
+            this.debug.innerHTML += '<br>Rifle sound and footsteps created successfully';
+            console.log("Audio sounds created but not tested yet");
+        } catch (error) {
+            console.error('Error setting up audio:', error);
+            this.debug.innerHTML += `<br>Audio setup error: ${error.message}`;
+        }
+    }
+    
+    // Create a single footstep sound variation
+    createFootstepSound(variation) {
+        if (!this.listener || !this.listener.context) return;
+        
+        try {
+            const footstepSound = new THREE.Audio(this.listener);
+            const audioContext = this.listener.context;
+            
+            // Create a buffer for our footstep sound
+            const sampleRate = audioContext.sampleRate;
+            const duration = 0.15; // sound duration in seconds
+            const bufferSize = sampleRate * duration;
+            const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
+            
+            // Get the channel data for processing
+            const channelData = buffer.getChannelData(0);
+            
+            // Generate a footstep sound
+            const attackTime = sampleRate * 0.02; // 20ms attack
+            
+            // Different "materials" for variety
+            let baseTone = 0.3 + (variation * 0.1); // Slightly different tone per variation
+            let toneDecay = 0.7 - (variation * 0.05);
+            
+            // Initial impact
+            for (let i = 0; i < attackTime; i++) {
+                // Sharper attack for footstep with some randomness
+                const phase = i / attackTime; 
+                const amplitude = 0.7 * (1 - phase) * (Math.random() * 0.4 + 0.6);
+                channelData[i] = Math.sin(i * baseTone) * amplitude;
+            }
+            
+            // Decay part
+            const decayStart = attackTime;
+            const decayTime = bufferSize - decayStart;
+            
+            for (let i = 0; i < decayTime; i++) {
+                const index = i + decayStart;
+                const phase = i / decayTime;
+                
+                // Exponential decay
+                const amplitude = 0.5 * Math.exp(-5.0 * phase);
+                
+                // Add some noise to simulate material crushing
+                const noise = (Math.random() * 2 - 1) * 0.2 * (1 - phase);
+                
+                // Mix tone and noise for realistic footstep
+                channelData[index] = (Math.sin(i * baseTone * toneDecay) * amplitude) + noise * amplitude;
+            }
+            
+            // Set the buffer to our audio
+            footstepSound.setBuffer(buffer);
+            footstepSound.setVolume(0.4); // Lower volume than gunshot
+            
+            // Add to footstep sounds array
+            this.footstepSounds.push(footstepSound);
+        } catch (error) {
+            console.error('Error creating footstep sound:', error);
+        }
+    }
+    
+    // Play a random footstep sound
+    playFootstepSound() {
+        if (!this.audioInitialized || this.footstepSounds.length === 0) return;
+        
+        const now = performance.now();
+        if (now - this.lastFootstepTime < this.footstepInterval) return;
+        
+        this.lastFootstepTime = now;
+        
+        try {
+            // Pick a random footstep sound
+            const soundIndex = Math.floor(Math.random() * this.footstepSounds.length);
+            const footstepSound = this.footstepSounds[soundIndex];
+            
+            if (footstepSound && footstepSound.buffer) {
+                // Clone for overlapping sounds
+                const soundClone = footstepSound.clone();
+                
+                // Add slight random pitch variation for realism
+                const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
+                soundClone.setPlaybackRate(pitchVariation);
+                
+                soundClone.play();
+            }
+        } catch (audioError) {
+            console.warn('Error playing footstep sound:', audioError);
+        }
     }
     
     createEnvironment() {
@@ -767,9 +967,9 @@ class Game {
         // Create hands to hold the rifle
         this.createHands(rifle);
         
-        // Position the rifle in player's hands - adjusted for better positioning
-        rifle.position.set(0.28, 0.45, 0.3);
-        rifle.rotation.y = -0.2; // Slight angle to appear more natural
+        // Position the rifle in player's hands - MODIFIED positioning for forward aiming
+        rifle.position.set(0.25, 0.4, 0.1); // Move rifle forward and slightly right
+        rifle.rotation.y = -0.15; // Adjust initial angle to point more forward
         
         this.player.add(rifle);
         this.rifle = rifle;
@@ -794,73 +994,6 @@ class Game {
         // Store references to the hands
         this.leftHand = leftHand;
         this.rightHand = rightHand;
-    }
-    
-    setupAudio() {
-        // Create audio listener and attach to camera
-        this.listener = new THREE.AudioListener();
-        this.camera.add(this.listener);
-        
-        // Create the rifle sound - now using programmatic sound generation
-        this.rifleSound = new THREE.Audio(this.listener);
-        
-        // Create AudioContext
-        const audioContext = this.listener.context;
-        
-        // Create a buffer for our gun sound
-        const sampleRate = audioContext.sampleRate;
-        const duration = 0.3; // sound duration in seconds
-        const bufferSize = sampleRate * duration;
-        const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
-        
-        // Get the channel data for processing
-        const channelData = buffer.getChannelData(0);
-        
-        // Generate a gunshot sound
-        // First part: Initial explosion/crack (high amplitude noise)
-        const attackTime = sampleRate * 0.01; // 10ms attack
-        for (let i = 0; i < attackTime; i++) {
-            channelData[i] = (Math.random() * 2 - 1) * 0.9; // High amplitude white noise
-        }
-        
-        // Second part: Quick decay
-        const decayTime = sampleRate * 0.05; // 50ms decay
-        for (let i = 0; i < decayTime; i++) {
-            const index = i + attackTime;
-            const amplitude = 0.9 * (1 - i / decayTime); // Linear decay
-            channelData[index] = (Math.random() * 2 - 1) * amplitude;
-        }
-        
-        // Third part: Reverb/echo tail
-        const reverbStart = attackTime + decayTime;
-        const reverbTime = bufferSize - reverbStart;
-        for (let i = 0; i < reverbTime; i++) {
-            const index = i + reverbStart;
-            // Exponential decay for the reverb tail
-            const amplitude = 0.3 * Math.exp(-3.0 * i / reverbTime);
-            channelData[index] = (Math.random() * 2 - 1) * amplitude;
-        }
-        
-        // Set the buffer to our audio
-        this.rifleSound.setBuffer(buffer);
-        this.rifleSound.setVolume(1.0);
-        
-        // Add some processing for more bass/impact
-        const compressor = audioContext.createDynamicsCompressor();
-        compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
-        compressor.knee.setValueAtTime(40, audioContext.currentTime);
-        compressor.ratio.setValueAtTime(12, audioContext.currentTime);
-        compressor.attack.setValueAtTime(0, audioContext.currentTime);
-        compressor.release.setValueAtTime(0.25, audioContext.currentTime);
-        
-        this.rifleSound.setFilter(compressor);
-        
-        // Test the sound
-        if (this.rifleSound.buffer) {
-            this.rifleSound.play();
-            console.log("Playing generated rifle sound");
-            this.debug.innerHTML += '<br>Programmatic rifle sound created and tested';
-        }
     }
     
     setupControls() {
@@ -936,16 +1069,21 @@ class Game {
         
         this.playerState.lastShot = now;
         
-        // Play programmatically generated sound
-        if (this.rifleSound && this.rifleSound.buffer) {
-            // Clone for overlapping shots
-            const soundClone = this.rifleSound.clone();
-            
-            // Add slight random pitch variation for realism
-            const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
-            soundClone.setPlaybackRate(pitchVariation);
-            
-            soundClone.play();
+        // Play programmatically generated sound only if it's properly initialized
+        if (this.audioInitialized && this.rifleSound && this.rifleSound.buffer) {
+            try {
+                // Clone for overlapping shots
+                const soundClone = this.rifleSound.clone();
+                
+                // Add slight random pitch variation for realism
+                const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
+                soundClone.setPlaybackRate(pitchVariation);
+                
+                soundClone.play();
+            } catch (audioError) {
+                console.warn('Error playing rifle sound:', audioError);
+                // Continue even if sound fails - just won't hear it
+            }
         }
         
         // Show muzzle flash
@@ -1020,54 +1158,32 @@ class Game {
         // Have the camera look at this target (this is where the crosshair is)
         this.camera.lookAt(lookTarget);
         
-        // Improved rifle aiming that always points to the crosshair
+        // MODIFIED rifle aiming to ensure it points forward
         this.updateRifleAim(lookTarget);
     }
     
     updateRifleAim(lookTarget) {
         if (!this.rifle) return;
         
-        // Get the right arm for positioning
+        // Get the player's arms for positioning
         const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
         const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
         
-        // Calculate the direction vector from the player to the look target
-        const riflePosition = new THREE.Vector3(
-            this.player.position.x + this.rifle.position.x,
-            this.player.position.y + this.rifle.position.y,
-            this.player.position.z + this.rifle.position.z
-        );
-        
-        const rifleDirection = lookTarget.clone().sub(riflePosition);
-        rifleDirection.normalize();
-        
-        // Convert the world direction to a local rotation for the rifle
-        // First, reset the rifle's local rotation
-        this.rifle.rotation.set(0, 0, 0);
-        
-        // Calculate the yaw angle in the player's local space
+        // MODIFIED: Position rifle to aim forward rather than at camera
+        // Get the player's forward direction
         const playerForward = new THREE.Vector3(0, 0, -1);
         playerForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
         
-        // Calculate the angle between the player's forward and the rifle direction
-        // Project vectors onto the XZ plane for yaw calculation
-        const playerForwardXZ = new THREE.Vector3(playerForward.x, 0, playerForward.z).normalize();
-        const rifleDirectionXZ = new THREE.Vector3(rifleDirection.x, 0, rifleDirection.z).normalize();
+        // Aim slightly up from horizontal
+        const aimElevation = Math.PI * -0.03; // Slight upward angle
         
-        const yawCos = playerForwardXZ.dot(rifleDirectionXZ);
-        const yawCross = new THREE.Vector3().crossVectors(playerForwardXZ, rifleDirectionXZ).y;
-        const yawAngle = Math.acos(Math.min(1, Math.max(-1, yawCos))) * (yawCross >= 0 ? 1 : -1);
+        // Set rifle to point along the player's forward vector with slight elevation
+        this.rifle.rotation.y = 0; // Reset rotation
         
-        // Calculate the pitch angle
-        const pitchAngle = -Math.asin(Math.min(1, Math.max(-1, rifleDirection.y)));
+        // Calculate vertical aim
+        const verticalAimFactor = this.cameraOffset.y - 1.8; // Based on camera height
+        const pitchAngle = aimElevation + (verticalAimFactor * 0.5); // Adjust pitch based on camera height
         
-        // Apply the calculated rotation with limits
-        // Limit yaw to a reasonable range to keep the rifle facing forward
-        const maxYaw = Math.PI / 3; // 60 degrees
-        const clampedYaw = Math.max(-maxYaw, Math.min(maxYaw, yawAngle));
-        
-        // Apply the rotation - first yaw, then pitch
-        this.rifle.rotation.y = clampedYaw;
         this.rifle.rotation.x = pitchAngle;
         
         // Add a subtle weapon sway based on movement
@@ -1077,12 +1193,13 @@ class Game {
             const time = performance.now() * 0.001;
             
             this.rifle.rotation.z = Math.sin(time * swaySpeed) * swayAmount;
-            this.rifle.position.y = 0.45 + Math.sin(time * swaySpeed * 2) * 0.02;
+            this.rifle.position.y = 0.4 + Math.sin(time * swaySpeed * 2) * 0.02;
         } else {
             this.rifle.rotation.z = 0;
+            this.rifle.position.y = 0.4;
         }
         
-        // Adjust arms to better hold the rifle based on its rotation
+        // Adjust arms to hold the rifle
         if (rightArm && leftArm) {
             rightArm.rotation.x = this.rifle.rotation.x * 0.7;
             rightArm.rotation.y = this.rifle.rotation.y * 0.5;
@@ -1185,6 +1302,9 @@ class Game {
             if (!this.checkCollisions(newPosition)) {
                 // No collision, apply movement
                 this.playerState.position.copy(newPosition);
+                
+                // Play footstep sound when moving
+                this.playFootstepSound();
             }
             
             // Update player mesh rotation
@@ -1214,6 +1334,18 @@ class Game {
                 this.playerState.position.y = 1; // Reset to ground level
                 this.playerState.isJumping = false;
                 this.playerState.jumpVelocity = 0;
+                
+                // Play landing sound (use a footstep but louder)
+                if (this.audioInitialized && this.footstepSounds.length > 0) {
+                    try {
+                        const landSound = this.footstepSounds[0].clone();
+                        landSound.setVolume(0.6); // Louder than regular footstep
+                        landSound.setPlaybackRate(0.7); // Slower for more weight
+                        landSound.play();
+                    } catch (e) {
+                        console.warn('Error playing landing sound:', e);
+                    }
+                }
             }
         }
         
