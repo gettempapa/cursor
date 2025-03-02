@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 class Game {
     constructor() {
@@ -13,14 +12,31 @@ class Game {
         this.renderer.setClearColor(0x87ceeb); // Sky blue background
         this.container.appendChild(this.renderer.domElement);
         
-        // Add temporary orbit controls for development
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        // Movement and rotation state
+        this.moveState = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false
+        };
+        this.moveSpeed = 0.1;
+        this.rotationSpeed = 0.002;
+        this.mouseX = 0;
+        this.mouseY = 0;
         
         // Set up basic scene
         this.setupScene();
         
+        // Set up controls
+        this.setupControls();
+        
         // Handle window resizing
         window.addEventListener('resize', () => this.onWindowResize(), false);
+        
+        // Lock pointer on click
+        this.container.addEventListener('click', () => {
+            this.container.requestPointerLock();
+        });
         
         // Start the animation loop
         this.animate();
@@ -45,16 +61,81 @@ class Game {
         ground.rotation.x = -Math.PI / 2;
         this.scene.add(ground);
         
-        // Add temporary player placeholder (cube)
+        // Add player model
         const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
         const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
         this.player = new THREE.Mesh(playerGeometry, playerMaterial);
-        this.player.position.y = 1;
+        this.player.position.y = 1; // Center of player is at 1 unit high (standing on ground)
         this.scene.add(this.player);
         
-        // Position camera
-        this.camera.position.set(5, 5, 5);
-        this.camera.lookAt(this.player.position);
+        // Set up camera
+        this.camera.position.set(0, 1.7, 0); // Position camera at head height
+        this.player.add(this.camera); // Attach camera to player
+    }
+    
+    setupControls() {
+        // Mouse movement
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === this.container) {
+                this.mouseX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+                this.mouseY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+                
+                // Rotate player (and camera) horizontally
+                this.player.rotation.y -= this.mouseX * this.rotationSpeed;
+                
+                // Rotate camera vertically (limit up/down look)
+                this.camera.rotation.x = Math.max(-Math.PI/2, 
+                    Math.min(Math.PI/2, 
+                        this.camera.rotation.x - this.mouseY * this.rotationSpeed
+                    )
+                );
+            }
+        });
+        
+        // WASD controls
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'KeyW': this.moveState.forward = true; break;
+                case 'KeyS': this.moveState.backward = true; break;
+                case 'KeyA': this.moveState.left = true; break;
+                case 'KeyD': this.moveState.right = true; break;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'KeyW': this.moveState.forward = false; break;
+                case 'KeyS': this.moveState.backward = false; break;
+                case 'KeyA': this.moveState.left = false; break;
+                case 'KeyD': this.moveState.right = false; break;
+            }
+        });
+    }
+    
+    updateMovement() {
+        // Calculate movement direction based on player's rotation
+        const direction = new THREE.Vector3();
+        
+        if (this.moveState.forward) {
+            direction.z -= 1;
+        }
+        if (this.moveState.backward) {
+            direction.z += 1;
+        }
+        if (this.moveState.left) {
+            direction.x -= 1;
+        }
+        if (this.moveState.right) {
+            direction.x += 1;
+        }
+        
+        // Normalize direction vector and apply player's rotation
+        direction.normalize();
+        direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
+        
+        // Update player position
+        this.player.position.x += direction.x * this.moveSpeed;
+        this.player.position.z += direction.z * this.moveSpeed;
     }
     
     onWindowResize() {
@@ -65,7 +146,7 @@ class Game {
     
     animate() {
         requestAnimationFrame(() => this.animate());
-        this.controls.update();
+        this.updateMovement();
         this.renderer.render(this.scene, this.camera);
     }
 }
