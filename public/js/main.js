@@ -9,6 +9,7 @@ let ground;
 const bullets = [];
 let lastShootTime = 0;
 const shootCooldown = 250; // milliseconds between shots
+const trees = []; // Array to store tree objects
 
 // Movement variables
 const keys = {};
@@ -55,6 +56,34 @@ if (!checkWebGL()) {
     animate();
 }
 
+// Create a simple tree
+function createTree(x, z) {
+    const tree = new THREE.Group();
+    
+    // Tree trunk (cylinder)
+    const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
+    const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 }); // Brown
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.y = 1; // Half the height up from ground
+    tree.add(trunk);
+    
+    // Tree foliage (cone)
+    const foliageGeometry = new THREE.ConeGeometry(1.2, 3, 8);
+    const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x2E8B57 }); // Forest green
+    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+    foliage.position.y = 2.5; // Position on top of trunk
+    tree.add(foliage);
+    
+    // Set position
+    tree.position.set(x, 0, z);
+    
+    // Add to scene and store in array
+    scene.add(tree);
+    trees.push(tree);
+    
+    return tree;
+}
+
 // Create a simple humanoid figure
 function createHumanoidMesh() {
     // Create a group for the entire player
@@ -75,6 +104,13 @@ function createHumanoidMesh() {
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.y = 1.75;
     playerBody.add(head);
+    
+    // Helmet (slightly larger sphere with top cut off)
+    const helmetGeometry = new THREE.SphereGeometry(0.28, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.6);
+    const helmetMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray
+    const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
+    helmet.position.y = 1.82; // Slightly above head
+    playerBody.add(helmet);
     
     // Torso (box)
     const torsoGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.25);
@@ -157,13 +193,34 @@ function init() {
         scene.add(player);
 
         console.log('Creating ground...');
-        // Create ground
+        // Create ground - now green for grass
         const groundGeometry = new THREE.PlaneGeometry(100, 100);
-        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, side: THREE.DoubleSide });
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x3A9D23, side: THREE.DoubleSide }); // Green grass
         ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = Math.PI / 2;
         ground.position.y = 0;
         scene.add(ground);
+        
+        console.log('Adding trees...');
+        // Add some trees around the area
+        createTree(5, 5);
+        createTree(-5, 5);
+        createTree(5, -5);
+        createTree(-5, -5);
+        createTree(10, 0);
+        createTree(-10, 0);
+        createTree(0, 10);
+        createTree(0, -10);
+        
+        // Add some random trees further away
+        for (let i = 0; i < 20; i++) {
+            const x = Math.random() * 80 - 40; // Range -40 to 40
+            const z = Math.random() * 80 - 40; // Range -40 to 40
+            // Don't place trees too close to spawn
+            if (Math.sqrt(x*x + z*z) > 12) {
+                createTree(x, z);
+            }
+        }
 
         console.log('Adding lighting...');
         // Add simple lighting
