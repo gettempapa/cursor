@@ -3,24 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello Universe</title>
+    <title>SOCOM-like Browser Shooter</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #gameContainer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 20px;
+            left: 9px;
+            top: 0;
+        }
+        #crosshair::after {
+            width: 20px;
+            height: 2px;
+            left: 0;
+            top: 9px;
+        }
+        #loadingScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
+            z-index: 100;
         }
-        h1 {
-            font-size: 3rem;
-            color: #333;
+        #debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
+            z-index: 20;
         }
     </style>
 </head>
 <body>
-    <h1>Hello Universe</h1>
+    <div id="loadingScreen">
+        <h1>Loading Game...</h1>
+        <p>Preparing your mission...</p>
+    </div>
+    <div id="gameContainer">
+        <div id="crosshair"></div>
+    </div>
+    <div id="debug"></div>
+
+    <!-- Scripts -->
+    <script src="public/js/game.js" type="module"></script>
 </body>
 </html> 

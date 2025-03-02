@@ -1,7 +1,7 @@
 {
-  "name": "cursor-app",
+  "name": "socom-browser-shooter",
   "version": "1.0.0",
-  "description": "Simple static website",
+  "description": "A browser-based third-person shooter inspired by SOCOM",
   "engines": {
     "node": "18.x"
   },
@@ -10,5 +10,15 @@
   },
   "dependencies": {
     "serve": "^14.2.1"
-  }
+  },
+  "keywords": [
+    "game",
+    "shooter",
+    "browser-game",
+    "three.js",
+    "3d",
+    "webgl"
+  ],
+  "author": "SOCOM Browser Team",
+  "license": "MIT"
 } 
