@@ -48,7 +48,15 @@ const Constants = {
 class Dinosaur {
     constructor(scene, position) {
         this.scene = scene;
-        this.position = position.clone();
+        
+        // Ensure position is valid
+        if (!position || isNaN(position.x) || isNaN(position.y) || isNaN(position.z)) {
+            console.warn('Invalid dinosaur position, using default position');
+            this.position = new THREE.Vector3(30, 1, 30);
+        } else {
+            this.position = position.clone();
+        }
+        
         this.rotation = new THREE.Euler(0, Math.random() * Math.PI * 2, 0, 'YXZ');
         this.moveSpeed = Constants.DINOSAUR.MOVE_SPEED;
         this.model = this.createDinosaurModel();
@@ -67,6 +75,8 @@ class Dinosaur {
         this.model.position.copy(this.position);
         this.model.rotation.copy(this.rotation);
         scene.add(this.model);
+        
+        console.log('Dinosaur created at position:', this.position);
     }
     
     createDinosaurModel() {
@@ -233,10 +243,15 @@ class Dinosaur {
     getNewTargetPosition() {
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * Constants.DINOSAUR.WANDER_RADIUS;
+        
+        // Use current position as base if it's valid, otherwise use a default position
+        const baseX = isNaN(this.position.x) ? 30 : this.position.x;
+        const baseZ = isNaN(this.position.z) ? 30 : this.position.z;
+        
         return new THREE.Vector3(
-            Math.cos(angle) * distance,
-            0,
-            Math.sin(angle) * distance
+            baseX + Math.cos(angle) * distance,
+            1,
+            baseZ + Math.sin(angle) * distance
         );
     }
     
@@ -304,6 +319,12 @@ class Dinosaur {
             
             // Update position
             this.position.add(moveDirection);
+            
+            // Check for NaN values and fix them
+            if (isNaN(this.position.x) || isNaN(this.position.y) || isNaN(this.position.z)) {
+                console.warn('Dinosaur position contains NaN, resetting to valid position');
+                this.position.set(30, 1, 30);
+            }
             
             // Update model position and rotation
             this.model.position.copy(this.position);
@@ -1358,7 +1379,10 @@ class Game {
     
     // Play a random footstep sound
     playFootstepSound() {
-        if (!this.audioInitialized || this.footstepSounds.length === 0) return;
+        // Skip if audio not initialized or no footstep sounds available
+        if (!this.audioInitialized || !this.footstepSounds || this.footstepSounds.length === 0) {
+            return;
+        }
         
         const now = performance.now();
         if (now - this.lastFootstepTime < this.footstepInterval) return;
@@ -1385,14 +1409,15 @@ class Game {
             const footstepSound = this.footstepSounds[soundIndex];
             
             if (footstepSound && footstepSound.buffer) {
-                // Clone for overlapping sounds
-                const soundClone = footstepSound.clone();
+                // Create a new Audio instance instead of cloning
+                const newSound = new THREE.Audio(this.listener);
+                newSound.setBuffer(footstepSound.buffer);
                 
                 // Add slight random pitch variation for realism
                 const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
-                soundClone.setPlaybackRate(pitchVariation);
+                newSound.setPlaybackRate(pitchVariation);
                 
-                soundClone.play();
+                newSound.play();
             }
         } catch (audioError) {
             console.warn('Error playing footstep sound:', audioError);
@@ -3115,7 +3140,7 @@ class Game {
                 this.playerState.jumpVelocity = 0;
                 
                 // Play landing sound (use a footstep but louder)
-                if (this.audioInitialized && this.footstepSounds.length > 0) {
+                if (this.audioInitialized && this.footstepSounds && this.footstepSounds.length > 0) {
                     try {
                         // Check if audio context is available and running
                         if (!this.listener || !this.listener.context) {
@@ -3126,8 +3151,9 @@ class Game {
                                 console.warn('Could not resume audio context:', e);
                             });
                         } else {
-                            // Play the sound if everything is good
-                            const landSound = this.footstepSounds[0].clone();
+                            // Create a new Audio instance instead of cloning
+                            const landSound = new THREE.Audio(this.listener);
+                            landSound.setBuffer(this.footstepSounds[0].buffer);
                             landSound.setVolume(0.6); // Louder than regular footstep
                             landSound.setPlaybackRate(0.7); // Slower for more weight
                             landSound.play();
@@ -3139,15 +3165,12 @@ class Game {
             }
         }
         
-        // Update player mesh position
-        this.player.position.copy(this.playerState.position);
-        
-        // Update camera
+        // Update camera position to follow player
         this.updatePlayerCamera();
         
-        // Handle continuous shooting
-        if (this.playerState.shooting) {
-            this.shoot();
+        // Update player model position
+        if (this.player) {
+            this.player.position.copy(this.playerState.position);
         }
     }
     
@@ -3202,11 +3225,19 @@ class Game {
             
             console.log("Generated dinosaur position:", position);
             
+            // Validate position
+            if (isNaN(position.x) || isNaN(position.y) || isNaN(position.z)) {
+                console.warn("Invalid position generated, using default position");
+                position.set(30, 1, 30);
+            }
+            
             // Check if position is valid (not inside objects)
             let validPosition = true;
             
             // Check collision with trees
             for (const tree of this.trees) {
+                if (!tree.position) continue;
+                
                 const dx = tree.position.x - position.x;
                 const dz = tree.position.z - position.z;
                 const distSquared = dx * dx + dz * dz;
