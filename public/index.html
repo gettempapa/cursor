@@ -3,79 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOCOM-style Third Person Shooter</title>
+    <title>Third Person Shooter</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            overflow: hidden;
-            background-color: #000;
-            font-family: Arial, sans-serif;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
-        }
-        
-        h1 {
-            font-size: 32px;
-            margin-bottom: 20px;
-        }
-        
-        p {
-            margin-bottom: 30px;
-            max-width: 600px;
-            line-height: 1.5;
-        }
-        
-        .button {
-            display: inline-block;
-            background-color: #3498db;
-            color: white;
-            padding: 15px 30px;
-            border-radius: 5px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 18px;
-            transition: background-color 0.3s;
-            margin: 10px;
-        }
-        
-        .button:hover {
-            background-color: #2980b9;
-        }
-        
-        .secondary {
-            background-color: #7f8c8d;
-        }
-        
-        .secondary:hover {
-            background-color: #95a5a6;
-        }
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
-    <h1>SOCOM-style Third Person Shooter</h1>
-    <p>
-        Welcome to the game! We've created multiple versions to ensure compatibility
-        across different browsers and systems.
-    </p>
-    
-    <a href="game.html" class="button">Launch Game</a>
-    <p style="font-size: 12px; margin-top: 5px;">
-        Enjoy the latest version with improved graphics and controls!
-    </p>
-    
-    <div style="margin-top: 40px; opacity: 0.7; font-size: 14px;">
-        <p>Having issues? Contact support or try refreshing your browser.</p>
-        <p>Game best played with Chrome or Firefox.</p>
-    </div>
+    <script type="module" src="./js/main.js"></script>
 </body>
 </html> 
