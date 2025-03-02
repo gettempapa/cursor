@@ -47,6 +47,11 @@ class Enemy {
         this.lastUpdate = performance.now();
         this.legAngle = 0;
         this.moving = false;
+        
+        // Health and damage properties
+        this.health = 100;
+        this.bloodParticles = [];
+        this.lastDamageTime = 0;
     }
 
     createEnemyModel() {
@@ -296,6 +301,9 @@ class Enemy {
             this.shoot();
             this.lastShot = now;
         }
+        
+        // Update blood particles if any
+        this.updateBloodParticles(deltaTime);
     }
 
     shoot() {
@@ -327,6 +335,133 @@ class Enemy {
                 this.muzzleFlash.visible = false;
             }, 50);
         }
+    }
+
+    // Add method to handle taking damage
+    takeDamage(amount, hitPosition) {
+        this.health -= amount;
+        this.lastDamageTime = performance.now();
+        
+        // Create blood splatter effect
+        this.createBloodSplatter(hitPosition);
+        
+        // Check if enemy is dead
+        if (this.health <= 0) {
+            // TODO: Implement death animation or removal
+            this.model.visible = false;
+        }
+    }
+    
+    // Create blood splatter effect
+    createBloodSplatter(hitPosition) {
+        // Create blood particles
+        const particleCount = 20 + Math.floor(Math.random() * 30);
+        const bloodColor = 0x8B0000; // Dark red
+        
+        for (let i = 0; i < particleCount; i++) {
+            // Create a small sphere for each blood particle
+            const particleGeometry = new THREE.SphereGeometry(0.03 + Math.random() * 0.05, 4, 4);
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: bloodColor });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            
+            // Position at hit location
+            particle.position.copy(hitPosition);
+            
+            // Random velocity
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.2,
+                Math.random() * 0.2,
+                (Math.random() - 0.5) * 0.2
+            );
+            
+            // Add to scene and track
+            this.scene.add(particle);
+            this.bloodParticles.push({
+                mesh: particle,
+                velocity: velocity,
+                gravity: 0.01,
+                lifetime: 1 + Math.random() * 2, // 1-3 seconds
+                age: 0
+            });
+        }
+    }
+    
+    // Update blood particles
+    updateBloodParticles(deltaTime) {
+        const particlesToRemove = [];
+        
+        // Update each particle
+        for (let i = 0; i < this.bloodParticles.length; i++) {
+            const particle = this.bloodParticles[i];
+            
+            // Update age
+            particle.age += deltaTime;
+            
+            // Check if particle should be removed
+            if (particle.age >= particle.lifetime) {
+                particlesToRemove.push(i);
+                continue;
+            }
+            
+            // Apply gravity to velocity
+            particle.velocity.y -= particle.gravity * deltaTime;
+            
+            // Update position
+            particle.mesh.position.x += particle.velocity.x * deltaTime * 60;
+            particle.mesh.position.y += particle.velocity.y * deltaTime * 60;
+            particle.mesh.position.z += particle.velocity.z * deltaTime * 60;
+            
+            // Check for ground collision
+            if (particle.mesh.position.y < 0.05) {
+                particle.mesh.position.y = 0.05;
+                particle.velocity.y = 0;
+                particle.velocity.x *= 0.8; // Friction
+                particle.velocity.z *= 0.8; // Friction
+            }
+            
+            // Fade out near end of lifetime
+            if (particle.age > particle.lifetime * 0.7) {
+                const opacity = 1 - ((particle.age - (particle.lifetime * 0.7)) / (particle.lifetime * 0.3));
+                particle.mesh.material.opacity = opacity;
+                particle.mesh.material.transparent = true;
+            }
+        }
+        
+        // Remove dead particles (in reverse order to avoid index issues)
+        for (let i = particlesToRemove.length - 1; i >= 0; i--) {
+            const index = particlesToRemove[i];
+            const particle = this.bloodParticles[index];
+            
+            // Remove from scene
+            this.scene.remove(particle.mesh);
+            
+            // Remove from array
+            this.bloodParticles.splice(index, 1);
+        }
+    }
+
+    // Check if a bullet hit this enemy
+    checkBulletHit(rayOrigin, rayDirection) {
+        // Create a bounding box for the enemy
+        const boundingBox = new THREE.Box3().setFromObject(this.model);
+        
+        // Create a ray
+        const ray = new THREE.Ray(rayOrigin, rayDirection);
+        
+        // Check for intersection
+        const intersectionPoint = new THREE.Vector3();
+        if (ray.intersectsBox(boundingBox, intersectionPoint)) {
+            // Calculate hit position (slightly offset towards the ray origin to appear on the surface)
+            const hitPosition = intersectionPoint.clone();
+            const toOrigin = rayOrigin.clone().sub(hitPosition).normalize().multiplyScalar(0.05);
+            hitPosition.add(toOrigin);
+            
+            // Apply damage
+            this.takeDamage(25, hitPosition);
+            return true;
+        }
+        
+        return false;
     }
 }
 
@@ -416,7 +551,7 @@ class Game {
         // Initialize arrays before using them
         this.trees = [];
         this.enemies = [];
-        this.maxEnemies = 3; // Reduced number of enemies
+        this.maxEnemies = 1; // Just one enemy as requested
         
         // Initialize camera angles before player creation
         this.cameraAngles = {
@@ -584,28 +719,37 @@ class Game {
             
             // Create a buffer for our gun sound
             const sampleRate = audioContext.sampleRate;
-            const duration = 0.3; // sound duration in seconds
+            const duration = 0.6; // Longer sound duration for more impact
             const bufferSize = sampleRate * duration;
             const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
             
             // Get the channel data for processing
             const channelData = buffer.getChannelData(0);
             
-            // Generate a gunshot sound
+            // Generate a more powerful gunshot sound
             // Initial explosion/crack (high amplitude noise)
-            const attackTime = sampleRate * 0.01; // 10ms attack
+            const attackTime = sampleRate * 0.02; // 20ms attack
             for (let i = 0; i < attackTime; i++) {
-                channelData[i] = (Math.random() * 2 - 1) * 0.9; // High amplitude white noise
+                channelData[i] = (Math.random() * 2 - 1) * 0.95; // Higher amplitude white noise
+            }
+            
+            // Add a powerful bass thump
+            for (let i = 0; i < attackTime; i++) {
+                const index = i;
+                const bassFreq = 60; // Low frequency in Hz
+                const bassAmplitude = 0.8 * (1 - i / attackTime);
+                channelData[index] += Math.sin(i * (bassFreq / sampleRate) * Math.PI * 2) * bassAmplitude;
             }
             
             // Quick decay with lower frequency components
-            const decayTime = sampleRate * 0.05; // 50ms decay
+            const decayTime = sampleRate * 0.08; // 80ms decay
             for (let i = 0; i < decayTime; i++) {
                 const index = i + attackTime;
                 const amplitude = 0.9 * (1 - i / decayTime);
                 // Add some lower frequency components for more "boom"
-                const lowFreq = Math.sin(i * 0.01) * 0.3;
-                channelData[index] = ((Math.random() * 2 - 1) + lowFreq) * amplitude;
+                const lowFreq = Math.sin(i * 0.01) * 0.5;
+                const midFreq = Math.sin(i * 0.03) * 0.3;
+                channelData[index] = ((Math.random() * 2 - 1) + lowFreq + midFreq) * amplitude;
             }
             
             // Reverb/echo tail with filtered noise
@@ -613,20 +757,29 @@ class Game {
             const reverbTime = bufferSize - reverbStart;
             for (let i = 0; i < reverbTime; i++) {
                 const index = i + reverbStart;
-                const amplitude = 0.3 * Math.exp(-5.0 * i / reverbTime);
+                const amplitude = 0.4 * Math.exp(-4.0 * i / reverbTime);
                 // Add filtered noise for more realistic reverb
-                const noise = (Math.random() * 2 - 1) * 0.5;
-                const filtered = (noise + channelData[index - 1]) * 0.5;
+                const noise = (Math.random() * 2 - 1) * 0.6;
+                const filtered = (noise + (index > 0 ? channelData[index - 1] : 0)) * 0.5;
                 channelData[index] = filtered * amplitude;
+            }
+            
+            // Add a mechanical "click" sound at the beginning
+            const clickTime = sampleRate * 0.01;
+            for (let i = 0; i < clickTime; i++) {
+                const index = i;
+                const clickFreq = 2000; // High frequency in Hz
+                const clickAmplitude = 0.3 * (1 - i / clickTime);
+                channelData[index] += Math.sin(i * (clickFreq / sampleRate) * Math.PI * 2) * clickAmplitude;
             }
             
             // Set the buffer to our audio
             this.rifleSound.setBuffer(buffer);
-            this.rifleSound.setVolume(0.8);
+            this.rifleSound.setVolume(1.0); // Louder volume
             
             // Add some processing for more impact
             const compressor = audioContext.createDynamicsCompressor();
-            compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
+            compressor.threshold.setValueAtTime(-30, audioContext.currentTime);
             compressor.knee.setValueAtTime(40, audioContext.currentTime);
             compressor.ratio.setValueAtTime(12, audioContext.currentTime);
             compressor.attack.setValueAtTime(0, audioContext.currentTime);
@@ -781,8 +934,8 @@ class Game {
         const groundSize = Constants.GAME.GROUND_SIZE;
         const grassCount = 5000; // Number of grass patches
         
-        // Create grass geometry - a simple cross of planes
-        const grassGeometry = new THREE.PlaneGeometry(0.5, 0.8);
+        // Create grass geometry - a thin blade shape
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.8); // Much thinner
         
         // Create grass materials with different shades
         const grassMaterials = [
@@ -823,37 +976,47 @@ class Game {
                 continue;
             }
             
-            // Create a cross of two planes for 3D grass
-            const grassPatch = new THREE.Group();
+            // Create a cluster of thin grass blades
+            const grassCluster = new THREE.Group();
             
             // Randomly select a grass material
             const materialIndex = Math.floor(Math.random() * grassMaterials.length);
             
-            // First plane
-            const blade1 = new THREE.Mesh(grassGeometry, grassMaterials[materialIndex]);
+            // Create 3-5 blades per cluster for more realistic look
+            const bladeCount = 3 + Math.floor(Math.random() * 3);
             
-            // Second plane rotated 90 degrees
-            const blade2 = new THREE.Mesh(grassGeometry, grassMaterials[materialIndex]);
-            blade2.rotation.y = Math.PI / 2;
+            for (let j = 0; j < bladeCount; j++) {
+                // Create a single blade
+                const blade = new THREE.Mesh(grassGeometry, grassMaterials[materialIndex]);
+                
+                // Randomize blade properties
+                const bladeScale = 0.5 + Math.random() * 0.7;
+                blade.scale.set(1, bladeScale, 1);
+                
+                // Slight random position within cluster
+                blade.position.set(
+                    (Math.random() - 0.5) * 0.2,
+                    0,
+                    (Math.random() - 0.5) * 0.2
+                );
+                
+                // Random rotation for natural look
+                blade.rotation.y = Math.random() * Math.PI;
+                
+                // Add slight curve to blade
+                blade.rotation.x = -0.1 + Math.random() * 0.2;
+                
+                grassCluster.add(blade);
+            }
             
-            grassPatch.add(blade1);
-            grassPatch.add(blade2);
-            
-            // Random scale for variety
-            const scale = 0.5 + Math.random() * 0.5;
-            grassPatch.scale.set(scale, scale, scale);
-            
-            // Random rotation for natural look
-            grassPatch.rotation.y = Math.random() * Math.PI * 2;
-            
-            // Position grass on ground
-            grassPatch.position.set(x, 0.2, z);
+            // Position grass cluster on ground
+            grassCluster.position.set(x, 0.2, z);
             
             // Add slight random tilt
-            grassPatch.rotation.x = (Math.random() * 0.2 - 0.1);
-            grassPatch.rotation.z = (Math.random() * 0.2 - 0.1);
+            grassCluster.rotation.x = (Math.random() * 0.1);
+            grassCluster.rotation.z = (Math.random() - 0.5) * 0.1;
             
-            this.scene.add(grassPatch);
+            this.scene.add(grassCluster);
         }
     }
     
@@ -1025,8 +1188,8 @@ class Game {
         for (let i = 0; i < 5000; i++) {
             const x = Math.random() * canvas.width;
             const y = Math.random() * canvas.height;
-            const width = 1 + Math.random() * 2;
-            const height = 3 + Math.random() * 10;
+            const width = 0.5 + Math.random() * 1; // Thinner blades
+            const height = 5 + Math.random() * 15; // Longer blades
             const colorIndex = Math.floor(Math.random() * grassColors.length);
             
             ctx.fillStyle = grassColors[colorIndex];
@@ -1066,15 +1229,14 @@ class Game {
         const hillCenter = hill.position;
         const grassCount = 2000; // Number of grass patches
         
-        // Create grass geometry - a simple cross of planes
-        const grassGeometry = new THREE.PlaneGeometry(0.5, 1);
+        // Create grass geometry - a thin blade shape
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 1.2); // Much thinner
         
         // Create grass material with alpha for transparency
         const grassMaterial = new THREE.MeshStandardMaterial({
             color: 0x5a6b3c,
             roughness: 1.0,
             metalness: 0.0,
-            alphaTest: 0.5,
             side: THREE.DoubleSide
         });
         
@@ -1103,38 +1265,49 @@ class Game {
             
             // Only place grass if it's not too close to the path
             if (distanceToPath > 1.5) {
-                // Create a cross of two planes for 3D grass
-                const grassPatch = new THREE.Group();
+                // Create a cluster of thin grass blades
+                const grassCluster = new THREE.Group();
                 
-                // First plane
-                const blade1 = new THREE.Mesh(grassGeometry, grassMaterial);
+                // Create 3-5 blades per cluster for more realistic look
+                const bladeCount = 3 + Math.floor(Math.random() * 3);
                 
-                // Second plane rotated 90 degrees
-                const blade2 = new THREE.Mesh(grassGeometry, grassMaterial);
-                blade2.rotation.y = Math.PI / 2;
+                for (let j = 0; j < bladeCount; j++) {
+                    // Create a single blade
+                    const blade = new THREE.Mesh(grassGeometry, grassMaterial);
+                    
+                    // Randomize blade properties
+                    const bladeScale = 0.5 + Math.random() * 0.7;
+                    blade.scale.set(1, bladeScale, 1);
+                    
+                    // Slight random position within cluster
+                    blade.position.set(
+                        (Math.random() - 0.5) * 0.2,
+                        0,
+                        (Math.random() - 0.5) * 0.2
+                    );
+                    
+                    // Random rotation for natural look
+                    blade.rotation.y = Math.random() * Math.PI;
+                    
+                    // Add slight curve to blade
+                    blade.rotation.x = -0.1 + Math.random() * 0.2;
+                    
+                    grassCluster.add(blade);
+                }
                 
-                grassPatch.add(blade1);
-                grassPatch.add(blade2);
-                
-                // Random scale for variety
-                const scale = 0.5 + Math.random() * 0.5;
-                grassPatch.scale.set(scale, scale, scale);
-                
-                // Random rotation for natural look
-                grassPatch.rotation.y = Math.random() * Math.PI * 2;
-                
-                // Position grass on hill
-                grassPatch.position.set(
+                // Position grass cluster on hill
+                grassCluster.position.set(
                     hillCenter.x + x,
                     hillCenter.y + height + 0.1, // Slightly above ground
                     hillCenter.z + z
                 );
                 
-                // Add slight random tilt
-                grassPatch.rotation.x = (Math.random() * 0.2 - 0.1);
-                grassPatch.rotation.z = (Math.random() * 0.2 - 0.1);
+                // Add slight random tilt based on hill slope
+                const slopeAngle = 0.2 * (1 - height / hillHeight);
+                grassCluster.rotation.x = (Math.random() * 0.1) + slopeAngle;
+                grassCluster.rotation.z = (Math.random() - 0.5) * 0.1;
                 
-                this.scene.add(grassPatch);
+                this.scene.add(grassCluster);
             }
         }
     }
@@ -1964,6 +2137,95 @@ class Game {
                 this.muzzleFlash.visible = false;
             }, 50);
         }
+        
+        // Calculate ray from camera for bullet trajectory
+        const raycaster = new THREE.Raycaster();
+        
+        // Get direction from camera
+        const cameraDirection = new THREE.Vector3(0, 0, -1);
+        cameraDirection.applyEuler(new THREE.Euler(
+            this.cameraAngles.vertical,
+            this.playerState.rotation.y,
+            0,
+            'YXZ'
+        ));
+        
+        // Set raycaster origin and direction
+        raycaster.set(this.playerState.position, cameraDirection);
+        
+        // Check for enemy hits
+        let hitEnemy = false;
+        for (const enemy of this.enemies) {
+            if (enemy.health > 0 && enemy.checkBulletHit(this.playerState.position, cameraDirection)) {
+                hitEnemy = true;
+                break;
+            }
+        }
+        
+        // If no enemy was hit, create a bullet impact effect on terrain or objects
+        if (!hitEnemy) {
+            // Cast ray to find impact point
+            const intersects = raycaster.intersectObjects(this.scene.children, true);
+            
+            if (intersects.length > 0) {
+                const impact = intersects[0];
+                
+                // Create impact effect (simple dust particles)
+                this.createImpactEffect(impact.point, impact.face.normal);
+            }
+        }
+    }
+    
+    // Create impact effect when bullet hits terrain
+    createImpactEffect(position, normal) {
+        // Create dust particles
+        const particleCount = 10 + Math.floor(Math.random() * 10);
+        
+        for (let i = 0; i < particleCount; i++) {
+            // Create a small sphere for each dust particle
+            const particleGeometry = new THREE.SphereGeometry(0.02 + Math.random() * 0.03, 4, 4);
+            const particleMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xCCCCCC,
+                transparent: true,
+                opacity: 0.8
+            });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            
+            // Position at impact location
+            particle.position.copy(position);
+            
+            // Random velocity in hemisphere facing normal direction
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,
+                Math.random() * 0.1,
+                (Math.random() - 0.5) * 0.1
+            );
+            
+            // Adjust velocity to face away from surface
+            velocity.add(normal.clone().multiplyScalar(0.1));
+            
+            // Add to scene
+            this.scene.add(particle);
+            
+            // Remove after short time
+            setTimeout(() => {
+                this.scene.remove(particle);
+            }, 500 + Math.random() * 500);
+            
+            // Animate particle
+            const animate = () => {
+                particle.position.add(velocity);
+                velocity.y -= 0.005; // Gravity
+                
+                // Fade out
+                if (particle.material.opacity > 0) {
+                    particle.material.opacity -= 0.02;
+                    requestAnimationFrame(animate);
+                }
+            };
+            
+            animate();
+        }
     }
     
     // Add method to make the player jump
@@ -2191,6 +2453,12 @@ class Game {
                 // No collision, apply movement
                 this.playerState.position.copy(newPosition);
                 
+                // Update Y position based on terrain height (for hill walking)
+                if (!this.playerState.isJumping) {
+                    const terrainHeight = this.getHeightAtPosition(this.playerState.position);
+                    this.playerState.position.y = terrainHeight;
+                }
+                
                 // Play footstep sound when moving
                 this.playFootstepSound();
             }
@@ -2211,9 +2479,12 @@ class Game {
             // Apply gravity to reduce jump velocity
             this.playerState.jumpVelocity -= scaledGravity;
             
+            // Get terrain height at current position
+            const terrainHeight = this.getHeightAtPosition(this.playerState.position);
+            
             // Check if player has landed
-            if (this.playerState.position.y <= 1 && this.playerState.jumpVelocity < 0) {
-                this.playerState.position.y = 1; // Reset to ground level
+            if (this.playerState.position.y <= terrainHeight && this.playerState.jumpVelocity < 0) {
+                this.playerState.position.y = terrainHeight; // Reset to terrain level
                 this.playerState.isJumping = false;
                 this.playerState.jumpVelocity = 0;
                 
@@ -2241,6 +2512,40 @@ class Game {
         if (this.playerState.shooting) {
             this.shoot();
         }
+    }
+    
+    // Add method to get height at a specific position (for hill walking)
+    getHeightAtPosition(position) {
+        // Default height (ground level)
+        let height = 1;
+        
+        // Check if position is on the hill
+        const hillCenter = new THREE.Vector3(50, 0, -30); // Hill position
+        const hillSize = 60;
+        const hillHeight = 25;
+        
+        // Calculate distance from hill center (x-z plane only)
+        const dx = position.x - hillCenter.x;
+        const dz = position.z - hillCenter.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        
+        // If on the hill, calculate height based on distance from center
+        if (distance < hillSize / 2) {
+            const maxDistance = hillSize / 2;
+            const normalizedDistance = distance / maxDistance;
+            
+            // Calculate height using cosine falloff (same as in createScenicHill)
+            let hillY = Math.cos(normalizedDistance * Math.PI * 0.5);
+            hillY = Math.max(0, hillY) * hillHeight;
+            
+            // Add some noise for natural look (less than in visual mesh to avoid bumpy walking)
+            hillY += (Math.random() * 0.2 - 0.1);
+            
+            // Set height to hill height
+            height = hillY;
+        }
+        
+        return height;
     }
 }
 
