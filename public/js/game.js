@@ -11,6 +11,8 @@ export class Game {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x87ceeb); // Sky blue background
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
         
         // Initialize game components
@@ -38,7 +40,7 @@ export class Game {
         // Mouse movement
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                this.player.handleMouseMove(e.movementX, e.movementY);
+                this.player.handleMouseMovement(e.movementX, e.movementY);
             }
         });
         

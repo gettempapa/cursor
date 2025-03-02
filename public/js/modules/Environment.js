@@ -17,23 +17,36 @@ export class Environment {
         const groundMaterial = new THREE.MeshStandardMaterial({
             color: 0x2d5a27, // Rich grass green
             roughness: 0.8,
-            metalness: 0.0
+            metalness: 0.0,
+            side: THREE.DoubleSide,
+            receiveShadow: true
         });
         
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
         ground.position.y = 0; // Place at y=0
+        ground.receiveShadow = true;
         this.scene.add(ground);
 
         // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        directionalLight.position.set(1, 2, 1);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Reduced ambient light intensity
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(50, 100, 50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
         
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
 
         // Add other environment elements
+        this.createCastleTower();
         this.createTrees();
         this.createBushes();
         this.createBunker();
@@ -322,12 +335,129 @@ export class Environment {
         });
     }
     
+    createStoneBlock(width, height, depth) {
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        
+        // Add random displacement to vertices for rough stone look
+        const positions = geometry.attributes.position.array;
+        for (let i = 0; i < positions.length; i += 3) {
+            positions[i] += (Math.random() - 0.5) * 0.05;
+            positions[i + 1] += (Math.random() - 0.5) * 0.05;
+            positions[i + 2] += (Math.random() - 0.5) * 0.05;
+        }
+        geometry.attributes.position.needsUpdate = true;
+        
+        // Create stone material with slight color variation
+        const hue = 0.08 + Math.random() * 0.02; // Grey with slight variation
+        const saturation = 0.05 + Math.random() * 0.05;
+        const lightness = 0.3 + Math.random() * 0.2;
+        const color = new THREE.Color().setHSL(hue, saturation, lightness);
+        
+        const material = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.8 + Math.random() * 0.2,
+            metalness: 0.1,
+            bumpScale: 0.5
+        });
+        
+        return new THREE.Mesh(geometry, material);
+    }
+
+    createCastleTower() {
+        const towerGroup = new THREE.Group();
+        const towerHeight = 30;
+        const towerRadius = 5;
+        const numStonesPerLayer = 12;
+        const stoneHeight = 1;
+        const numLayers = Math.floor(towerHeight / stoneHeight);
+        
+        // Create main tower body
+        for (let layer = 0; layer < numLayers; layer++) {
+            const layerRadius = layer === numLayers - 1 ? towerRadius + 0.5 : towerRadius;
+            const angleStep = (Math.PI * 2) / numStonesPerLayer;
+            
+            for (let i = 0; i < numStonesPerLayer; i++) {
+                const angle = i * angleStep;
+                const stoneWidth = (Math.PI * 2 * layerRadius) / numStonesPerLayer;
+                const stone = this.createStoneBlock(stoneWidth, stoneHeight, 2);
+                
+                stone.position.x = Math.cos(angle) * layerRadius;
+                stone.position.y = layer * stoneHeight;
+                stone.position.z = Math.sin(angle) * layerRadius;
+                stone.rotation.y = angle;
+                
+                towerGroup.add(stone);
+            }
+        }
+        
+        // Add crenellations (battlements)
+        const numCrenellations = 16;
+        const crenellationHeight = 1.5;
+        const crenellationWidth = 1;
+        const crenellationDepth = 1;
+        const angleStep = (Math.PI * 2) / numCrenellations;
+        
+        for (let i = 0; i < numCrenellations; i++) {
+            if (i % 2 === 0) { // Skip every other one to create gaps
+                const angle = i * angleStep;
+                const crenellation = this.createStoneBlock(
+                    crenellationWidth,
+                    crenellationHeight,
+                    crenellationDepth
+                );
+                
+                crenellation.position.x = Math.cos(angle) * (towerRadius + 0.5);
+                crenellation.position.y = towerHeight;
+                crenellation.position.z = Math.sin(angle) * (towerRadius + 0.5);
+                crenellation.rotation.y = angle;
+                
+                towerGroup.add(crenellation);
+            }
+        }
+        
+        // Add conical roof
+        const roofGeometry = new THREE.ConeGeometry(towerRadius + 1, 8, 16);
+        const roofMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a4a4a,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.y = towerHeight + 4;
+        towerGroup.add(roof);
+        
+        // Position the tower in the scene
+        towerGroup.position.set(20, 0, 20);
+        this.scene.add(towerGroup);
+        
+        // Add collision box for the tower
+        const towerBox = new THREE.Box3(
+            new THREE.Vector3(15, 0, 15),
+            new THREE.Vector3(25, towerHeight + 8, 25)
+        );
+        this.towerBox = towerBox;
+    }
+    
     checkCollisions(position) {
         const playerPosition = new THREE.Vector2(position.x, position.z);
         let collisionResult = {
             hasCollision: false,
             newY: position.y
         };
+        
+        // Check tower collisions
+        if (this.towerBox) {
+            const margin = 0.5;
+            const isInTowerX = position.x >= (this.towerBox.min.x + margin) &&
+                             position.x <= (this.towerBox.max.x - margin);
+            const isInTowerZ = position.z >= (this.towerBox.min.z + margin) &&
+                             position.z <= (this.towerBox.max.z - margin);
+            
+            if (isInTowerX && isInTowerZ) {
+                collisionResult.hasCollision = true;
+                return collisionResult;
+            }
+        }
         
         // Check tree collisions
         for (const tree of this.trees) {
