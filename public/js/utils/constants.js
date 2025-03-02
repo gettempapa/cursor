@@ -10,7 +10,10 @@ export const Constants = {
         JUMP_SPEED: 0.15,
         GRAVITY: 0.008,
         SHOT_COOLDOWN: 100, // milliseconds between shots
-        CAMERA_OFFSET: new THREE.Vector3(1.5, 1.8, 5)
+        CAMERA_OFFSET: new THREE.Vector3(0, 1.8, 4), // More centered behind player
+        CAMERA_OFFSET_AIMING: new THREE.Vector3(0.8, 1.6, 2.5), // Over-the-shoulder when aiming
+        CAMERA_SMOOTHING: 0.1, // Camera smoothing factor
+        CROSSHAIR_SIZE: 20 // Size of crosshair in pixels
     },
     
     // Game settings
@@ -31,7 +34,8 @@ export const Constants = {
         CAMO: [0x4b5320, 0x3a421a, 0x5d6d21, 0x2c3317],
         DINO_BODY: 0x2d8659,
         DINO_BELLY: 0x3da677,
-        DINO_SPIKES: 0x1a5038
+        DINO_SPIKES: 0x1a5038,
+        BLOOD: 0x8a0303
     },
     
     // Dinosaur settings
@@ -54,7 +58,8 @@ export const Constants = {
     AUDIO: {
         FOOTSTEP_INTERVAL: 350, // milliseconds between footstep sounds
         MAX_DISTANCE: 50,
-        REFERENCE_DISTANCE: 10
+        REFERENCE_DISTANCE: 10,
+        RIFLE_VOLUME: 0.8
     }
 };
 

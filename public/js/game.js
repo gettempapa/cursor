@@ -2726,12 +2726,12 @@ class Game {
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
                 // Update vertical camera angle with constraints
-                // Inverted Y movement for standard third-person controls
-                this.cameraAngles.vertical -= e.movementY * 0.002;
+                // Standard third-person camera vertical rotation
+                this.cameraAngles.vertical += e.movementY * 0.002;
                 
-                // Constrain vertical look
+                // Constrain vertical look to prevent flipping
                 this.cameraAngles.vertical = Math.max(
-                    -Math.PI / 3, // Look up limit
+                    -Math.PI / 4, // Look up limit (less extreme)
                     Math.min(
                         Math.PI / 6, // Look down limit
                         this.cameraAngles.vertical
@@ -3049,36 +3049,45 @@ class Game {
         // Calculate camera position based on player position and offset
         const cameraOffset = this.cameraOffset.clone();
         
-        // Apply vertical rotation to camera offset
-        const verticalRotationMatrix = new THREE.Matrix4();
-        verticalRotationMatrix.makeRotationX(this.cameraAngles.vertical);
-        cameraOffset.applyMatrix4(verticalRotationMatrix);
-        
-        // Apply horizontal rotation (player's rotation)
+        // First rotate the offset around the Y axis (horizontal rotation)
         cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
+        
+        // Then apply vertical rotation only to the z and y components
+        // This prevents the corkscrewing effect by keeping the camera's x position relative to player consistent
+        const distance = Math.sqrt(cameraOffset.z * cameraOffset.z + cameraOffset.y * cameraOffset.y);
+        const currentAngle = Math.atan2(cameraOffset.y, cameraOffset.z);
+        const newAngle = currentAngle + this.cameraAngles.vertical;
+        
+        cameraOffset.y = distance * Math.sin(newAngle);
+        cameraOffset.z = distance * Math.cos(newAngle);
         
         // Set camera position
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Calculate look target (where the crosshair points)
-        const forwardDirection = new THREE.Vector3(0, 0, -1);
-        forwardDirection.applyEuler(new THREE.Euler(
+        // Calculate look target (where the camera points)
+        // Always look at the player's position plus a small height offset
+        const lookTarget = this.playerState.position.clone();
+        lookTarget.y += 1; // Look at the player's head level
+        
+        // Make the camera look at the target
+        this.camera.lookAt(lookTarget);
+        
+        // Calculate aim direction for the rifle
+        const aimDirection = new THREE.Vector3(0, 0, -1);
+        aimDirection.applyEuler(new THREE.Euler(
             this.cameraAngles.vertical,
             this.playerState.rotation.y,
             0,
             'YXZ'
         ));
         
-        // Look target is 20 units ahead in the direction we're facing
-        const lookTarget = this.playerState.position.clone();
-        lookTarget.add(forwardDirection.multiplyScalar(20));
+        // Aim target is ahead in the direction we're facing
+        const aimTarget = this.playerState.position.clone();
+        aimTarget.add(aimDirection.multiplyScalar(20));
         
-        // Make the camera look at the target
-        this.camera.lookAt(lookTarget);
-        
-        // Update rifle aim to match camera direction
-        this.updateRifleAim(lookTarget);
+        // Update rifle aim to match aim direction
+        this.updateRifleAim(aimTarget);
     }
     
     updateRifleAim(lookTarget) {
@@ -3088,17 +3097,15 @@ class Game {
         const aimDirection = lookTarget.clone().sub(this.playerState.position);
         aimDirection.normalize();
         
-        // Standard third-person shooter rifle positioning
-        // Always points forward in the direction of the crosshair
-        
-        // Calculate rifle angles
+        // Calculate rifle angles - use YXZ order to match camera rotation
         const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
         rifleRotation.y = Math.atan2(aimDirection.x, aimDirection.z);
         rifleRotation.x = -Math.asin(aimDirection.y);
         
-        // Update rifle rotation to match camera direction
+        // Update rifle rotation to match aim direction
         this.rifle.rotation.x = rifleRotation.x;
         this.rifle.rotation.y = rifleRotation.y;
+        this.rifle.rotation.z = 0; // Prevent any roll rotation
         
         // Position rifle in front of player
         this.rifle.position.set(0.3, 0.4, 0.3);
@@ -3108,10 +3115,12 @@ class Game {
             // Left arm forward to hold rifle
             this.leftArm.rotation.x = rifleRotation.x * 0.7;
             this.leftArm.rotation.y = rifleRotation.y * 0.5;
+            this.leftArm.rotation.z = 0; // Prevent any roll rotation
             
             // Right arm to hold trigger
             this.rightArm.rotation.x = rifleRotation.x * 0.7;
             this.rightArm.rotation.y = rifleRotation.y * 0.5;
+            this.rightArm.rotation.z = 0; // Prevent any roll rotation
         }
     }
     
