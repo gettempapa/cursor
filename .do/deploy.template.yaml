@@ -1,0 +1,11 @@
+spec:
+  name: cursor-app
+  static_sites:
+  - name: static-site
+    git:
+      repo_clone_url: https://github.com/gettempapa/cursor.git
+      branch: main
+    build_command: echo "Static site - no build needed"
+    output_dir: /
+    index_document: index.html
+    error_document: index.html 

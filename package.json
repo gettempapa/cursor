@@ -1,19 +1,24 @@
 {
-  "name": "cursor",
+  "name": "socom-browser-shooter",
   "version": "1.0.0",
-  "type": "module",
+  "description": "A browser-based third-person shooter inspired by SOCOM",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
-    "start": "npm run build && NODE_ENV=production node server.js",
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "npx serve ."
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "three": "^0.161.0"
+    "serve": "^14.2.1"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.3",
-    "vite": "^5.1.4"
-  }
+  "keywords": [
+    "game",
+    "shooter",
+    "browser-game",
+    "three.js",
+    "3d",
+    "webgl"
+  ],
+  "author": "SOCOM Browser Team",
+  "license": "MIT"
 } 
