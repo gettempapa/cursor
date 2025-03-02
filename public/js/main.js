@@ -185,7 +185,7 @@ function createHumanoidMesh() {
     // Body parts
     // Head (sphere)
     const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow
+    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow face
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.y = 1.5;
     playerGroup.add(head);
@@ -204,19 +204,35 @@ function createHumanoidMesh() {
     body.position.y = 1.0;
     playerGroup.add(body);
     
+    // Create left arm group for positioning
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(-0.3, 1.1, 0.05);
+    // Rotate left arm slightly to support the gun
+    leftArmGroup.rotation.x = Math.PI * 0.1; // Tilt forward
+    leftArmGroup.rotation.z = -Math.PI * 0.1; // Angle inward
+    playerGroup.add(leftArmGroup);
+    
     // Left arm - match the camo pattern
-    const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.5, 0.15);
     const leftArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
     const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
-    leftArm.position.set(-0.325, 1.0, 0); // Left of body
-    playerGroup.add(leftArm);
+    leftArm.position.set(0, -0.2, 0); // Position within the group
+    leftArmGroup.add(leftArm);
+    
+    // Create right arm group for positioning
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(0.3, 1.1, 0.1);
+    // Rotate right arm to hold the gun
+    rightArmGroup.rotation.x = Math.PI * 0.1; // Tilt forward
+    rightArmGroup.rotation.z = Math.PI * 0.1; // Angle inward
+    playerAimHelper.add(rightArmGroup);
     
     // Right arm (will hold the gun) - match the camo pattern
-    const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.5, 0.15);
     const rightArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
     const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
-    rightArm.position.set(0.35, 1.0, 0); // Right of body, adjusted for aim helper
-    playerAimHelper.add(rightArm); // Attach to aim helper so it moves with aiming
+    rightArm.position.set(0, -0.2, 0); // Position within the group
+    rightArmGroup.add(rightArm);
     
     // Legs - camo pants
     const legGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
@@ -253,30 +269,55 @@ function createHumanoidMesh() {
     addCamoPatches(leftLeg, camoColors);
     addCamoPatches(rightLeg, camoColors);
     
-    // Add a gun to the right hand
+    // Create a realistic rifle
     const gunGroup = new THREE.Group();
     
-    // Gun body
-    const gunBodyGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.5);
-    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x111111 }); // Dark gray
-    const gunBody = new THREE.Mesh(gunBodyGeometry, gunMaterial);
-    gunGroup.add(gunBody);
+    // Main rifle body (longer and thinner)
+    const rifleBodyGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.8);
+    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x111111 }); // Dark gray/black
+    const rifleBody = new THREE.Mesh(rifleBodyGeometry, gunMaterial);
+    gunGroup.add(rifleBody);
     
-    // Gun handle
-    const gunHandleGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.08);
-    const gunHandle = new THREE.Mesh(gunHandleGeometry, gunMaterial);
-    gunHandle.position.set(0, -0.14, 0.05);
-    gunGroup.add(gunHandle);
+    // Rifle stock (behind the main body)
+    const stockGeometry = new THREE.BoxGeometry(0.05, 0.1, 0.2);
+    const stockMaterial = new THREE.MeshBasicMaterial({ color: 0x3D2817 }); // Brown wood color
+    const stock = new THREE.Mesh(stockGeometry, stockMaterial);
+    stock.position.set(0, -0.02, 0.4); // Position behind the main body
+    gunGroup.add(stock);
     
-    // Position gun in hand
-    gunGroup.position.set(0, 0, -0.3);
-    rightArm.add(gunGroup);
+    // Rifle grip near the trigger
+    const gripGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.06);
+    const grip = new THREE.Mesh(gripGeometry, stockMaterial);
+    grip.position.set(0, -0.1, 0.2); // Position under the rifle
+    gunGroup.add(grip);
+    
+    // Rifle magazine
+    const magazineGeometry = new THREE.BoxGeometry(0.06, 0.12, 0.08);
+    const magazineMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 }); // Slightly lighter black
+    const magazine = new THREE.Mesh(magazineGeometry, magazineMaterial);
+    magazine.position.set(0, -0.09, 0.1); // Position under the rifle
+    gunGroup.add(magazine);
+    
+    // Small barrel detail at the front
+    const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8);
+    const barrel = new THREE.Mesh(barrelGeometry, gunMaterial);
+    barrel.rotation.x = Math.PI / 2; // Rotate to align with rifle
+    barrel.position.set(0, 0, -0.45); // Position at front of rifle
+    gunGroup.add(barrel);
+    
+    // Position the entire gun between the hands
+    gunGroup.position.set(0, -0.1, 0.3);
+    // Rotate gun to point forward
+    gunGroup.rotation.y = Math.PI;
+    
+    // Create a connector between left arm and gun
+    leftArmGroup.add(gunGroup);
     
     // Add visual aim indicator
     const aimGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.4);
     const aimMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Red
     const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
-    aimIndicator.position.set(0, 0, -0.4); // Position in front of gun
+    aimIndicator.position.set(0, 0, -0.6); // Position in front of gun
     gunGroup.add(aimIndicator);
     
     return playerGroup;
