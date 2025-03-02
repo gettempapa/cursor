@@ -283,19 +283,21 @@ function createHumanoidMesh() {
     leftUpperArm.position.set(0, -0.1, 0);
     leftArmGroup.add(leftUpperArm);
     
-    // Left forearm with tactical glove
+    // Left forearm with tactical glove - adjust position to better support the foregrip
     const forearmGeometry = new THREE.BoxGeometry(0.13, 0.3, 0.13);
     const forearmMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
     const leftForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
     leftForearm.position.set(0, -0.35, 0);
-    leftForearm.rotation.x = Math.PI * 0.1; // Angle for supporting the foregrip
+    leftForearm.rotation.x = Math.PI * 0.2; // More angled to properly support foregrip
+    leftForearm.rotation.y = Math.PI * 0.1; // Slight rotation to position hand naturally
     leftArmGroup.add(leftForearm);
     
-    // Left tactical glove
-    const gloveGeometry = new THREE.BoxGeometry(0.14, 0.08, 0.14);
+    // Left tactical glove - shape and position for holding foregrip
+    const leftGloveGeometry = new THREE.BoxGeometry(0.13, 0.08, 0.15); // Slightly longer in z direction for grip
     const gloveMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.black });
-    const leftGlove = new THREE.Mesh(gloveGeometry, gloveMaterial);
-    leftGlove.position.set(0, -0.5, 0);
+    const leftGlove = new THREE.Mesh(leftGloveGeometry, gloveMaterial);
+    leftGlove.position.set(0, -0.5, 0.02); // Positioned to hold foregrip
+    leftGlove.rotation.x = Math.PI * 0.15; // Rotated to wrap around foregrip
     leftArmGroup.add(leftGlove);
     
     // Create right arm group for positioning - position it relative to the shoulder area of the vest
@@ -315,12 +317,15 @@ function createHumanoidMesh() {
     // Right forearm
     const rightForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
     rightForearm.position.set(0, -0.35, 0);
-    rightForearm.rotation.x = Math.PI * 0.2; // Angle downward to grip the pistol grip
+    rightForearm.rotation.x = Math.PI * 0.25; // Increased angle for better trigger grip position
+    rightForearm.rotation.z = Math.PI * 0.05; // Slight rotation for more natural wrist position
     rightArmGroup.add(rightForearm);
     
-    // Right tactical glove
-    const rightGlove = new THREE.Mesh(gloveGeometry, gloveMaterial);
-    rightGlove.position.set(0, -0.5, 0);
+    // Right tactical glove - adjusted for trigger grip
+    const rightGloveGeometry = new THREE.BoxGeometry(0.13, 0.09, 0.16); // Sized for pistol grip
+    const rightGlove = new THREE.Mesh(rightGloveGeometry, gloveMaterial);
+    rightGlove.position.set(0, -0.5, 0.03); // Position to grip pistol grip
+    rightGlove.rotation.x = Math.PI * 0.15; // Angled to wrap fingers around grip
     rightArmGroup.add(rightGlove);
     
     // Tactical pants
@@ -483,11 +488,25 @@ function createHumanoidMesh() {
     rearSlingPoint.position.set(0.03, 0, 0.3);
     gunGroup.add(rearSlingPoint);
     
-    // Position the rifle in proper aiming position
-    // Move the gun up toward shoulder level for aiming
-    gunGroup.position.set(0.05, 0.17, 0.25);
+    // Add a more realistic trigger to the rifle
+    const triggerGeometry = new THREE.BoxGeometry(0.02, 0.05, 0.02);
+    const triggerMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.gunmetal });
+    const trigger = new THREE.Mesh(triggerGeometry, triggerMaterial);
+    trigger.position.set(0, -0.13, 0.18); // Position in trigger guard
+    gunGroup.add(trigger);
     
-    // Tilt the gun slightly to align with soldier's eye line
+    // Add a trigger guard
+    const triggerGuardGeometry = new THREE.TorusGeometry(0.03, 0.01, 8, 8, Math.PI);
+    const triggerGuard = new THREE.Mesh(triggerGuardGeometry, gunMaterial);
+    triggerGuard.rotation.x = Math.PI / 2;
+    triggerGuard.position.set(0, -0.1, 0.18);
+    gunGroup.add(triggerGuard);
+    
+    // Position the rifle in proper aiming position
+    // Move the gun up to be gripped properly by the hands
+    gunGroup.position.set(0.04, 0.15, 0.25);
+    
+    // Slightly adjust rifle angle for proper hand alignment
     gunGroup.rotation.x = -Math.PI * 0.03;
     // Rotate gun to point forward
     gunGroup.rotation.y = Math.PI;
@@ -496,6 +515,18 @@ function createHumanoidMesh() {
     
     // Connect the right hand to the rifle grip
     rightArmGroup.add(gunGroup);
+    
+    // Create visual connection between left hand and foregrip
+    // Invisible helper object positioned at the foregrip
+    const leftHandTarget = new THREE.Object3D();
+    leftHandTarget.position.set(-0.29, 1.1, -0.05); // Position where left hand should reach
+    playerGroup.add(leftHandTarget);
+    
+    // Adjust left arm group to point toward foregrip
+    leftArmGroup.lookAt(leftHandTarget.position);
+    // Adjust left arm rotation slightly for natural positioning
+    leftArmGroup.rotation.x += Math.PI * 0.1;
+    leftArmGroup.rotation.z -= Math.PI * 0.1;
     
     // Add visual aim indicator (laser sight from gun)
     const aimGeometry = new THREE.BoxGeometry(0.005, 0.005, 0.8);
