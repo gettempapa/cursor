@@ -74,72 +74,165 @@ export class Player {
         this.model.position.y = this.height;
         this.scene.add(this.model);
         
-        // Create player body
-        const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.2, 4, 8);
+        // Create player body - tactical vest
+        const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.2, 8, 16);
         const bodyMaterial = new THREE.MeshStandardMaterial({ 
-            color: Constants.COLORS.SOLDIER_BODY,
-            roughness: 0.8
+            color: 0x1a1a1a, // Dark tactical vest
+            roughness: 0.7
         });
         
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         this.model.add(body);
         
+        // Add tactical vest details
+        this.addTacticalVestDetails(body);
+        
         // Create player head
-        const headGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+        const headGeometry = new THREE.SphereGeometry(0.25, 12, 12);
         const headMaterial = new THREE.MeshStandardMaterial({ 
             color: Constants.COLORS.SOLDIER_FACE,
-            roughness: 0.7
+            roughness: 0.6
         });
         
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.position.set(0, 0.8, 0);
         this.model.add(head);
         
-        // Create helmet
-        this.createPlayerHelmet(head);
+        // Create tactical helmet and face mask
+        this.createTacticalHelmet(head);
         
-        // Create limbs
-        this.createPlayerLimbs();
+        // Create limbs with tactical gear
+        this.createTacticalLimbs();
         
-        // Create rifle
-        this.createRifle();
+        // Create modern assault rifle
+        this.createModernRifle();
         
-        // Create hands to hold the rifle
+        // Create gloved hands to hold the rifle
         if (this.rifle) {
-            this.createHands(this.rifle);
+            this.createTacticalHands(this.rifle);
         }
     }
     
     /**
-     * Create a helmet for the player
+     * Add tactical vest details to the player body
+     * @param {THREE.Mesh} body - The player's body mesh
+     */
+    addTacticalVestDetails(body) {
+        // Add chest plate
+        const chestPlateGeometry = new THREE.BoxGeometry(0.8, 0.6, 0.3);
+        const tacticalMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2a2a2a,
+            roughness: 0.8
+        });
+        
+        const chestPlate = new THREE.Mesh(chestPlateGeometry, tacticalMaterial);
+        chestPlate.position.set(0, 0.3, 0.25);
+        body.add(chestPlate);
+        
+        // Add magazine pouches
+        const pouchGeometry = new THREE.BoxGeometry(0.15, 0.2, 0.1);
+        const pouchMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a1a1a,
+            roughness: 0.9
+        });
+        
+        // Add several pouches to the vest
+        for (let i = 0; i < 3; i++) {
+            const pouch = new THREE.Mesh(pouchGeometry, pouchMaterial);
+            pouch.position.set(-0.2 + i * 0.2, 0.1, 0.35);
+            body.add(pouch);
+        }
+        
+        // Add shoulder pads
+        const shoulderPadGeometry = new THREE.BoxGeometry(0.25, 0.1, 0.3);
+        const shoulderPadMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2a2a2a,
+            roughness: 0.8
+        });
+        
+        const leftShoulderPad = new THREE.Mesh(shoulderPadGeometry, shoulderPadMaterial);
+        leftShoulderPad.position.set(0.4, 0.6, 0);
+        leftShoulderPad.rotation.z = 0.3;
+        body.add(leftShoulderPad);
+        
+        const rightShoulderPad = new THREE.Mesh(shoulderPadGeometry, shoulderPadMaterial);
+        rightShoulderPad.position.set(-0.4, 0.6, 0);
+        rightShoulderPad.rotation.z = -0.3;
+        body.add(rightShoulderPad);
+    }
+    
+    /**
+     * Create a tactical helmet for the player
      * @param {THREE.Mesh} head - The player's head mesh
      */
-    createPlayerHelmet(head) {
-        // Create helmet
-        const helmetGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    createTacticalHelmet(head) {
+        // Create helmet base
+        const helmetGeometry = new THREE.SphereGeometry(0.3, 12, 12);
         const helmetMaterial = new THREE.MeshStandardMaterial({ 
-            color: Constants.COLORS.CAMO[0],
-            roughness: 0.9
+            color: 0x2a2a2a, // Dark tactical helmet
+            roughness: 0.7
         });
         
         const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
         helmet.position.set(0, 0.05, 0);
-        helmet.scale.set(1, 0.8, 1);
+        helmet.scale.set(1, 0.8, 1.1);
         head.add(helmet);
         
-        // Create night vision goggles
-        const goggleGeometry = new THREE.BoxGeometry(0.4, 0.1, 0.1);
-        const goggleMaterial = new THREE.MeshStandardMaterial({ 
+        // Create helmet cover with camouflage
+        const coverGeometry = new THREE.SphereGeometry(0.31, 12, 12);
+        const coverMaterial = new THREE.MeshStandardMaterial({ 
+            color: Constants.COLORS.CAMO[0],
+            roughness: 0.9
+        });
+        
+        const cover = new THREE.Mesh(coverGeometry, coverMaterial);
+        cover.scale.set(1, 0.75, 1.05);
+        helmet.add(cover);
+        
+        // Add helmet accessories
+        this.addHelmetAccessories(helmet);
+        
+        // Create tactical face mask
+        const maskGeometry = new THREE.BoxGeometry(0.4, 0.25, 0.05);
+        const maskMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x222222,
+            roughness: 0.6
+        });
+        
+        const mask = new THREE.Mesh(maskGeometry, maskMaterial);
+        mask.position.set(0, -0.1, 0.2);
+        head.add(mask);
+    }
+    
+    /**
+     * Add accessories to the tactical helmet
+     * @param {THREE.Mesh} helmet - The helmet mesh
+     */
+    addHelmetAccessories(helmet) {
+        // Create night vision mount
+        const mountGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.1);
+        const mountMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.5
+        });
+        
+        const mount = new THREE.Mesh(mountGeometry, mountMaterial);
+        mount.position.set(0, 0.2, 0.25);
+        helmet.add(mount);
+        
+        // Create advanced night vision goggles
+        const goggleGeometry = new THREE.BoxGeometry(0.4, 0.1, 0.15);
+        const goggleMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
             roughness: 0.5
         });
         
         const goggles = new THREE.Mesh(goggleGeometry, goggleMaterial);
-        goggles.position.set(0, 0.1, 0.25);
+        goggles.position.set(0, 0.1, 0.3);
         helmet.add(goggles);
         
-        // Create goggle lenses
-        const lensGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.05, 8);
+        // Create high-tech goggle lenses
+        const lensGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.05, 12);
         const lensMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x44FF44,
             emissive: 0x225522,
@@ -155,37 +248,81 @@ export class Player {
         rightLens.rotation.x = Math.PI / 2;
         rightLens.position.set(-0.1, 0, 0.05);
         goggles.add(rightLens);
+        
+        // Add tactical headset
+        const headsetGeometry = new THREE.TorusGeometry(0.25, 0.05, 8, 16, Math.PI);
+        const headsetMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.7
+        });
+        
+        const headset = new THREE.Mesh(headsetGeometry, headsetMaterial);
+        headset.rotation.x = Math.PI / 2;
+        headset.position.set(0, -0.1, 0);
+        helmet.add(headset);
+        
+        // Add headset microphone
+        const micGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 8);
+        const micMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.5
+        });
+        
+        const mic = new THREE.Mesh(micGeometry, micMaterial);
+        mic.position.set(0.25, -0.1, 0.1);
+        mic.rotation.z = Math.PI / 2;
+        mic.rotation.y = -Math.PI / 4;
+        helmet.add(mic);
     }
     
     /**
-     * Create limbs for the player
+     * Create tactical limbs for the player
      */
-    createPlayerLimbs() {
-        const camoTexture = Constants.COLORS.CAMO[0];
-        const limbMaterial = new THREE.MeshStandardMaterial({ 
-            color: Constants.COLORS.SOLDIER_BODY,
+    createTacticalLimbs() {
+        // Get a camo color for uniform
+        const camoColor = Constants.COLORS.CAMO[0];
+        
+        // Create arms with tactical sleeves
+        const armGeometry = new THREE.CapsuleGeometry(0.12, 0.6, 8, 8);
+        const armMaterial = new THREE.MeshStandardMaterial({ 
+            color: camoColor,
             roughness: 0.8
         });
         
-        // Create arms
-        const armGeometry = new THREE.CapsuleGeometry(0.1, 0.6, 4, 8);
-        
         // Left arm
-        const leftArm = new THREE.Mesh(armGeometry, limbMaterial);
+        const leftArm = new THREE.Mesh(armGeometry, armMaterial);
         leftArm.position.set(0.5, 0.4, 0);
         leftArm.rotation.z = -Math.PI / 4;
         this.model.add(leftArm);
         
+        // Add tactical elbow pad to left arm
+        const elbowPadGeometry = new THREE.SphereGeometry(0.13, 8, 8);
+        const padMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.9
+        });
+        
+        const leftElbowPad = new THREE.Mesh(elbowPadGeometry, padMaterial);
+        leftElbowPad.position.set(0, -0.2, 0);
+        leftElbowPad.scale.set(1, 0.5, 1);
+        leftArm.add(leftElbowPad);
+        
         // Right arm
-        const rightArm = new THREE.Mesh(armGeometry, limbMaterial);
+        const rightArm = new THREE.Mesh(armGeometry, armMaterial);
         rightArm.position.set(-0.5, 0.4, 0);
         rightArm.rotation.z = Math.PI / 4;
         this.model.add(rightArm);
         
-        // Create legs
-        const legGeometry = new THREE.CapsuleGeometry(0.15, 0.8, 4, 8);
+        // Add tactical elbow pad to right arm
+        const rightElbowPad = new THREE.Mesh(elbowPadGeometry, padMaterial);
+        rightElbowPad.position.set(0, -0.2, 0);
+        rightElbowPad.scale.set(1, 0.5, 1);
+        rightArm.add(rightElbowPad);
+        
+        // Create legs with tactical pants
+        const legGeometry = new THREE.CapsuleGeometry(0.15, 0.8, 8, 8);
         const legMaterial = new THREE.MeshStandardMaterial({ 
-            color: camoTexture,
+            color: camoColor,
             roughness: 0.8
         });
         
@@ -194,21 +331,51 @@ export class Player {
         leftLeg.position.set(0.2, -0.8, 0);
         this.model.add(leftLeg);
         
+        // Add tactical knee pad to left leg
+        const kneePadGeometry = new THREE.SphereGeometry(0.16, 8, 8);
+        
+        const leftKneePad = new THREE.Mesh(kneePadGeometry, padMaterial);
+        leftKneePad.position.set(0, 0.2, 0.1);
+        leftKneePad.scale.set(1, 0.5, 1);
+        leftLeg.add(leftKneePad);
+        
+        // Add tactical boot to left leg
+        const bootGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.3);
+        const bootMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.8
+        });
+        
+        const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        leftBoot.position.set(0, -0.45, 0.05);
+        leftLeg.add(leftBoot);
+        
         // Right leg
         const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
         rightLeg.position.set(-0.2, -0.8, 0);
         this.model.add(rightLeg);
+        
+        // Add tactical knee pad to right leg
+        const rightKneePad = new THREE.Mesh(kneePadGeometry, padMaterial);
+        rightKneePad.position.set(0, 0.2, 0.1);
+        rightKneePad.scale.set(1, 0.5, 1);
+        rightLeg.add(rightKneePad);
+        
+        // Add tactical boot to right leg
+        const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        rightBoot.position.set(0, -0.45, 0.05);
+        rightLeg.add(rightBoot);
     }
     
     /**
-     * Create a rifle for the player
+     * Create a modern assault rifle for the player
      */
-    createRifle() {
+    createModernRifle() {
         // Create rifle group
         this.rifle = new THREE.Group();
         
-        // Create rifle body
-        const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 1);
+        // Create rifle body - more detailed
+        const rifleBodyGeometry = new THREE.BoxGeometry(0.08, 0.12, 1.2);
         const rifleMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x111111,
             roughness: 0.5
@@ -217,32 +384,73 @@ export class Player {
         const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
         this.rifle.add(rifleBody);
         
-        // Create rifle stock
-        const rifleStockGeometry = new THREE.BoxGeometry(0.1, 0.2, 0.4);
+        // Create rifle stock - more tactical
+        const rifleStockGeometry = new THREE.BoxGeometry(0.08, 0.18, 0.4);
         const rifleStockMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x8B4513,
+            color: 0x222222,
             roughness: 0.7
         });
         
         const rifleStock = new THREE.Mesh(rifleStockGeometry, rifleStockMaterial);
-        rifleStock.position.set(0, -0.05, -0.6);
+        rifleStock.position.set(0, -0.03, -0.7);
         this.rifle.add(rifleStock);
         
-        // Create rifle barrel
-        const rifleBarrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8);
+        // Create rifle barrel - more detailed
+        const rifleBarrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 12);
         const rifleBarrel = new THREE.Mesh(rifleBarrelGeometry, rifleMaterial);
         rifleBarrel.rotation.x = Math.PI / 2;
-        rifleBarrel.position.set(0, 0, 0.8);
+        rifleBarrel.position.set(0, 0, 0.9);
         this.rifle.add(rifleBarrel);
         
-        // Create rifle scope
-        const rifleScope = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8),
+        // Create rifle scope - tactical optic
+        const scopeBaseGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.2);
+        const scopeBase = new THREE.Mesh(scopeBaseGeometry, rifleMaterial);
+        scopeBase.position.set(0, 0.09, 0.2);
+        this.rifle.add(scopeBase);
+        
+        const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.25, 12);
+        const scopeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.4
+        });
+        
+        const scope = new THREE.Mesh(scopeGeometry, scopeMaterial);
+        scope.rotation.x = Math.PI / 2;
+        scope.position.set(0, 0.15, 0.2);
+        this.rifle.add(scope);
+        
+        // Create scope lens
+        const lensGeometry = new THREE.CircleGeometry(0.03, 12);
+        const lensMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x88CCFF,
+            emissive: 0x225566,
+            roughness: 0.2
+        });
+        
+        const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+        lens.position.set(0, 0, 0.13);
+        lens.rotation.y = Math.PI;
+        scope.add(lens);
+        
+        // Create tactical foregrip
+        const foregrip = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.03, 0.03, 0.15, 12),
             rifleMaterial
         );
-        rifleScope.rotation.x = Math.PI / 2;
-        rifleScope.position.set(0, 0.08, 0.2);
-        this.rifle.add(rifleScope);
+        foregrip.position.set(0, -0.12, 0.5);
+        this.rifle.add(foregrip);
+        
+        // Create tactical rail system
+        const railGeometry = new THREE.BoxGeometry(0.1, 0.03, 0.6);
+        const rail = new THREE.Mesh(railGeometry, rifleMaterial);
+        rail.position.set(0, 0.06, 0.5);
+        this.rifle.add(rail);
+        
+        // Create magazine
+        const magazineGeometry = new THREE.BoxGeometry(0.06, 0.2, 0.1);
+        const magazine = new THREE.Mesh(magazineGeometry, rifleMaterial);
+        magazine.position.set(0, -0.15, 0.2);
+        this.rifle.add(magazine);
         
         // Position the rifle in front of the player
         this.rifle.position.set(0.3, 0.2, 0.5);
@@ -253,24 +461,26 @@ export class Player {
     }
     
     /**
-     * Create hands to hold the rifle
+     * Create tactical gloved hands to hold the rifle
      * @param {THREE.Group} rifle - The rifle object
      */
-    createHands(rifle) {
-        const handGeometry = new THREE.SphereGeometry(0.08, 8, 8);
-        const handMaterial = new THREE.MeshStandardMaterial({ 
-            color: Constants.COLORS.SOLDIER_FACE,
+    createTacticalHands(rifle) {
+        const handGeometry = new THREE.SphereGeometry(0.08, 12, 12);
+        const gloveMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222, // Tactical gloves
             roughness: 0.7
         });
         
         // Create left hand (front grip)
-        const leftHand = new THREE.Mesh(handGeometry, handMaterial);
-        leftHand.position.set(0, 0, 0.3);
+        const leftHand = new THREE.Mesh(handGeometry, gloveMaterial);
+        leftHand.position.set(0, -0.12, 0.5);
+        leftHand.scale.set(1, 0.8, 1.2);
         rifle.add(leftHand);
         
         // Create right hand (trigger)
-        const rightHand = new THREE.Mesh(handGeometry, handMaterial);
-        rightHand.position.set(0, -0.1, -0.2);
+        const rightHand = new THREE.Mesh(handGeometry, gloveMaterial);
+        rightHand.position.set(0, -0.1, -0.1);
+        rightHand.scale.set(1, 0.8, 1.2);
         rifle.add(rightHand);
     }
     
@@ -375,11 +585,13 @@ export class Player {
      */
     handleMouseMove(event) {
         if (document.pointerLockElement) {
-            // Update rotation based on mouse movement
+            // Update horizontal rotation (turning left/right)
             this.rotation.y -= event.movementX * Constants.PLAYER.TURN_SPEED;
             
-            // Limit vertical look
+            // Update vertical look (up/down) - only affects camera, not player model
             const verticalLook = this.camera.rotation.x + event.movementY * Constants.PLAYER.TURN_SPEED;
+            
+            // Limit vertical look to prevent flipping
             this.camera.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, verticalLook));
         }
     }
@@ -564,17 +776,22 @@ export class Player {
     updateCamera() {
         if (!this.camera) return;
         
-        // Calculate camera position
+        // Calculate camera position - standard third-person offset
         const cameraOffset = Constants.PLAYER.CAMERA_OFFSET.clone();
         
-        // Apply player rotation to camera offset
-        cameraOffset.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
+        // Apply player rotation to camera offset (only horizontal rotation)
+        const rotationY = new THREE.Euler(0, this.rotation.y, 0);
+        cameraOffset.applyEuler(rotationY);
         
         // Set camera position
         this.camera.position.copy(this.position).add(cameraOffset);
         
-        // Set camera rotation
+        // Set camera horizontal rotation to match player
         this.camera.rotation.y = this.rotation.y;
+        
+        // Vertical rotation was already set in handleMouseMove
+        // No roll rotation (this prevents the corkscrewing effect)
+        this.camera.rotation.z = 0;
     }
     
     /**
