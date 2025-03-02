@@ -62,20 +62,25 @@ export class Game {
                     this.player.weaponSystem.reload();
                     this.ui.showReloadIndicator();
                     break;
-                case 'Tab':
+                case 'KeyI':
                     e.preventDefault();
-                    this.ui.toggleWeaponMenu();
+                    this.ui.toggleWeaponMenu(!this.ui.weaponMenuContainer.style.display === 'block');
+                    if (this.ui.weaponMenuContainer.style.display === 'block') {
+                        document.exitPointerLock();
+                    }
                     break;
                 case 'Digit1':
                     if (this.ui.weaponMenuContainer.style.display === 'block') {
                         this.player.weaponSystem.switchWeapon('rifle');
                         this.ui.toggleWeaponMenu(false);
+                        this.container.requestPointerLock();
                     }
                     break;
                 case 'Digit2':
                     if (this.ui.weaponMenuContainer.style.display === 'block') {
                         this.player.weaponSystem.switchWeapon('pistol');
                         this.ui.toggleWeaponMenu(false);
+                        this.container.requestPointerLock();
                     }
                     break;
             }

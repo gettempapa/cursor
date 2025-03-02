@@ -221,9 +221,24 @@ export class Player {
     }
     
     handleMouseMovement(movementX, movementY) {
+        // Horizontal rotation - rotate the entire player object
         this.object.rotation.y -= movementX * this.rotationSpeed;
-        this.verticalAngle -= movementY * this.rotationSpeed;
-        this.verticalAngle = Math.max(this.minVerticalAngle, Math.min(this.maxVerticalAngle, this.verticalAngle));
+        
+        // Vertical rotation - update camera angle
+        this.verticalAngle = Math.max(
+            this.minVerticalAngle,
+            Math.min(this.maxVerticalAngle, this.verticalAngle - movementY * this.rotationSpeed)
+        );
+        
+        // Update camera position based on vertical angle
+        if (this.camera) {
+            this.camera.position.y = Math.sin(this.verticalAngle) * 2 + 2;
+            this.camera.lookAt(
+                this.object.position.x,
+                this.object.position.y + 1.5,
+                this.object.position.z
+            );
+        }
     }
     
     handleZoom(deltaY) {
