@@ -146,19 +146,19 @@ class Game {
         // Rifle body
         const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
         const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
-        rifle.position.set(0.3, 0.4, 0.3);
-        rifle.rotation.y = -Math.PI / 2;
+        rifle.position.set(0.4, 0.4, 0); // Adjusted position
+        rifle.rotation.y = 0; // Point forward
         
         // Rifle stock
         const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
         const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
-        stock.position.set(-0.45, -0.05, 0);
+        stock.position.set(0, 0, -0.6); // Adjusted position
         rifle.add(stock);
         
         // Rifle scope
         const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
         const scope = new THREE.Mesh(scopeGeometry, rifleMaterial);
-        scope.rotation.z = Math.PI / 2;
+        scope.rotation.x = Math.PI / 2;
         scope.position.set(0, 0.1, 0);
         rifle.add(scope);
 
@@ -172,14 +172,14 @@ class Game {
         
         if (isEnemy) {
             this.enemyMuzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.enemyMuzzleFlash.position.set(0.7, 0, 0);
+            this.enemyMuzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
             this.enemyMuzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
             this.enemyMuzzleLight.position.copy(this.enemyMuzzleFlash.position);
             rifle.add(this.enemyMuzzleFlash);
             rifle.add(this.enemyMuzzleLight);
         } else {
             this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-            this.muzzleFlash.position.set(0.7, 0, 0);
+            this.muzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
             this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
             this.muzzleLight.position.copy(this.muzzleFlash.position);
             rifle.add(this.muzzleFlash);
@@ -252,17 +252,212 @@ class Game {
         directionalLight.position.set(1, 1, 1);
         this.scene.add(ambientLight);
         this.scene.add(directionalLight);
+
+        // Add fog for misty mountains
+        this.scene.fog = new THREE.Fog(0xcccccc, 30, 100);
+        
+        // Add mountains in background
+        const mountainGeometry = new THREE.BufferGeometry();
+        const vertices = [];
+        const mountainCount = 8;
+        const mountainRadius = 80;
+        
+        for (let i = 0; i < mountainCount; i++) {
+            const angle = (i / mountainCount) * Math.PI * 2;
+            const x = Math.cos(angle) * mountainRadius;
+            const z = Math.sin(angle) * mountainRadius;
+            
+            // Create triangular mountain peaks
+            vertices.push(
+                x - 10, 0, z - 10,     // base point 1
+                x + 10, 0, z + 10,     // base point 2
+                x, 25 + Math.random() * 10, z  // peak
+            );
+        }
+        
+        mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        mountainGeometry.computeVertexNormals();
+        
+        const mountainMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.8,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        });
+        
+        const mountains = new THREE.Mesh(mountainGeometry, mountainMaterial);
+        this.scene.add(mountains);
         
         // Add ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x355e3b, // Forest green
             roughness: 0.8,
             metalness: 0.2
         });
+        
+        // Add some height variation to the ground
+        const vertices2 = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices2.length; i += 3) {
+            if (Math.abs(vertices2[i]) > 5 || Math.abs(vertices2[i + 2]) > 5) {
+                vertices2[i + 1] = Math.random() * 0.5; // Add small hills
+            }
+        }
+        groundGeometry.attributes.position.needsUpdate = true;
+        groundGeometry.computeVertexNormals();
+        
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         this.scene.add(ground);
+        
+        // Add stream
+        const streamWidth = 3;
+        const streamLength = 100;
+        const streamGeometry = new THREE.PlaneGeometry(streamWidth, streamLength, 20, 100);
+        
+        // Create meandering stream path
+        const streamVertices = streamGeometry.attributes.position.array;
+        for (let i = 0; i < streamVertices.length; i += 3) {
+            const z = streamVertices[i + 2];
+            streamVertices[i] += Math.sin(z * 0.1) * 2; // Meandering path
+            streamVertices[i + 1] = 0.1; // Slightly above ground
+        }
+        streamGeometry.attributes.position.needsUpdate = true;
+        streamGeometry.computeVertexNormals();
+        
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3498db,
+            metalness: 0.9,
+            roughness: 0.1,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const stream = new THREE.Mesh(streamGeometry, waterMaterial);
+        stream.rotation.x = -Math.PI / 2;
+        stream.position.y = 0.1; // Slightly above ground
+        this.scene.add(stream);
+        
+        // Add rocks and vegetation along stream
+        const createRock = (size) => {
+            const rockGeometry = new THREE.DodecahedronGeometry(size);
+            const rockMaterial = new THREE.MeshStandardMaterial({
+                color: 0x7c7c7c,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            return new THREE.Mesh(rockGeometry, rockMaterial);
+        };
+
+        const createReedCluster = () => {
+            const reedGroup = new THREE.Group();
+            const reedMaterial = new THREE.MeshStandardMaterial({
+                color: 0x567d46,
+                roughness: 0.8
+            });
+
+            for (let i = 0; i < 5; i++) {
+                const height = 0.5 + Math.random() * 0.5;
+                const reedGeometry = new THREE.CylinderGeometry(0.02, 0.02, height, 4);
+                const reed = new THREE.Mesh(reedGeometry, reedMaterial);
+                
+                // Position within cluster
+                reed.position.set(
+                    Math.random() * 0.3 - 0.15,
+                    height / 2,
+                    Math.random() * 0.3 - 0.15
+                );
+                
+                // Random slight tilt
+                reed.rotation.x = (Math.random() - 0.5) * 0.2;
+                reed.rotation.z = (Math.random() - 0.5) * 0.2;
+                
+                reedGroup.add(reed);
+            }
+            return reedGroup;
+        };
+
+        // Place rocks and vegetation along stream path
+        for (let i = -streamLength/2; i < streamLength/2; i += 4) {
+            const streamX = Math.sin(i * 0.1) * 2; // Follow stream's meandering
+            
+            // Left side of stream
+            if (Math.random() < 0.7) { // 70% chance for each position
+                const rock = createRock(0.3 + Math.random() * 0.4);
+                rock.position.set(
+                    streamX - (1.8 + Math.random()),
+                    Math.random() * 0.3,
+                    i
+                );
+                rock.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                this.scene.add(rock);
+            }
+            
+            if (Math.random() < 0.8) { // 80% chance for vegetation
+                const reeds = createReedCluster();
+                reeds.position.set(
+                    streamX - (1.5 + Math.random() * 0.5),
+                    0,
+                    i
+                );
+                this.scene.add(reeds);
+            }
+            
+            // Right side of stream
+            if (Math.random() < 0.7) {
+                const rock = createRock(0.3 + Math.random() * 0.4);
+                rock.position.set(
+                    streamX + (1.8 + Math.random()),
+                    Math.random() * 0.3,
+                    i
+                );
+                rock.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                this.scene.add(rock);
+            }
+            
+            if (Math.random() < 0.8) {
+                const reeds = createReedCluster();
+                reeds.position.set(
+                    streamX + (1.5 + Math.random() * 0.5),
+                    0,
+                    i
+                );
+                this.scene.add(reeds);
+            }
+        }
+        
+        // Add stream particles (for water effect)
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = [];
+        const particleCount = 200;
+        
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions.push(
+                Math.random() * streamWidth - streamWidth/2 + Math.sin((i/particleCount) * streamLength * 0.1) * 2,
+                0.2,
+                (i/particleCount) * streamLength - streamLength/2
+            );
+        }
+        
+        particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+        
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.1,
+            transparent: true,
+            opacity: 0.6
+        });
+        
+        this.streamParticles = new THREE.Points(particleGeometry, particleMaterial);
+        this.scene.add(this.streamParticles);
         
         // Add trees
         for (let i = 0; i < 20; i++) {
@@ -472,9 +667,22 @@ class Game {
     
     animate() {
         requestAnimationFrame(() => this.animate());
+        
+        // Animate stream particles
+        if (this.streamParticles) {
+            const positions = this.streamParticles.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 2] -= 0.1; // Move particles along stream
+                if (positions[i + 2] < -50) {
+                    positions[i + 2] = 50; // Reset particle to start
+                }
+            }
+            this.streamParticles.geometry.attributes.position.needsUpdate = true;
+        }
+        
         this.updateMovement();
         this.updateCamera();
-        this.updateEnemy(); // Add enemy update to animation loop
+        this.updateEnemy();
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -482,11 +690,11 @@ class Game {
         // Create crosshair container
         const crosshairContainer = document.createElement('div');
         crosshairContainer.style.position = 'absolute';
-        crosshairContainer.style.top = '40%'; // Move up from center
-        crosshairContainer.style.left = '55%'; // Move right from center
+        crosshairContainer.style.top = '40%';
+        crosshairContainer.style.left = '55%';
         crosshairContainer.style.transform = 'translate(-50%, -50%)';
-        crosshairContainer.style.width = '16px'; // Slightly smaller
-        crosshairContainer.style.height = '16px';
+        crosshairContainer.style.width = '24px';
+        crosshairContainer.style.height = '24px';
         crosshairContainer.style.pointerEvents = 'none';
 
         // Create crosshair
@@ -495,19 +703,28 @@ class Game {
         crosshair.style.height = '100%';
         crosshair.style.position = 'relative';
         
+        // Add circle
+        const circle = document.createElement('div');
+        circle.style.position = 'absolute';
+        circle.style.width = '100%';
+        circle.style.height = '100%';
+        circle.style.border = '2px solid rgba(255, 0, 0, 0.8)';
+        circle.style.borderRadius = '50%';
+        crosshair.appendChild(circle);
+        
         // Add crosshair lines
         const createLine = (vertical) => {
             const line = document.createElement('div');
             line.style.position = 'absolute';
-            line.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            line.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
             
             if (vertical) {
-                line.style.width = '1px'; // Thinner lines
+                line.style.width = '2px';
                 line.style.height = '100%';
                 line.style.left = '50%';
                 line.style.transform = 'translateX(-50%)';
             } else {
-                line.style.height = '1px'; // Thinner lines
+                line.style.height = '2px';
                 line.style.width = '100%';
                 line.style.top = '50%';
                 line.style.transform = 'translateY(-50%)';
@@ -524,18 +741,20 @@ class Game {
     }
 
     loadGunshotSound() {
-        // Create a short, synthesized gunshot sound
-        const duration = 0.15;
+        // Create a more powerful gunshot sound
+        const duration = 0.2;
         const sampleRate = this.audioContext.sampleRate;
         this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
         const data = this.gunshotBuffer.getChannelData(0);
         
-        // Generate a punchy, percussive sound
+        // Generate a punchier sound
         for (let i = 0; i < data.length; i++) {
             const t = i / sampleRate;
-            // Mix noise and a quick decay
-            const decay = Math.exp(-t * 30);
-            data[i] = (Math.random() * 2 - 1) * decay;
+            // Mix noise with a sharper attack and longer decay
+            const attack = Math.exp(-t * 100);
+            const decay = Math.exp(-t * 15);
+            const noise = Math.random() * 2 - 1;
+            data[i] = (noise * attack * 0.5 + noise * decay * 0.5) * 1.5;
         }
     }
 
@@ -545,12 +764,17 @@ class Game {
         const source = this.audioContext.createBufferSource();
         source.buffer = this.gunshotBuffer;
         
-        // Add a lowpass filter for more "boom"
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 2000;
+        // Add a lowpass filter for more bass
+        const lowpass = this.audioContext.createBiquadFilter();
+        lowpass.type = 'lowpass';
+        lowpass.frequency.value = 1000;
         
-        // Add some distortion for a sharper sound
+        // Add a highpass filter to keep some crack
+        const highpass = this.audioContext.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 200;
+        
+        // Add distortion for power
         const distortion = this.audioContext.createWaveShaper();
         function makeDistortionCurve(amount) {
             const k = amount;
@@ -558,21 +782,48 @@ class Game {
             const curve = new Float32Array(samples);
             for (let i = 0; i < samples; ++i) {
                 const x = (i * 2) / samples - 1;
-                curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+                curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 0.5) * 2;
             }
             return curve;
         }
         distortion.curve = makeDistortionCurve(50);
         
-        // Create volume control
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = 0.3; // Reduce volume to 30%
+        // Create convolver for echo effect
+        const convolver = this.audioContext.createConvolver();
+        const reverbTime = 1;
+        const rate = this.audioContext.sampleRate;
+        const length = rate * reverbTime;
+        const impulse = this.audioContext.createBuffer(2, length, rate);
+        const left = impulse.getChannelData(0);
+        const right = impulse.getChannelData(1);
+        
+        for (let i = 0; i < length; i++) {
+            const decay = Math.exp(-3 * i / length);
+            left[i] = (Math.random() * 2 - 1) * decay;
+            right[i] = (Math.random() * 2 - 1) * decay;
+        }
+        convolver.buffer = impulse;
+        
+        // Create volume controls
+        const mainGain = this.audioContext.createGain();
+        mainGain.gain.value = 0.4; // Main volume
+        
+        const reverbGain = this.audioContext.createGain();
+        reverbGain.gain.value = 0.2; // Echo volume
         
         // Connect the audio nodes
-        source.connect(filter);
-        filter.connect(distortion);
-        distortion.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        source.connect(distortion);
+        distortion.connect(lowpass);
+        lowpass.connect(highpass);
+        
+        // Main signal path
+        highpass.connect(mainGain);
+        mainGain.connect(this.audioContext.destination);
+        
+        // Reverb path
+        highpass.connect(convolver);
+        convolver.connect(reverbGain);
+        reverbGain.connect(this.audioContext.destination);
         
         // Play the sound
         source.start();
