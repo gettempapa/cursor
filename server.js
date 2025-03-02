@@ -12,7 +12,7 @@ const port = process.env.PORT || 8080;
 app.use(express.static('public'));
 
 // Serve node_modules (for Three.js)
-app.use('/node_modules', express.static(join(__dirname, 'node_modules')));
+app.use('/node_modules', express.static('node_modules'));
 
 // Handle all routes by serving index.html
 app.get('*', (req, res) => {
