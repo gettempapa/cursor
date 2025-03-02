@@ -69,24 +69,106 @@ if (!checkWebGL()) {
 
 // Create a simple tree
 function createTree(x, z) {
+    // Create a tree group to hold all parts
     const tree = new THREE.Group();
     
-    // Tree trunk (cylinder)
-    const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
-    const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 }); // Brown
+    // Randomize tree characteristics for variety
+    const scale = 2.5 + Math.random() * 1.5; // Tree size (much larger)
+    const trunkHeight = 5 * scale;
+    const trunkRadius = 0.4 * scale;
+    const foliageSize = 3.5 * scale;
+    
+    // Slight random rotation and tilt for natural look
+    const rotation = Math.random() * Math.PI * 2;
+    const tiltAmount = Math.random() * 0.05;
+    const tiltDirection = Math.random() * Math.PI * 2;
+    
+    // Tree trunk (cylinder) with better materials
+    const trunkGeometry = new THREE.CylinderGeometry(
+        trunkRadius * 0.7, // Narrower at top
+        trunkRadius,       // Wider at base
+        trunkHeight,
+        8
+    );
+    const trunkMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x5D4037,   // Rich brown
+        roughness: 0.8,
+        metalness: 0.1,
+        flatShading: true
+    });
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.y = 1; // Half the height up from ground
+    trunk.position.y = trunkHeight / 2; // Position based on trunk height
+    trunk.rotation.x = Math.sin(tiltDirection) * tiltAmount;
+    trunk.rotation.z = Math.cos(tiltDirection) * tiltAmount;
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
     tree.add(trunk);
     
-    // Tree foliage (cone)
-    const foliageGeometry = new THREE.ConeGeometry(1.2, 3, 8);
-    const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x2E8B57 }); // Forest green
-    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-    foliage.position.y = 2.5; // Position on top of trunk
-    tree.add(foliage);
+    // Create multiple layers of foliage for a more realistic look
+    const foliageLayers = 3 + Math.floor(Math.random() * 2); // 3-4 layers
+    const foliageColors = [
+        0x2E7D32, // Dark green
+        0x388E3C, // Medium green
+        0x43A047, // Light green
+        0x4CAF50  // Bright green
+    ];
     
-    // Set position
-    tree.position.set(x, 0, z);
+    for (let i = 0; i < foliageLayers; i++) {
+        // Layer size decreases as we go up
+        const layerScale = 1 - (i * 0.2);
+        const layerHeight = 3.5 * scale * layerScale;
+        const layerWidth = foliageSize * layerScale;
+        
+        // Randomize shape slightly - cone or hemisphere
+        let foliageGeometry;
+        const shape = Math.random();
+        if (shape > 0.7) { // 30% chance of rounded top
+            foliageGeometry = new THREE.SphereGeometry(layerWidth, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
+        } else { // 70% chance of conical
+            foliageGeometry = new THREE.ConeGeometry(layerWidth, layerHeight, 8);
+        }
+        
+        // Choose a color with slight variation
+        const colorIndex = Math.floor(Math.random() * foliageColors.length);
+        const baseColor = foliageColors[colorIndex];
+        // Add slight color variation
+        const color = new THREE.Color(baseColor);
+        color.r += (Math.random() * 0.1) - 0.05;
+        color.g += (Math.random() * 0.1) - 0.05;
+        color.b += (Math.random() * 0.1) - 0.05;
+        
+        const foliageMaterial = new THREE.MeshStandardMaterial({ 
+            color: color,
+            roughness: 0.8,
+            metalness: 0.1,
+            flatShading: true
+        });
+        
+        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+        
+        // Position each layer
+        const layerPosition = trunkHeight * 0.65 + (i * 1.2 * scale);
+        foliage.position.y = layerPosition;
+        
+        // Add slight offset for more natural appearance
+        foliage.position.x += (Math.random() - 0.5) * 0.5;
+        foliage.position.z += (Math.random() - 0.5) * 0.5;
+        
+        // Add slight rotation for variety
+        foliage.rotation.y = Math.random() * Math.PI;
+        
+        // Enable shadows
+        foliage.castShadow = true;
+        foliage.receiveShadow = true;
+        
+        tree.add(foliage);
+    }
+    
+    // Set position with slight random offset
+    const posX = x + (Math.random() - 0.5) * 2;
+    const posZ = z + (Math.random() - 0.5) * 2;
+    tree.position.set(posX, 0, posZ);
+    tree.rotation.y = rotation;
     
     // Add to scene and store in array
     scene.add(tree);
@@ -97,85 +179,92 @@ function createTree(x, z) {
 
 // Create a simple humanoid figure
 function createHumanoidMesh() {
-    // Create a group for the entire player
     const playerGroup = new THREE.Group();
     
-    // Create a group for the body parts that rotate with movement
-    playerBody = new THREE.Group();
-    playerGroup.add(playerBody);
-    
-    // Create a group for the parts that rotate with aiming
-    playerAimHelper = new THREE.Group();
-    // Adjust aim helper position to be at shoulder height, not head height
-    playerAimHelper.position.y = 1.2; 
-    playerGroup.add(playerAimHelper);
-    
+    // Body parts
     // Head (sphere)
     const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-    const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFCC99 });
+    const headMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700 }); // Yellow
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 1.75;
-    playerBody.add(head);
+    head.position.y = 1.5;
+    head.castShadow = true;
+    playerGroup.add(head);
     
-    // Helmet (slightly larger sphere with top cut off)
-    const helmetGeometry = new THREE.SphereGeometry(0.28, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const helmetMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray
+    // Helmet
+    const helmetGeometry = new THREE.SphereGeometry(0.27, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
+    const helmetMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 }); // Dark gray
     const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
-    helmet.position.y = 1.82; // Slightly above head
-    playerBody.add(helmet);
+    helmet.position.y = 1.55; // Slightly above head
+    helmet.castShadow = true;
+    playerGroup.add(helmet);
     
-    // Torso (box)
-    const torsoGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.25);
-    const torsoMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue for the uniform
-    const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
-    torso.position.y = 1.2;
-    playerBody.add(torso);
+    // Body (box)
+    const bodyGeometry = new THREE.BoxGeometry(0.5, 0.7, 0.25);
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 1.0;
+    body.castShadow = true;
+    playerGroup.add(body);
+    
+    // Left arm
+    const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const leftArmMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
+    leftArm.position.set(-0.325, 1.0, 0); // Left of body
+    leftArm.castShadow = true;
+    playerGroup.add(leftArm);
+    
+    // Right arm (will hold the gun)
+    const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const rightArmMaterial = new THREE.MeshStandardMaterial({ color: 0x1E88E5 }); // Blue
+    const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
+    rightArm.position.set(0.35, 1.0, 0); // Right of body, adjusted for aim helper
+    rightArm.castShadow = true;
+    playerAimHelper.add(rightArm); // Attach to aim helper so it moves with aiming
     
     // Legs
-    const legGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.2);
-    const legMaterial = new THREE.MeshBasicMaterial({ color: 0x006600 }); // Dark green for pants
+    const legGeometry = new THREE.BoxGeometry(0.2, 0.7, 0.2);
+    const legMaterial = new THREE.MeshStandardMaterial({ color: 0x212121 }); // Dark gray
     
+    // Left leg
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-    leftLeg.position.set(-0.15, 0.5, 0);
-    playerBody.add(leftLeg);
+    leftLeg.position.set(-0.15, 0.35, 0);
+    leftLeg.castShadow = true;
+    playerGroup.add(leftLeg);
     
+    // Right leg
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-    rightLeg.position.set(0.15, 0.5, 0);
-    playerBody.add(rightLeg);
+    rightLeg.position.set(0.15, 0.35, 0);
+    rightLeg.castShadow = true;
+    playerGroup.add(rightLeg);
     
-    // Left arm (stays with body)
-    const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    const armMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 });
+    // Add a gun to the right hand
+    const gunGroup = new THREE.Group();
     
-    const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-    leftArm.position.set(-0.35, 1.2, 0);
-    playerBody.add(leftArm);
+    // Gun body
+    const gunBodyGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.5);
+    const gunMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 }); // Dark gray
+    const gunBody = new THREE.Mesh(gunBodyGeometry, gunMaterial);
+    gunBody.castShadow = true;
+    gunGroup.add(gunBody);
     
-    // Right arm and gun (follows aim direction)
-    const rightArmGroup = new THREE.Group();
-    rightArmGroup.position.set(0.35, 0, 0); // Position relative to the aim helper
-    playerAimHelper.add(rightArmGroup);
+    // Gun handle
+    const gunHandleGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.08);
+    const gunHandle = new THREE.Mesh(gunHandleGeometry, gunMaterial);
+    gunHandle.position.set(0, -0.14, 0.05);
+    gunHandle.castShadow = true;
+    gunGroup.add(gunHandle);
     
-    const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-    rightArmGroup.add(rightArm);
+    // Position gun in hand
+    gunGroup.position.set(0, 0, -0.3);
+    rightArm.add(gunGroup);
     
-    // Add a small "gun" to the right hand
-    const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.3);
-    const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-    const gun = new THREE.Mesh(gunGeometry, gunMaterial);
-    gun.position.set(0, 0, -0.25);
-    rightArmGroup.add(gun);
-    
-    // Create a visible aim direction indicator (for debugging)
-    const aimIndicatorGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.3, 8);
-    const aimIndicatorMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const aimIndicator = new THREE.Mesh(aimIndicatorGeometry, aimIndicatorMaterial);
-    aimIndicator.rotation.x = Math.PI / 2; // Make it point forward (z-axis)
-    aimIndicator.position.z = -0.4; // Position it in front of the gun
-    rightArmGroup.add(aimIndicator);
-    
-    // Position the entire model so it stands on the ground
-    playerGroup.position.y = 0.1; // Small offset to avoid z-fighting with ground
+    // Add visual aim indicator
+    const aimGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.4);
+    const aimMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Red
+    const aimIndicator = new THREE.Mesh(aimGeometry, aimMaterial);
+    aimIndicator.position.set(0, 0, -0.4); // Position in front of gun
+    gunGroup.add(aimIndicator);
     
     return playerGroup;
 }
@@ -236,38 +325,57 @@ function init() {
     try {
         // Create the scene
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+        scene.background = new THREE.Color(0x8FBCD4); // Slightly darker sky blue
         
-        // Add some fog for depth
-        scene.fog = new THREE.Fog(0x87CEEB, 50, 100);
+        // Add some atmospheric fog for depth
+        scene.fog = new THREE.FogExp2(0x8FBCD4, 0.008);
         
         // Create camera
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         
-        // Create renderer
+        // Create renderer with improved settings
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
         
-        // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Improved lighting for forest
+        const ambientLight = new THREE.AmbientLight(0xCCDDFF, 0.4); // Blueish ambient light
         scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 1, 0.5);
+        // Main directional light (sun)
+        const directionalLight = new THREE.DirectionalLight(0xFFFFDD, 1.0);
+        directionalLight.position.set(10, 30, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -30;
+        directionalLight.shadow.camera.right = 30;
+        directionalLight.shadow.camera.top = 30;
+        directionalLight.shadow.camera.bottom = -30;
         scene.add(directionalLight);
         
-        // Create ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        // Softer fill light from opposite direction
+        const fillLight = new THREE.DirectionalLight(0x8899AA, 0.3);
+        fillLight.position.set(-5, 10, -5);
+        scene.add(fillLight);
+        
+        // Create ground with better texture
+        const groundGeometry = new THREE.PlaneGeometry(500, 500);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x3A9D23, // Green grass color
-            roughness: 0.8, 
-            metalness: 0.2 
+            color: 0x2D572C, // Darker grass
+            roughness: 0.9, 
+            metalness: 0.0,
+            flatShading: true
         });
         ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
         ground.position.y = 0;
+        ground.receiveShadow = true;
         scene.add(ground);
         
         // Create player
@@ -284,25 +392,47 @@ function init() {
         playerAimHelper.position.y = 1.2; // Position at shoulder height
         player.add(playerAimHelper);
         
-        // Add trees to the environment
-        // Place 8 trees in a symmetric pattern
-        createTree(5, 5);
-        createTree(-5, 5);
-        createTree(5, -5);
-        createTree(-5, -5);
-        createTree(10, 10);
-        createTree(-10, 10);
-        createTree(10, -10);
-        createTree(-10, -10);
+        // Create a dense forest by placing trees in a more natural pattern
         
-        // Add 20 random trees
-        for (let i = 0; i < 20; i++) {
-            const x = Math.random() * 80 - 40; // -40 to 40
-            const z = Math.random() * 80 - 40; // -40 to 40
+        // 1. A small clearing around the player spawn
+        const clearingRadius = 15;
+        
+        // 2. Dense forest area (100-150 trees)
+        const forestRadius = 120; // Larger radius for the forest
+        const treeCount = 120 + Math.floor(Math.random() * 30); // 120-150 trees
+        
+        // Create forest with clustered trees for a more natural look
+        for (let i = 0; i < treeCount; i++) {
+            // Use polar coordinates for more natural distribution
+            const angle = Math.random() * Math.PI * 2;
+            const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
+            const clusterOffset = Math.random() * 5 - 2.5; // Trees tend to grow in clusters
+            
+            // Convert to cartesian coordinates
+            const x = Math.cos(angle) * distance + clusterOffset;
+            const z = Math.sin(angle) * distance + clusterOffset;
             
             // Don't place trees too close to player spawn
-            if (Math.sqrt(x * x + z * z) > 8) {
+            const distFromOrigin = Math.sqrt(x * x + z * z);
+            if (distFromOrigin > clearingRadius) {
                 createTree(x, z);
+            }
+        }
+        
+        // 3. Add some tree clusters for visual interest
+        const clusterCount = 6;
+        for (let i = 0; i < clusterCount; i++) {
+            const clusterAngle = (i / clusterCount) * Math.PI * 2;
+            const clusterDist = clearingRadius + 15;
+            const clusterX = Math.cos(clusterAngle) * clusterDist;
+            const clusterZ = Math.sin(clusterAngle) * clusterDist;
+            
+            // Create 4-6 trees in a tight cluster
+            const treesInCluster = 4 + Math.floor(Math.random() * 3);
+            for (let j = 0; j < treesInCluster; j++) {
+                const offsetX = (Math.random() - 0.5) * 8;
+                const offsetZ = (Math.random() - 0.5) * 8;
+                createTree(clusterX + offsetX, clusterZ + offsetZ);
             }
         }
         
