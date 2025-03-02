@@ -48,11 +48,15 @@ export class Player {
     }
     
     setupCamera() {
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.cameraOffset = new THREE.Vector3(0, 2, 9.75);
+        this.defaultCameraDistance = 9.75;
+        this.cameraOffset = new THREE.Vector3(0, 2, this.defaultCameraDistance);
         this.cameraLookOffset = new THREE.Vector3(0, 1, 0);
+        this.currentZoomDistance = this.defaultCameraDistance;
+        this.minZoomDistance = this.defaultCameraDistance * 0.5;
+        this.maxZoomDistance = this.defaultCameraDistance * 1.5;
+        this.zoomSpeed = 0.0015;
         
-        // Set initial camera position
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.updateCamera();
     }
     
@@ -117,8 +121,6 @@ export class Player {
     }
     
     updateMovement(collisionSystem) {
-        if (this.isDead) return;
-        
         // Update vertical movement (jumping/falling)
         if (!this.isGrounded) {
             this.velocity.y += this.gravity;
@@ -131,20 +133,15 @@ export class Player {
             const collisionResult = collisionSystem.checkCollisions(newPosition);
             
             if (collisionResult.hasCollision) {
-                // Hit something from the side or bottom
                 this.velocity.y = 0;
-                this.isGrounded = true;
             } else {
-                // Update position, might be adjusted by collision detection
                 this.object.position.y = collisionResult.newY;
                 
-                // Check if landed on ground or crate
                 if (this.object.position.y <= 1) {
                     this.object.position.y = 1;
                     this.velocity.y = 0;
                     this.isGrounded = true;
                 } else if (collisionResult.newY !== newPosition.y) {
-                    // Landed on a crate or other surface
                     this.velocity.y = 0;
                     this.isGrounded = true;
                 }
@@ -206,31 +203,27 @@ export class Player {
     }
     
     updateCamera() {
-        if (!this.camera) return;
+        const idealOffset = this.cameraOffset.clone();
         
-        // Calculate camera position based on player position and offset
-        const cameraPosition = this.object.position.clone().add(this.cameraOffset);
-        this.camera.position.copy(cameraPosition);
+        const verticalRotationMatrix = new THREE.Matrix4();
+        verticalRotationMatrix.makeRotationX(this.verticalAngle);
+        idealOffset.applyMatrix4(verticalRotationMatrix);
         
-        // Calculate look target
+        idealOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.object.rotation.y);
+        const idealPosition = this.object.position.clone().add(idealOffset);
+        
+        idealPosition.y = Math.max(0.5, idealPosition.y);
+        
+        this.camera.position.copy(idealPosition);
+        
         const lookTarget = this.object.position.clone().add(this.cameraLookOffset);
         this.camera.lookAt(lookTarget);
     }
     
     handleMouseMovement(movementX, movementY) {
-        if (this.isDead) return;
-        
-        // Rotate player horizontally
         this.object.rotation.y -= movementX * this.rotationSpeed;
-        
-        // Update vertical angle for camera
-        this.verticalAngle = Math.max(
-            this.minVerticalAngle,
-            Math.min(this.maxVerticalAngle, this.verticalAngle - movementY * this.rotationSpeed)
-        );
-        
-        // Update camera position
-        this.updateCamera();
+        this.verticalAngle -= movementY * this.rotationSpeed;
+        this.verticalAngle = Math.max(this.minVerticalAngle, Math.min(this.maxVerticalAngle, this.verticalAngle));
     }
     
     handleZoom(deltaY) {
@@ -240,7 +233,6 @@ export class Player {
             Math.min(this.maxZoomDistance, this.currentZoomDistance)
         );
         this.cameraOffset.z = this.currentZoomDistance;
-        this.updateCamera();
     }
     
     takeDamage(amount) {
