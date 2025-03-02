@@ -1,270 +1,105 @@
 class Game {
     constructor() {
-        this.setupCore();
-        this.createEnvironment();
-        this.createPlayer();
-        this.createDinosaur();
-        this.setupControls();
+        // Setup Three.js
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('game-container').appendChild(this.renderer.domElement);
+        
+        // Add basic light
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        
+        // Create ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshBasicMaterial({ color: 0x3a5f0b })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        this.scene.add(ground);
+        
+        // Create player
+        this.player = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 2, 1),
+            new THREE.MeshBasicMaterial({ color: 0x567d46 })
+        );
+        this.scene.add(this.player);
+        
+        // Create dinosaur
+        this.dinosaur = new THREE.Mesh(
+            new THREE.BoxGeometry(4, 4, 6),
+            new THREE.MeshBasicMaterial({ color: 0x8b4513 })
+        );
+        this.dinosaur.position.set(20, 2, 20);
+        this.scene.add(this.dinosaur);
+        
+        // Player state
+        this.position = new THREE.Vector3();
+        this.rotation = new THREE.Vector2(); // x: vertical, y: horizontal
+        
+        // Setup controls
+        document.addEventListener('keydown', e => this.handleKey(e.code, true));
+        document.addEventListener('keyup', e => this.handleKey(e.code, false));
+        
+        document.addEventListener('click', () => {
+            document.getElementById('game-container').requestPointerLock();
+        });
+        
+        document.addEventListener('mousemove', e => {
+            if (document.pointerLockElement) {
+                this.rotation.y -= e.movementX * 0.002;
+                this.rotation.x -= e.movementY * 0.002;
+                this.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.rotation.x));
+            }
+        });
         
         // Start game loop
-        this.lastTime = performance.now();
         this.animate();
     }
     
-    setupCore() {
-        // Basic Three.js setup
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        
-        // Add to DOM
-        this.container = document.getElementById('game-container');
-        this.container.appendChild(this.renderer.domElement);
-        
-        // Basic lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
-        
-        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        sunLight.position.set(50, 100, 50);
-        sunLight.castShadow = true;
-        this.scene.add(sunLight);
-        
-        // Player state
-        this.playerState = {
-            position: new THREE.Vector3(0, 0, 0),
-            rotation: new THREE.Euler(0, 0, 0),
-            moveSpeed: 0.15,
-            moving: false
-        };
-        
-        // Standard TPS camera settings
-        this.cameraRotation = new THREE.Vector2(0, 0); // x: vertical, y: horizontal
-    }
-    
-    createEnvironment() {
-        // Ground
-        const groundGeo = new THREE.PlaneGeometry(200, 200);
-        const grassTexture = new THREE.TextureLoader().load('textures/grass.jpg');
-        grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
-        grassTexture.repeat.set(50, 50);
-        
-        const groundMat = new THREE.MeshStandardMaterial({
-            map: grassTexture,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-        
-        // Add trees
-        for (let i = 0; i < 50; i++) {
-            const tree = this.createTree();
-            tree.position.set(
-                Math.random() * 180 - 90,
-                0,
-                Math.random() * 180 - 90
-            );
-            this.scene.add(tree);
+    handleKey(code, pressed) {
+        switch(code) {
+            case 'KeyW': this.forward = pressed; break;
+            case 'KeyS': this.backward = pressed; break;
+            case 'KeyA': this.left = pressed; break;
+            case 'KeyD': this.right = pressed; break;
         }
     }
     
-    createTree() {
-        const trunk = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.5, 0.8, 5),
-            new THREE.MeshStandardMaterial({ color: 0x4d2926 })
-        );
-        trunk.castShadow = true;
+    update() {
+        // Move player
+        const speed = 0.15;
+        const direction = new THREE.Vector3();
         
-        const leaves = new THREE.Mesh(
-            new THREE.ConeGeometry(3, 6, 8),
-            new THREE.MeshStandardMaterial({ color: 0x0d5302 })
-        );
-        leaves.position.y = 5;
-        leaves.castShadow = true;
+        if (this.forward) direction.z -= 1;
+        if (this.backward) direction.z += 1;
+        if (this.left) direction.x -= 1;
+        if (this.right) direction.x += 1;
         
-        const tree = new THREE.Group();
-        tree.add(trunk);
-        tree.add(leaves);
-        return tree;
-    }
-    
-    createPlayer() {
-        // Navy SEAL model
-        const playerGeo = new THREE.BoxGeometry(1, 2, 1);
-        const playerMat = new THREE.MeshStandardMaterial({ color: 0x567d46 }); // Camo green
-        this.player = new THREE.Mesh(playerGeo, playerMat);
-        this.player.castShadow = true;
-        this.scene.add(this.player);
-        
-        // Rifle
-        const rifleGroup = new THREE.Group();
-        const rifleBody = new THREE.Mesh(
-            new THREE.BoxGeometry(0.1, 0.2, 1),
-            new THREE.MeshStandardMaterial({ color: 0x2b2b2b })
-        );
-        rifleGroup.add(rifleBody);
-        
-        const scope = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.05, 0.05, 0.2),
-            new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
-        );
-        scope.rotation.z = Math.PI / 2;
-        scope.position.y = 0.1;
-        rifleGroup.add(scope);
-        
-        rifleGroup.position.set(0.4, 0.5, 0.3);
-        this.rifle = rifleGroup;
-        this.player.add(rifleGroup);
-    }
-    
-    createDinosaur() {
-        const dinoGroup = new THREE.Group();
-        
-        // Body
-        const body = new THREE.Mesh(
-            new THREE.BoxGeometry(4, 3, 6),
-            new THREE.MeshStandardMaterial({ color: 0x5a4d41 })
-        );
-        dinoGroup.add(body);
-        
-        // Head
-        const head = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 2, 3),
-            new THREE.MeshStandardMaterial({ color: 0x5a4d41 })
-        );
-        head.position.set(0, 1.5, 3);
-        dinoGroup.add(head);
-        
-        // Legs
-        const legGeo = new THREE.BoxGeometry(1, 3, 1);
-        const legMat = new THREE.MeshStandardMaterial({ color: 0x5a4d41 });
-        
-        [-1.5, 1.5].forEach(x => {
-            [-2, 2].forEach(z => {
-                const leg = new THREE.Mesh(legGeo, legMat);
-                leg.position.set(x, -1.5, z);
-                dinoGroup.add(leg);
-            });
-        });
-        
-        dinoGroup.position.set(20, 1.5, 20);
-        dinoGroup.castShadow = true;
-        this.dinosaur = dinoGroup;
-        this.scene.add(dinoGroup);
-    }
-    
-    setupControls() {
-        // Movement state
-        this.moveState = {
-            forward: false,
-            backward: false,
-            left: false,
-            right: false
-        };
-        
-        // WASD controls
-        document.addEventListener('keydown', (e) => {
-            switch (e.code) {
-                case 'KeyW': this.moveState.forward = true; break;
-                case 'KeyS': this.moveState.backward = true; break;
-                case 'KeyA': this.moveState.left = true; break;
-                case 'KeyD': this.moveState.right = true; break;
-            }
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            switch(e.code) {
-                case 'KeyW': this.moveState.forward = false; break;
-                case 'KeyS': this.moveState.backward = false; break;
-                case 'KeyA': this.moveState.left = false; break;
-                case 'KeyD': this.moveState.right = false; break;
-            }
-        });
-        
-        // Mouse controls
-        this.container.addEventListener('click', () => {
-            this.container.requestPointerLock();
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement === this.container) {
-                // Standard TPS camera rotation
-                this.cameraRotation.y -= e.movementX * 0.002; // Horizontal
-                this.cameraRotation.x -= e.movementY * 0.002; // Vertical
-                
-                // Clamp vertical rotation to prevent flipping
-                this.cameraRotation.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, this.cameraRotation.x));
-                
-                // Update player rotation to match camera
-                this.playerState.rotation.y = this.cameraRotation.y;
-            }
-        });
-    }
-    
-    updatePlayerCamera() {
-        // Standard third-person shooter camera positioning
-        const cameraOffset = new THREE.Vector3(0, 1.5, 4); // Slightly above and behind player
-        
-        // Calculate camera position based on player rotation
-        const rotatedOffset = cameraOffset.clone();
-        rotatedOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), this.cameraRotation.x);
-        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraRotation.y);
-        
-        // Position camera relative to player
-        const targetPosition = this.playerState.position.clone();
-        targetPosition.y += 1.5; // Eye level
-        this.camera.position.copy(targetPosition).sub(rotatedOffset);
-        
-        // Look at player
-        this.camera.lookAt(targetPosition);
-    }
-    
-    updatePlayer(deltaTime) {
-        const direction = new THREE.Vector3(0, 0, 0);
-        
-        if (this.moveState.forward) direction.z -= 1;
-        if (this.moveState.backward) direction.z += 1;
-        if (this.moveState.left) direction.x -= 1;
-        if (this.moveState.right) direction.x += 1;
-        
-        this.playerState.moving = direction.length() > 0;
-        
-        if (this.playerState.moving) {
+        if (direction.length() > 0) {
             direction.normalize();
-            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
-            direction.multiplyScalar(this.playerState.moveSpeed * deltaTime * 60);
-            
-            this.playerState.position.add(direction);
-            this.player.position.copy(this.playerState.position);
-            this.player.rotation.y = this.playerState.rotation.y;
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.rotation.y);
+            this.position.add(direction.multiplyScalar(speed));
         }
+        
+        // Update player
+        this.player.position.copy(this.position);
+        this.player.rotation.y = this.rotation.y;
+        
+        // Update camera
+        const cameraOffset = new THREE.Vector3(0, 2, 5);
+        cameraOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), this.rotation.x);
+        cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.rotation.y);
+        
+        this.camera.position.copy(this.position).add(new THREE.Vector3(0, 1.5, 0)).sub(cameraOffset);
+        this.camera.lookAt(this.position.clone().add(new THREE.Vector3(0, 1.5, 0)));
     }
     
     animate() {
-        requestAnimationFrame(this.animate.bind(this));
-        
-        const now = performance.now();
-        const deltaTime = Math.min((now - this.lastTime) / 1000, 0.1);
-        this.lastTime = now;
-        
-        this.updatePlayer(deltaTime);
-        this.updatePlayerCamera();
-        
+        requestAnimationFrame(() => this.animate());
+        this.update();
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Create game instance when page loads
-window.addEventListener('DOMContentLoaded', () => {
-    try {
-        window.game = new Game();
-    } catch (error) {
-        console.error('Failed to start game:', error);
-    }
-}); 
+new Game(); 
