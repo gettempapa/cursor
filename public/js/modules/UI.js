@@ -84,6 +84,7 @@ export class UI {
             <div style="margin-bottom: 20px; color: #ff0; text-align: center;">WEAPON SELECT</div>
             <div style="margin: 10px 0; cursor: pointer;" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Digit1'}))">1. Rifle</div>
             <div style="margin: 10px 0; cursor: pointer;" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Digit2'}))">2. Pistol</div>
+            <div style="margin: 10px 0; cursor: pointer;" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Digit3'}))">3. Rocket Launcher</div>
         `;
         
         this.container.appendChild(this.weaponMenuContainer);

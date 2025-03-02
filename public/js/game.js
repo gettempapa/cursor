@@ -92,6 +92,13 @@ export class Game {
                         this.container.requestPointerLock();
                     }
                     break;
+                case 'Digit3':
+                    if (this.ui.weaponMenuContainer.style.display === 'block') {
+                        this.player.weaponSystem.switchWeapon('rocketLauncher');
+                        this.ui.toggleWeaponMenu(false);
+                        this.container.requestPointerLock();
+                    }
+                    break;
             }
         });
         
