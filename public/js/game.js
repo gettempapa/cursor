@@ -1,4 +1,5 @@
-import * as THREE from 'three';
+// Direct import with URL - no import map needed
+import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
 
 class Game {
     constructor() {
