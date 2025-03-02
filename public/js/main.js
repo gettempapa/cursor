@@ -11,6 +11,13 @@ let lastShootTime = 0;
 const shootCooldown = 250; // milliseconds between shots
 const trees = []; // Array to store tree objects
 
+// Audio system
+let audioListener;
+let gunshotSound;
+let gunshotSoundLoaded = false;
+let ricochetSound;
+let reloadSound;
+
 // Movement variables
 const keys = {};
 const velocity = new THREE.Vector3();
@@ -642,6 +649,62 @@ function init() {
         // Create camera
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         
+        // Set up audio system
+        audioListener = new THREE.AudioListener();
+        camera.add(audioListener);
+        
+        // Load gunshot sound - powerful rifle sound
+        gunshotSound = new THREE.Audio(audioListener);
+        const audioLoader = new THREE.AudioLoader();
+        
+        // Load main gunshot sound
+        audioLoader.load(
+            'https://freesound.org/data/previews/642/642315_7177907-lq.mp3', // Powerful rifle shot
+            function(buffer) {
+                gunshotSound.setBuffer(buffer);
+                gunshotSound.setVolume(0.8); // Slightly less than full volume
+                gunshotSound.setPlaybackRate(0.9); // Slightly slowed for more bass
+                gunshotSoundLoaded = true;
+                console.log('Gunshot sound loaded!');
+            },
+            function(xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function(err) {
+                console.error('Error loading gunshot sound:', err);
+                // Fallback to create an oscillator sound if loading fails
+                createFallbackGunshotSound();
+            }
+        );
+        
+        // Load ricochet sound for bullet impact
+        ricochetSound = new THREE.Audio(audioListener);
+        audioLoader.load(
+            'https://freesound.org/data/previews/420/420368_7383104-lq.mp3',
+            function(buffer) {
+                ricochetSound.setBuffer(buffer);
+                ricochetSound.setVolume(0.5);
+            },
+            null,
+            function(err) {
+                console.error('Error loading ricochet sound:', err);
+            }
+        );
+        
+        // Load reload sound for potential reload mechanic
+        reloadSound = new THREE.Audio(audioListener);
+        audioLoader.load(
+            'https://freesound.org/data/previews/522/522396_9468981-lq.mp3',
+            function(buffer) {
+                reloadSound.setBuffer(buffer);
+                reloadSound.setVolume(0.6);
+            },
+            null,
+            function(err) {
+                console.error('Error loading reload sound:', err);
+            }
+        );
+
         // Create renderer with improved settings
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -720,6 +783,25 @@ function shoot() {
     
     try {
         console.log('Shooting!');
+        
+        // Play the badass gunshot sound
+        if (gunshotSoundLoaded) {
+            // Stop and reset if it's already playing
+            if (gunshotSound.isPlaying) {
+                gunshotSound.stop();
+            }
+            // Clone the sound for overlapping shots
+            const gunshotInstance = gunshotSound.clone();
+            gunshotInstance.play();
+            
+            // Add slight random variation to each shot for realism
+            gunshotInstance.setPlaybackRate(0.95 + Math.random() * 0.1);
+            
+            // Remove the sound instance after it finishes
+            setTimeout(() => {
+                gunshotInstance.disconnect();
+            }, 2000);
+        }
         
         // Create bullet
         const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
@@ -967,4 +1049,52 @@ function animate() {
     updateBullets();
     
     renderer.render(scene, camera);
+}
+
+// Create a fallback gunshot sound using oscillator if loading fails
+function createFallbackGunshotSound() {
+    console.log('Creating fallback gunshot sound');
+    gunshotSound = new THREE.Audio(audioListener);
+    
+    // Create a buffer for the sound
+    const context = audioListener.context;
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    
+    // Create a short, harsh sound
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(150, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(20, context.currentTime + 0.2);
+    
+    // Shape the sound with gain
+    gainNode.gain.setValueAtTime(1, context.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
+    
+    // Connect nodes
+    oscillator.connect(gainNode);
+    
+    // Create a buffer from the sound
+    const recordingLength = context.sampleRate * 0.3; // 300ms sound
+    const recordingBuffer = context.createBuffer(1, recordingLength, context.sampleRate);
+    const recordingData = recordingBuffer.getChannelData(0);
+    
+    // Fill buffer
+    oscillator.start();
+    const startTime = context.currentTime;
+    for (let i = 0; i < recordingLength; i++) {
+        const t = i / context.sampleRate;
+        if (t < 0.01) { // Attack
+            recordingData[i] = t * 100 * Math.random();
+        } else if (t < 0.1) { // Body
+            recordingData[i] = (1 - (t - 0.01) * 10) * 0.5 * Math.random();
+        } else { // Decay
+            recordingData[i] = (1 - t) * 0.1 * Math.random();
+        }
+    }
+    oscillator.stop(startTime + 0.3);
+    
+    // Set the buffer to our audio
+    gunshotSound.setBuffer(recordingBuffer);
+    gunshotSound.setVolume(0.8);
+    gunshotSoundLoaded = true;
 } 
