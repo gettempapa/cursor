@@ -33,6 +33,180 @@ const Constants = {
     }
 };
 
+class Enemy {
+    constructor(scene, position) {
+        this.scene = scene;
+        this.position = position.clone();
+        this.rotation = new THREE.Euler(0, Math.random() * Math.PI * 2, 0, 'YXZ');
+        this.moveSpeed = Constants.PLAYER.MOVE_SPEED * 0.6; // Slightly slower than player
+        this.lastShot = 0;
+        this.shotCooldown = 2000; // 2 seconds between shots
+        this.model = this.createEnemyModel();
+        this.targetPosition = this.getNewTargetPosition();
+        this.updateInterval = Math.random() * 2000 + 3000; // Random update interval between 3-5 seconds
+        this.lastUpdate = performance.now();
+    }
+
+    createEnemyModel() {
+        const enemy = new THREE.Group();
+
+        // Body (red to distinguish from player)
+        const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 }); 
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 0.4;
+        enemy.add(body);
+
+        // Head
+        const headGeometry = new THREE.BoxGeometry(0.35, 0.32, 0.35);
+        const headMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+        const head = new THREE.Mesh(headGeometry, headMaterial);
+        head.position.y = 1;
+        enemy.add(head);
+
+        // Face
+        const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+        const faceMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        const face = new THREE.Mesh(faceGeometry, faceMaterial);
+        face.position.set(0, 0.95, 0.05);
+        enemy.add(face);
+
+        // Legs
+        const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+        
+        const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+        leftLeg.position.set(0.15, -0.3, 0);
+        enemy.add(leftLeg);
+        
+        const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+        rightLeg.position.set(-0.15, -0.3, 0);
+        enemy.add(rightLeg);
+
+        // Arms
+        const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+        const armMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+        
+        const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+        leftArm.position.set(0.35, 0.4, 0);
+        enemy.add(leftArm);
+        
+        const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+        rightArm.position.set(-0.35, 0.4, 0);
+        enemy.add(rightArm);
+
+        // Add rifle
+        const rifle = this.createEnemyRifle();
+        enemy.add(rifle);
+
+        // Position the enemy
+        enemy.position.copy(this.position);
+        enemy.rotation.copy(this.rotation);
+
+        return enemy;
+    }
+
+    createEnemyRifle() {
+        const rifle = new THREE.Group();
+        
+        // Rifle body
+        const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8);
+        const rifleMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
+        rifle.add(rifleBody);
+        
+        // Rifle barrel
+        const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 8);
+        const barrel = new THREE.Mesh(barrelGeometry, rifleMaterial);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.z = 0.6;
+        rifle.add(barrel);
+        
+        // Rifle stock
+        const stockGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.4);
+        const stockMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+        const stock = new THREE.Mesh(stockGeometry, stockMaterial);
+        stock.position.z = -0.4;
+        rifle.add(stock);
+        
+        // Position rifle
+        rifle.position.set(0.25, 0.4, 0.1);
+        
+        return rifle;
+    }
+
+    getNewTargetPosition() {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 10 + Math.random() * 20;
+        return new THREE.Vector3(
+            Math.cos(angle) * distance,
+            1,
+            Math.sin(angle) * distance
+        );
+    }
+
+    update(deltaTime, playerPosition) {
+        const now = performance.now();
+
+        // Update movement
+        const directionToTarget = this.targetPosition.clone().sub(this.position);
+        const distanceToTarget = directionToTarget.length();
+
+        // Get new target if we've reached the current one
+        if (distanceToTarget < 0.5 || now - this.lastUpdate > this.updateInterval) {
+            this.targetPosition = this.getNewTargetPosition();
+            this.lastUpdate = now;
+        }
+
+        // Move towards target
+        if (distanceToTarget > 0.1) {
+            directionToTarget.normalize();
+            const movement = directionToTarget.multiplyScalar(this.moveSpeed * deltaTime * 60);
+            this.position.add(movement);
+            
+            // Update rotation to face movement direction
+            this.rotation.y = Math.atan2(directionToTarget.x, directionToTarget.z);
+        }
+
+        // Update model position and rotation
+        this.model.position.copy(this.position);
+        this.model.rotation.copy(this.rotation);
+
+        // Random shooting
+        if (now - this.lastShot > this.shotCooldown && Math.random() < 0.1) {
+            this.shoot();
+            this.lastShot = now;
+        }
+    }
+
+    shoot() {
+        // Create muzzle flash
+        const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
+        const muzzleMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00,
+            transparent: true,
+            opacity: 0.8
+        });
+        const muzzleFlash = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
+        
+        // Position muzzle flash at rifle tip
+        const rifle = this.model.children.find(child => child.children && child.children.length === 3);
+        if (rifle) {
+            muzzleFlash.position.copy(rifle.position);
+            muzzleFlash.position.z += 0.9;
+            muzzleFlash.rotation.x = Math.PI / 2;
+            this.model.add(muzzleFlash);
+            
+            // Remove muzzle flash after short delay
+            setTimeout(() => {
+                this.model.remove(muzzleFlash);
+                muzzleFlash.geometry.dispose();
+                muzzleFlash.material.dispose();
+            }, 50);
+        }
+    }
+}
+
 class Game {
     constructor() {
         // Enhanced debug mode
@@ -111,6 +285,31 @@ class Game {
         // Hide loading screen
         const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen) loadingScreen.style.display = 'none';
+
+        // Add these properties to the Game class constructor
+        this.enemies = [];
+        this.maxEnemies = 5;
+
+        // Add this method to the Game class
+        this.createEnemy = () => {
+            // Create enemy at random position
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 20 + Math.random() * 20; // Spawn 20-40 units away
+            const position = new THREE.Vector3(
+                Math.cos(angle) * distance,
+                1,
+                Math.sin(angle) * distance
+            );
+            
+            const enemy = new Enemy(this.scene, position);
+            this.enemies.push(enemy);
+            this.scene.add(enemy.model);
+        };
+
+        // Add this to the end of the initializeGameComponents method
+        for (let i = 0; i < this.maxEnemies; i++) {
+            this.createEnemy();
+        }
     }
     
     setupCore() {
@@ -1005,6 +1204,12 @@ class Game {
             right: false,
             jump: false
         };
+
+        // Initialize camera angles
+        this.cameraAngles = {
+            vertical: 0,
+            horizontal: 0
+        };
         
         // Track mouse state for shooting
         this.mouseDown = false;
@@ -1015,7 +1220,7 @@ class Game {
                 case 'KeyS': this.moveState.backward = true; break;
                 case 'KeyA': this.moveState.left = true; break;
                 case 'KeyD': this.moveState.right = true; break;
-                case 'Space': this.jump(); break; // Trigger jump on spacebar
+                case 'Space': this.jump(); break;
             }
         });
         
@@ -1035,54 +1240,56 @@ class Game {
         
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
-                // Rotate player with mouse
+                // Update horizontal rotation (player turning)
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
-                // Limit up/down camera movement
-                const verticalLook = e.movementY * 0.002;
-                // Adjust height slightly based on vertical look, but keep it constrained
-                this.cameraOffset.y = Math.max(1.4, Math.min(2.2, this.cameraOffset.y - verticalLook));
+                // Update vertical camera angle with constraints
+                this.cameraAngles.vertical = Math.max(
+                    -Math.PI / 3, // Look up limit
+                    Math.min(
+                        Math.PI / 6, // Look down limit
+                        this.cameraAngles.vertical + e.movementY * 0.002
+                    )
+                );
             }
         });
         
         // Shooting controls
         document.addEventListener('mousedown', (e) => {
-            if (e.button === 0) { // Left click
+            if (e.button === 0 && document.pointerLockElement === this.container) {
+                this.mouseDown = true;
                 this.playerState.shooting = true;
                 this.shoot();
             }
         });
         
         document.addEventListener('mouseup', (e) => {
-            if (e.button === 0) { // Left click release
+            if (e.button === 0) {
+                this.mouseDown = false;
                 this.playerState.shooting = false;
             }
         });
     }
     
     shoot() {
-        // Check cooldown
+        // Check cooldown and pointer lock
         const now = performance.now();
-        if (now - this.playerState.lastShot < this.playerState.shotCooldown) {
+        if (now - this.playerState.lastShot < this.playerState.shotCooldown || 
+            document.pointerLockElement !== this.container) {
             return;
         }
         
         this.playerState.lastShot = now;
         
-        // Play programmatically generated sound only if it's properly initialized
+        // Play rifle sound
         if (this.audioInitialized && this.rifleSound && this.rifleSound.buffer) {
             try {
-                // Clone for overlapping shots
                 const soundClone = this.rifleSound.clone();
-                
-                // Add slight random pitch variation for realism
-                const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9-1.1
+                const pitchVariation = 0.9 + Math.random() * 0.2;
                 soundClone.setPlaybackRate(pitchVariation);
-                
                 soundClone.play();
             } catch (audioError) {
                 console.warn('Error playing rifle sound:', audioError);
-                // Continue even if sound fails - just won't hear it
             }
         }
         
@@ -1135,58 +1342,57 @@ class Game {
     }
     
     updatePlayerCamera() {
-        // Position camera with offset to keep player in the lower left
+        // Calculate camera position based on player position and offset
         const cameraOffset = this.cameraOffset.clone();
+        
+        // Apply vertical rotation to camera offset
+        const verticalRotationMatrix = new THREE.Matrix4();
+        verticalRotationMatrix.makeRotationX(this.cameraAngles.vertical);
+        cameraOffset.applyMatrix4(verticalRotationMatrix);
+        
+        // Apply horizontal rotation (player's rotation)
         cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
         
+        // Set camera position
         const targetPosition = this.playerState.position.clone().add(cameraOffset);
         this.camera.position.copy(targetPosition);
         
-        // Calculate a target point in front of the player (where the crosshair is)
+        // Calculate look target (where the crosshair points)
         const forwardDirection = new THREE.Vector3(0, 0, -1);
-        forwardDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerState.rotation.y);
-        forwardDirection.multiplyScalar(20); // Look 20 units ahead
+        forwardDirection.applyEuler(new THREE.Euler(
+            this.cameraAngles.vertical,
+            this.playerState.rotation.y,
+            0,
+            'YXZ'
+        ));
         
-        // Create the look target in front of the player
-        const lookTarget = this.playerState.position.clone().add(forwardDirection);
-        lookTarget.y += 1.0; // Adjust height to match player's eye level
+        // Look target is 20 units ahead in the direction we're facing
+        const lookTarget = this.playerState.position.clone();
+        lookTarget.add(forwardDirection.multiplyScalar(20));
         
-        // Add a slight offset to the look target to shift the player left and down in the view
-        lookTarget.x += 0.5; // Shift the target right to move player left in view
-        lookTarget.y -= 0.3; // Shift the target up to move player down in view
-        
-        // Have the camera look at this target (this is where the crosshair is)
+        // Make the camera look at the target
         this.camera.lookAt(lookTarget);
         
-        // MODIFIED rifle aiming to ensure it points forward
+        // Update rifle aim to match camera direction
         this.updateRifleAim(lookTarget);
     }
     
     updateRifleAim(lookTarget) {
         if (!this.rifle) return;
         
-        // Get the player's arms for positioning
-        const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
-        const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
+        // Calculate aim direction from player to look target
+        const aimDirection = lookTarget.clone().sub(this.playerState.position);
+        aimDirection.normalize();
         
-        // MODIFIED: Position rifle to aim forward rather than at camera
-        // Get the player's forward direction
-        const playerForward = new THREE.Vector3(0, 0, -1);
-        playerForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
+        // Calculate rifle angles based on aim direction
+        const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
+        rifleRotation.y = Math.atan2(aimDirection.x, aimDirection.z);
+        rifleRotation.x = -Math.asin(aimDirection.y);
         
-        // Aim slightly up from horizontal
-        const aimElevation = Math.PI * -0.03; // Slight upward angle
+        // Apply rotations to rifle
+        this.rifle.rotation.copy(rifleRotation);
         
-        // Set rifle to point along the player's forward vector with slight elevation
-        this.rifle.rotation.y = 0; // Reset rotation
-        
-        // Calculate vertical aim
-        const verticalAimFactor = this.cameraOffset.y - 1.8; // Based on camera height
-        const pitchAngle = aimElevation + (verticalAimFactor * 0.5); // Adjust pitch based on camera height
-        
-        this.rifle.rotation.x = pitchAngle;
-        
-        // Add a subtle weapon sway based on movement
+        // Add weapon sway during movement
         if (this.playerState.moving) {
             const swayAmount = 0.03;
             const swaySpeed = 4;
@@ -1199,7 +1405,10 @@ class Game {
             this.rifle.position.y = 0.4;
         }
         
-        // Adjust arms to hold the rifle
+        // Update arm rotations to match rifle
+        const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
+        const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
+        
         if (rightArm && leftArm) {
             rightArm.rotation.x = this.rifle.rotation.x * 0.7;
             rightArm.rotation.y = this.rifle.rotation.y * 0.5;
@@ -1242,6 +1451,11 @@ class Game {
         try {
             // Update player with delta time
             this.updatePlayer(this.deltaTime);
+            
+            // Update enemies
+            this.enemies.forEach(enemy => {
+                enemy.update(this.deltaTime, this.playerState.position);
+            });
             
             // Render scene
             this.renderer.render(this.scene, this.camera);
