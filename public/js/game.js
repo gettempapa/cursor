@@ -2,14 +2,13 @@ class JungleHuntGame {
     constructor() {
         this.setupScene();
         this.setupPlayer();
-        this.setupDinosaurs();
         this.setupControls();
         this.startGameLoop();
     }
 
     setupScene() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
@@ -23,44 +22,18 @@ class JungleHuntGame {
         directionalLight.castShadow = true;
         this.scene.add(directionalLight);
 
-        // Ground
-        const groundTexture = new THREE.TextureLoader().load('textures/jungle_ground.jpg');
-        groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-        groundTexture.repeat.set(50, 50);
+        // Snowy mountain
+        const mountainTexture = new THREE.TextureLoader().load('textures/snow.jpg');
+        mountainTexture.wrapS = mountainTexture.wrapT = THREE.RepeatWrapping;
+        mountainTexture.repeat.set(100, 100);
 
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(500, 500),
-            new THREE.MeshStandardMaterial({ map: groundTexture })
+        const mountain = new THREE.Mesh(
+            new THREE.CylinderGeometry(4000, 4000, 8000, 32, 1, true),
+            new THREE.MeshStandardMaterial({ map: mountainTexture, side: THREE.DoubleSide })
         );
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-
-        // Trees
-        this.addTrees(100);
-    }
-
-    addTrees(count) {
-        for (let i = 0; i < count; i++) {
-            const tree = new THREE.Group();
-            const trunk = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.5, 0.5, 5),
-                new THREE.MeshStandardMaterial({ color: 0x8b5a2b })
-            );
-            trunk.castShadow = true;
-            tree.add(trunk);
-
-            const leaves = new THREE.Mesh(
-                new THREE.ConeGeometry(2, 5, 8),
-                new THREE.MeshStandardMaterial({ color: 0x228b22 })
-            );
-            leaves.position.y = 3;
-            leaves.castShadow = true;
-            tree.add(leaves);
-
-            tree.position.set(Math.random() * 400 - 200, 0, Math.random() * 400 - 200);
-            this.scene.add(tree);
-        }
+        mountain.rotation.x = Math.PI / 2;
+        mountain.receiveShadow = true;
+        this.scene.add(mountain);
     }
 
     setupPlayer() {
@@ -69,24 +42,14 @@ class JungleHuntGame {
             new THREE.MeshStandardMaterial({ color: 0x567d46 })
         );
         this.player.castShadow = true;
+        this.player.position.set(0, 4000, 0); // Start at the top of the mountain
         this.scene.add(this.player);
 
+        this.velocity = new THREE.Vector3();
+        this.acceleration = new THREE.Vector3();
         this.moveInput = new THREE.Vector2();
         this.yaw = 0;
         this.pitch = 0;
-    }
-
-    setupDinosaurs() {
-        this.dinosaurs = Array.from({ length: 10 }, () => {
-            const dino = new THREE.Mesh(
-                new THREE.BoxGeometry(4, 4, 6),
-                new THREE.MeshStandardMaterial({ color: 0x8b4513 })
-            );
-            dino.position.set(Math.random() * 400 - 200, 2, Math.random() * 400 - 200);
-            dino.castShadow = true;
-            this.scene.add(dino);
-            return dino;
-        });
     }
 
     setupControls() {
@@ -112,12 +75,20 @@ class JungleHuntGame {
     }
 
     update() {
-        // Move player
+        // Skiing physics
+        const gravity = new THREE.Vector3(0, -0.01, 0);
+        this.acceleration.copy(gravity);
+
         if (this.moveInput.lengthSq() > 0) {
-            const move = this.moveInput.normalize().multiplyScalar(0.15);
-            this.player.position.x += Math.sin(this.yaw) * move.y + Math.cos(this.yaw) * move.x;
-            this.player.position.z += Math.cos(this.yaw) * move.y - Math.sin(this.yaw) * move.x;
+            const move = this.moveInput.normalize().multiplyScalar(0.1);
+            this.acceleration.x += Math.sin(this.yaw) * move.y + Math.cos(this.yaw) * move.x;
+            this.acceleration.z += Math.cos(this.yaw) * move.y - Math.sin(this.yaw) * move.x;
         }
+
+        this.velocity.add(this.acceleration);
+        this.velocity.multiplyScalar(0.99); // Friction
+
+        this.player.position.add(this.velocity);
         this.player.rotation.y = this.yaw;
 
         // Position camera
