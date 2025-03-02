@@ -1,4 +1,4 @@
-class JungleHuntGame {
+class SkiingGame {
     constructor() {
         this.setupScene();
         this.setupPlayer();
@@ -108,4 +108,4 @@ class JungleHuntGame {
     }
 }
 
-new JungleHuntGame(); 
+new SkiingGame(); 
