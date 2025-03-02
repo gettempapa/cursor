@@ -18,6 +18,11 @@ const moveDirection = new THREE.Vector3();
 const direction = new THREE.Vector3(); // Add missing direction vector that was removed
 const friction = 0.95; // Add friction to make movement more realistic
 
+// Physics parameters
+const GRAVITY = 0.015;
+const JUMP_FORCE = 0.3;
+let isOnGround = true;
+
 // Player forward direction (movement direction)
 const playerDirection = new THREE.Vector3(0, 0, -1);
 // Aim direction (can be different from movement)
@@ -170,113 +175,144 @@ function createHumanoidMesh() {
     return playerGroup;
 }
 
+// Add setupEventListeners function to handle keyboard and mouse input
+function setupEventListeners() {
+    // Keyboard controls
+    document.addEventListener('keydown', (event) => {
+        keys[event.code] = true;
+        console.log('Key pressed:', event.code);
+        
+        // Jump when spacebar is pressed and player is on the ground
+        if (event.code === 'Space' && isOnGround) {
+            velocity.y = JUMP_FORCE;
+            isOnGround = false;
+            console.log('JUMP!');
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        keys[event.code] = false;
+    });
+
+    // Mouse controls for aiming
+    document.addEventListener('mousemove', (event) => {
+        if (!isPointerLocked) return;
+        
+        mouseX -= event.movementX * aimSensitivity;
+        
+        // Limit vertical rotation
+        mouseY -= event.movementY * aimSensitivity;
+        mouseY = Math.max(-maxVerticalRotation, Math.min(maxVerticalRotation, mouseY));
+    });
+    
+    // Pointer lock for FPS controls
+    renderer.domElement.addEventListener('click', () => {
+        if (!isPointerLocked) {
+            renderer.domElement.requestPointerLock();
+        }
+    });
+    
+    document.addEventListener('pointerlockchange', () => {
+        isPointerLocked = document.pointerLockElement === renderer.domElement;
+    });
+    
+    // Shooting mechanic
+    document.addEventListener('mousedown', (event) => {
+        if (event.button === 0) { // Left mouse button
+            shoot();
+        }
+    });
+}
+
 function init() {
+    // Check WebGL compatibility first
+    if (!checkWebGL()) return;
+    
     try {
-        console.log('Initializing scene...');
-        // Create scene
+        // Create the scene
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); // Sky blue background
-
-        console.log('Setting up camera...');
-        // Set up camera
+        
+        // Add some fog for depth
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 100);
+        
+        // Create camera
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 3, 5);
-
-        console.log('Setting up renderer...');
-        // Set up renderer
+        
+        // Create renderer
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
-
-        console.log('Creating player...');
-        // Create humanoid player
-        player = createHumanoidMesh();
-        scene.add(player);
-
-        console.log('Creating ground...');
-        // Create ground - now green for grass
+        
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 0.5);
+        scene.add(directionalLight);
+        
+        // Create ground
         const groundGeometry = new THREE.PlaneGeometry(100, 100);
-        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x3A9D23, side: THREE.DoubleSide }); // Green grass
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x3A9D23, // Green grass color
+            roughness: 0.8, 
+            metalness: 0.2 
+        });
         ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = Math.PI / 2;
+        ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
         ground.position.y = 0;
         scene.add(ground);
         
-        console.log('Adding trees...');
-        // Add some trees around the area
+        // Create player
+        player = new THREE.Group();
+        player.position.set(0, 1, 0); // Start at origin, slightly above ground
+        scene.add(player);
+        
+        // Create player body
+        playerBody = createHumanoidMesh();
+        player.add(playerBody);
+        
+        // Create helper for aiming direction
+        playerAimHelper = new THREE.Group();
+        playerAimHelper.position.y = 1.2; // Position at shoulder height
+        player.add(playerAimHelper);
+        
+        // Add trees to the environment
+        // Place 8 trees in a symmetric pattern
         createTree(5, 5);
         createTree(-5, 5);
         createTree(5, -5);
         createTree(-5, -5);
-        createTree(10, 0);
-        createTree(-10, 0);
-        createTree(0, 10);
-        createTree(0, -10);
+        createTree(10, 10);
+        createTree(-10, 10);
+        createTree(10, -10);
+        createTree(-10, -10);
         
-        // Add some random trees further away
+        // Add 20 random trees
         for (let i = 0; i < 20; i++) {
-            const x = Math.random() * 80 - 40; // Range -40 to 40
-            const z = Math.random() * 80 - 40; // Range -40 to 40
-            // Don't place trees too close to spawn
-            if (Math.sqrt(x*x + z*z) > 12) {
+            const x = Math.random() * 80 - 40; // -40 to 40
+            const z = Math.random() * 80 - 40; // -40 to 40
+            
+            // Don't place trees too close to player spawn
+            if (Math.sqrt(x * x + z * z) > 8) {
                 createTree(x, z);
             }
         }
-
-        console.log('Adding lighting...');
-        // Add simple lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
         
-        console.log('Setting up event listeners...');
-        // Event listeners
-        window.addEventListener('resize', onWindowResize, false);
+        // Handle window resizing
+        window.addEventListener('resize', onWindowResize);
         
-        // Debug key presses to help diagnose movement issues
-        window.addEventListener('keydown', (e) => {
-            console.log('Key pressed:', e.code);
-            keys[e.code] = true;
-        });
-        
-        window.addEventListener('keyup', (e) => {
-            keys[e.code] = false;
-        });
-        
-        // Setup pointer lock for better mouse control
-        renderer.domElement.addEventListener('click', () => {
-            if (!isPointerLocked) {
-                renderer.domElement.requestPointerLock();
-            }
-        });
-        
-        document.addEventListener('pointerlockchange', () => {
-            isPointerLocked = document.pointerLockElement === renderer.domElement;
-        });
-        
-        // Mouse movement for aiming
-        document.addEventListener('mousemove', (e) => {
-            if (isPointerLocked) {
-                // Horizontal aim
-                mouseX += e.movementX * aimSensitivity;
-                
-                // Vertical aim with limits
-                mouseY -= e.movementY * aimSensitivity;
-                mouseY = Math.max(-maxVerticalRotation, Math.min(maxVerticalRotation, mouseY));
-            }
-        });
-        
-        // Add shooting mechanism
-        document.addEventListener('mousedown', (e) => {
-            if (isPointerLocked && e.button === 0) { // Left mouse button
-                shoot();
-            }
-        });
+        // Setup event listeners for controls
+        setupEventListeners();
         
         console.log('Initialization complete!');
+        // Start the animation loop
+        animate();
     } catch (error) {
-        console.error('Error during initialization:', error);
-        document.getElementById('instructions').innerHTML += 
+        console.error('Initialization error:', error);
+        document.getElementById('instructions').innerHTML = 
             `<p style="color:red">Error: ${error.message}</p>`;
     }
 }
@@ -348,83 +384,86 @@ function updateBullets() {
 }
 
 function animate() {
-    try {
-        requestAnimationFrame(animate);
-        
-        // Handle player movement with WASD - simplified to make diagnostics easier
-        const forward = keys['KeyW'] ? 1 : 0;
-        const backward = keys['KeyS'] ? 1 : 0;
-        const left = keys['KeyA'] ? 1 : 0; 
-        const right = keys['KeyD'] ? 1 : 0;
-        
-        // Log movement keys for debugging
-        if (forward || backward || left || right) {
-            console.log('Movement keys:', { forward, backward, left, right });
-        }
-        
-        moveDirection.z = forward - backward;
-        moveDirection.x = right - left;
-        
-        // Calculate actual movement direction based on camera orientation
-        if (moveDirection.length() > 0) {
-            moveDirection.normalize();
-            
-            // Calculate the forward direction based on camera
-            const angle = camera.rotation.y;
-            const sin = Math.sin(angle);
-            const cos = Math.cos(angle);
-            
-            // Direction relative to camera
-            direction.x = moveDirection.x * cos + moveDirection.z * sin;
-            direction.z = moveDirection.x * -sin + moveDirection.z * cos;
-            
-            // Add acceleration
-            velocity.x += direction.x * 0.1; // Increased for more responsive movement
-            velocity.z += direction.z * 0.1;
-            
-            // Update player's facing direction for body rotation
-            playerDirection.copy(direction);
-        }
-        
-        // Apply friction
-        velocity.x *= friction;
-        velocity.z *= friction;
-        
-        // Move player
-        player.position.x += velocity.x;
-        player.position.z += velocity.z;
-        
-        // Rotate the player body to face movement direction
-        if (velocity.length() > 0.01) {
-            const bodyAngle = Math.atan2(playerDirection.x, playerDirection.z);
-            playerBody.rotation.y = bodyAngle;
-        }
-        
-        // Update aim direction based on mouse
-        playerAimHelper.rotation.y = mouseX;
-        playerAimHelper.rotation.x = mouseY;
-        
-        // Position camera directly behind player
-        const cameraAngle = Math.atan2(playerDirection.x, playerDirection.z);
-        camera.position.x = player.position.x - Math.sin(cameraAngle) * cameraOffset.z;
-        camera.position.z = player.position.z - Math.cos(cameraAngle) * cameraOffset.z;
-        camera.position.y = player.position.y + cameraOffset.y;
-        
-        // Make camera look at player
-        camera.lookAt(
-            player.position.x,
-            player.position.y + 1.5, // Look at head height
-            player.position.z
-        );
-        
-        // Update bullets
-        updateBullets();
-        
-        // Render
-        renderer.render(scene, camera);
-    } catch (error) {
-        console.error('Error in animation loop:', error);
-        document.getElementById('instructions').innerHTML += 
-            `<p style="color:red">Animation Error: ${error.message}</p>`;
+    requestAnimationFrame(animate);
+    
+    // Reset movement direction for this frame
+    moveDirection.set(0, 0, 0);
+    
+    // Forward/back
+    if (keys['KeyW']) {
+        moveDirection.z = -1;
     }
+    if (keys['KeyS']) {
+        moveDirection.z = 1;
+    }
+    
+    // Strafe left/right
+    if (keys['KeyA']) {
+        moveDirection.x = -1;
+    }
+    if (keys['KeyD']) {
+        moveDirection.x = 1;
+    }
+    
+    // Only normalize if we're actually moving
+    if (moveDirection.length() > 0) {
+        moveDirection.normalize();
+    }
+    
+    // Convert move direction to camera-relative direction
+    direction.copy(moveDirection);
+    direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+    
+    // Apply acceleration based on input
+    const acceleration = 0.02;
+    velocity.x += direction.x * acceleration;
+    velocity.z += direction.z * acceleration;
+    
+    // Apply gravity
+    velocity.y -= GRAVITY;
+    
+    // Apply velocity to player position
+    player.position.x += velocity.x;
+    player.position.y += velocity.y;
+    player.position.z += velocity.z;
+    
+    // Ground collision
+    if (player.position.y < 1) { // 1 is the player's height/2
+        player.position.y = 1;
+        velocity.y = 0;
+        isOnGround = true;
+    }
+    
+    // Apply friction to horizontal movement
+    velocity.x *= friction;
+    velocity.z *= friction;
+    
+    // Update player rotation to face the direction of movement
+    if (direction.length() > 0.1) {
+        playerDirection.copy(direction).normalize();
+        const targetRotation = Math.atan2(playerDirection.x, playerDirection.z);
+        playerBody.rotation.y = targetRotation;
+    }
+    
+    // Update aim direction based on mouse
+    playerAimHelper.rotation.y = mouseX;
+    playerAimHelper.rotation.x = mouseY;
+    
+    // Update camera position relative to player
+    const cameraAngle = mouseX;
+    camera.position.x = player.position.x - Math.sin(cameraAngle) * cameraOffset.z;
+    camera.position.z = player.position.z - Math.cos(cameraAngle) * cameraOffset.z;
+    camera.position.y = player.position.y + cameraOffset.y;
+    
+    // Make camera look at player
+    camera.lookAt(
+        player.position.x,
+        player.position.y + 1.2, // Look at upper body height
+        player.position.z
+    );
+    
+    // Update bullets
+    updateBullets();
+    
+    renderer.render(scene, camera);
 } 
