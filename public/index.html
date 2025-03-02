@@ -74,6 +74,9 @@
             line-height: 1.4;
         }
     </style>
+    
+    <!-- Use non-module version of Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     <div id="gameContainer"></div>
@@ -83,18 +86,8 @@
     </div>
     <div id="debug" class="debug"></div>
     
-    <!-- Import map - ensure this is correct -->
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
-        }
-    }
-    </script>
-    
-    <!-- Make sure to include the type="module" attribute -->
-    <script type="module" src="js/game.js"></script>
+    <!-- Use a normal script instead of module -->
+    <script src="js/non-module-game.js"></script>
     
     <script>
         // Add a timeout to show an error if the game doesn't load
