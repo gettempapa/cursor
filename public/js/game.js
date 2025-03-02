@@ -45,55 +45,114 @@ class Enemy {
         this.targetPosition = this.getNewTargetPosition();
         this.updateInterval = Math.random() * 2000 + 3000; // Random update interval between 3-5 seconds
         this.lastUpdate = performance.now();
+        this.legAngle = 0;
+        this.moving = false;
     }
 
     createEnemyModel() {
         const enemy = new THREE.Group();
 
-        // Body (red to distinguish from player)
+        // Create jacket (body)
         const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 }); 
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        const jacketMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2F4F4F,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const body = new THREE.Mesh(bodyGeometry, jacketMaterial);
         body.position.y = 0.4;
         enemy.add(body);
 
-        // Head
+        // Create helmet with camo pattern
         const headGeometry = new THREE.BoxGeometry(0.35, 0.32, 0.35);
-        const headMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.y = 1;
-        enemy.add(head);
+        const camoColors = Constants.COLORS.CAMO;
+        
+        // Create camo pattern
+        const camoCanvas = document.createElement('canvas');
+        camoCanvas.width = 128;
+        camoCanvas.height = 128;
+        const ctx = camoCanvas.getContext('2d');
+        
+        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(0, 0, 128, 128);
+        
+        for (let i = 0; i < 40; i++) {
+            const x = Math.random() * 128;
+            const y = Math.random() * 128;
+            const size = 10 + Math.random() * 20;
+            const colorIndex = Math.floor(Math.random() * camoColors.length);
+            ctx.fillStyle = '#' + camoColors[colorIndex].toString(16);
+            ctx.beginPath();
+            ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        const camoTexture = new THREE.CanvasTexture(camoCanvas);
+        const helmetMaterial = new THREE.MeshStandardMaterial({ map: camoTexture });
+        const helmet = new THREE.Mesh(headGeometry, helmetMaterial);
+        helmet.position.y = 1;
+        enemy.add(helmet);
 
         // Face
         const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
-        const faceMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        const faceMaterial = new THREE.MeshStandardMaterial({ color: Constants.COLORS.SOLDIER_FACE });
         const face = new THREE.Mesh(faceGeometry, faceMaterial);
         face.position.set(0, 0.95, 0.05);
         enemy.add(face);
 
-        // Legs
+        // Create pants (legs)
         const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+        const pantsMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a472a,
+            roughness: 0.9,
+            metalness: 0.1
+        });
         
-        const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-        leftLeg.position.set(0.15, -0.3, 0);
-        enemy.add(leftLeg);
+        this.leftLeg = new THREE.Mesh(legGeometry, pantsMaterial);
+        this.leftLeg.position.set(0.15, -0.3, 0);
+        enemy.add(this.leftLeg);
         
-        const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-        rightLeg.position.set(-0.15, -0.3, 0);
-        enemy.add(rightLeg);
+        this.rightLeg = new THREE.Mesh(legGeometry, pantsMaterial);
+        this.rightLeg.position.set(-0.15, -0.3, 0);
+        enemy.add(this.rightLeg);
 
-        // Arms
+        // Create boots
+        const bootGeometry = new THREE.BoxGeometry(0.22, 0.15, 0.25);
+        const bootMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2b1810,
+            roughness: 0.9,
+            metalness: 0.2
+        });
+        
+        const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        leftBoot.position.set(0.15, -0.6, 0.02);
+        enemy.add(leftBoot);
+        
+        const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        rightBoot.position.set(-0.15, -0.6, 0.02);
+        enemy.add(rightBoot);
+
+        // Create arms with hands
         const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const armMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+        const handGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
         
-        const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-        leftArm.position.set(0.35, 0.4, 0);
-        enemy.add(leftArm);
+        this.leftArm = new THREE.Mesh(armGeometry, jacketMaterial);
+        this.leftArm.position.set(0.35, 0.4, 0);
+        enemy.add(this.leftArm);
         
-        const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-        rightArm.position.set(-0.35, 0.4, 0);
-        enemy.add(rightArm);
+        this.rightArm = new THREE.Mesh(armGeometry, jacketMaterial);
+        this.rightArm.position.set(-0.35, 0.4, 0);
+        enemy.add(this.rightArm);
+        
+        const handMaterial = new THREE.MeshStandardMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        
+        const leftHand = new THREE.Mesh(handGeometry, handMaterial);
+        leftHand.position.set(0.35, 0.1, 0);
+        enemy.add(leftHand);
+        
+        const rightHand = new THREE.Mesh(handGeometry, handMaterial);
+        rightHand.position.set(-0.35, 0.1, 0);
+        enemy.add(rightHand);
 
         // Add rifle
         const rifle = this.createEnemyRifle();
@@ -129,10 +188,56 @@ class Enemy {
         stock.position.z = -0.4;
         rifle.add(stock);
         
-        // Position rifle
-        rifle.position.set(0.25, 0.4, 0.1);
+        // Rifle sight
+        const sightGeometry = new THREE.BoxGeometry(0.05, 0.08, 0.05);
+        const sight = new THREE.Mesh(sightGeometry, rifleMaterial);
+        sight.position.y = 0.08;
+        sight.position.z = 0.1;
+        rifle.add(sight);
         
-        return rifle;
+        // Muzzle flash (initially invisible)
+        const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
+        const muzzleMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00, 
+            transparent: true,
+            opacity: 0.8
+        });
+        this.muzzleFlash = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
+        this.muzzleFlash.position.z = 0.9;
+        this.muzzleFlash.rotation.x = Math.PI / 2;
+        this.muzzleFlash.visible = false;
+        rifle.add(this.muzzleFlash);
+        
+        // Create hands to hold the rifle
+        this.createHands(rifle);
+        
+        // Position the rifle in player's hands - MODIFIED positioning for forward aiming
+        rifle.position.set(0.25, 0.4, 0.1); // Move rifle forward and slightly right
+        rifle.rotation.y = -0.15; // Adjust initial angle to point more forward
+        
+        this.model.add(rifle);
+        this.rifle = rifle;
+    }
+
+    // Add hands to hold the rifle
+    createHands(rifle) {
+        const handMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        
+        // Left hand (forward grip)
+        const leftHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
+        const leftHand = new THREE.Mesh(leftHandGeometry, handMaterial);
+        leftHand.position.set(0, -0.05, 0.3);
+        rifle.add(leftHand);
+        
+        // Right hand (trigger hand)
+        const rightHandGeometry = new THREE.BoxGeometry(0.08, 0.12, 0.08);
+        const rightHand = new THREE.Mesh(rightHandGeometry, handMaterial);
+        rightHand.position.set(0, -0.05, -0.1);
+        rifle.add(rightHand);
+        
+        // Store references to the hands
+        this.leftHand = leftHand;
+        this.rightHand = rightHand;
     }
 
     getNewTargetPosition() {
@@ -166,6 +271,20 @@ class Enemy {
             
             // Update rotation to face movement direction
             this.rotation.y = Math.atan2(directionToTarget.x, directionToTarget.z);
+            this.moving = true;
+
+            // Animate legs while moving
+            this.legAngle += deltaTime * 5;
+            if (this.leftLeg && this.rightLeg) {
+                this.leftLeg.rotation.x = Math.sin(this.legAngle) * 0.4;
+                this.rightLeg.rotation.x = Math.sin(this.legAngle + Math.PI) * 0.4;
+            }
+        } else {
+            this.moving = false;
+            if (this.leftLeg && this.rightLeg) {
+                this.leftLeg.rotation.x = 0;
+                this.rightLeg.rotation.x = 0;
+            }
         }
 
         // Update model position and rotation
@@ -180,28 +299,32 @@ class Enemy {
     }
 
     shoot() {
-        // Create muzzle flash
-        const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
-        const muzzleMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xFFFF00,
-            transparent: true,
-            opacity: 0.8
-        });
-        const muzzleFlash = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
+        // Check cooldown and pointer lock
+        const now = performance.now();
+        if (now - this.lastShot < this.shotCooldown || 
+            document.pointerLockElement !== this.container) {
+            return;
+        }
         
-        // Position muzzle flash at rifle tip
-        const rifle = this.model.children.find(child => child.children && child.children.length === 3);
-        if (rifle) {
-            muzzleFlash.position.copy(rifle.position);
-            muzzleFlash.position.z += 0.9;
-            muzzleFlash.rotation.x = Math.PI / 2;
-            this.model.add(muzzleFlash);
-            
-            // Remove muzzle flash after short delay
+        this.lastShot = now;
+        
+        // Play rifle sound
+        if (this.audioInitialized && this.rifleSound && this.rifleSound.buffer) {
+            try {
+                const soundClone = this.rifleSound.clone();
+                const pitchVariation = 0.9 + Math.random() * 0.2;
+                soundClone.setPlaybackRate(pitchVariation);
+                soundClone.play();
+            } catch (audioError) {
+                console.warn('Error playing rifle sound:', audioError);
+            }
+        }
+        
+        // Show muzzle flash
+        if (this.muzzleFlash) {
+            this.muzzleFlash.visible = true;
             setTimeout(() => {
-                this.model.remove(muzzleFlash);
-                muzzleFlash.geometry.dispose();
-                muzzleFlash.material.dispose();
+                this.muzzleFlash.visible = false;
             }, 50);
         }
     }
@@ -251,6 +374,11 @@ class Game {
     
     // Initialize all game components with proper error handling
     initializeGameComponents() {
+        // Initialize arrays before using them
+        this.trees = [];
+        this.enemies = [];
+        this.maxEnemies = 3; // Reduced number of enemies
+        
         // Create environment with error handling
         try {
             this.createEnvironment();
@@ -286,27 +414,7 @@ class Game {
         const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen) loadingScreen.style.display = 'none';
 
-        // Add these properties to the Game class constructor
-        this.enemies = [];
-        this.maxEnemies = 5;
-
-        // Add this method to the Game class
-        this.createEnemy = () => {
-            // Create enemy at random position
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 20 + Math.random() * 20; // Spawn 20-40 units away
-            const position = new THREE.Vector3(
-                Math.cos(angle) * distance,
-                1,
-                Math.sin(angle) * distance
-            );
-            
-            const enemy = new Enemy(this.scene, position);
-            this.enemies.push(enemy);
-            this.scene.add(enemy.model);
-        };
-
-        // Add this to the end of the initializeGameComponents method
+        // Create enemies after environment is set up
         for (let i = 0; i < this.maxEnemies; i++) {
             this.createEnemy();
         }
@@ -419,35 +527,39 @@ class Game {
             const channelData = buffer.getChannelData(0);
             
             // Generate a gunshot sound
-            // First part: Initial explosion/crack (high amplitude noise)
+            // Initial explosion/crack (high amplitude noise)
             const attackTime = sampleRate * 0.01; // 10ms attack
             for (let i = 0; i < attackTime; i++) {
                 channelData[i] = (Math.random() * 2 - 1) * 0.9; // High amplitude white noise
             }
             
-            // Second part: Quick decay
+            // Quick decay with lower frequency components
             const decayTime = sampleRate * 0.05; // 50ms decay
             for (let i = 0; i < decayTime; i++) {
                 const index = i + attackTime;
-                const amplitude = 0.9 * (1 - i / decayTime); // Linear decay
-                channelData[index] = (Math.random() * 2 - 1) * amplitude;
+                const amplitude = 0.9 * (1 - i / decayTime);
+                // Add some lower frequency components for more "boom"
+                const lowFreq = Math.sin(i * 0.01) * 0.3;
+                channelData[index] = ((Math.random() * 2 - 1) + lowFreq) * amplitude;
             }
             
-            // Third part: Reverb/echo tail
+            // Reverb/echo tail with filtered noise
             const reverbStart = attackTime + decayTime;
             const reverbTime = bufferSize - reverbStart;
             for (let i = 0; i < reverbTime; i++) {
                 const index = i + reverbStart;
-                // Exponential decay for the reverb tail
-                const amplitude = 0.3 * Math.exp(-3.0 * i / reverbTime);
-                channelData[index] = (Math.random() * 2 - 1) * amplitude;
+                const amplitude = 0.3 * Math.exp(-5.0 * i / reverbTime);
+                // Add filtered noise for more realistic reverb
+                const noise = (Math.random() * 2 - 1) * 0.5;
+                const filtered = (noise + channelData[index - 1]) * 0.5;
+                channelData[index] = filtered * amplitude;
             }
             
             // Set the buffer to our audio
             this.rifleSound.setBuffer(buffer);
-            this.rifleSound.setVolume(1.0);
+            this.rifleSound.setVolume(0.8);
             
-            // Add some processing for more bass/impact
+            // Add some processing for more impact
             const compressor = audioContext.createDynamicsCompressor();
             compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
             compressor.knee.setValueAtTime(40, audioContext.currentTime);
@@ -457,19 +569,17 @@ class Game {
             
             this.rifleSound.setFilter(compressor);
             
-            // Create footstep sounds - different variations
+            // Create footstep sounds
             this.footstepSounds = [];
             for (let i = 0; i < 4; i++) {
                 this.createFootstepSound(i);
             }
             
-            // Initialize footstep timers
             this.lastFootstepTime = 0;
             this.footstepInterval = 350; // ms between footsteps
             
-            // Test the sound but don't actually play it
-            this.debug.innerHTML += '<br>Rifle sound and footsteps created successfully';
-            console.log("Audio sounds created but not tested yet");
+            this.debug.innerHTML += '<br>Audio initialized successfully';
+            this.audioInitialized = true;
         } catch (error) {
             console.error('Error setting up audio:', error);
             this.debug.innerHTML += `<br>Audio setup error: ${error.message}`;
@@ -1363,7 +1473,11 @@ class Game {
         
         // Rifle body
         const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8);
-        const rifleMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const rifleMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x000000,
+            roughness: 0.7,
+            metalness: 0.3
+        });
         const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
         rifle.add(rifleBody);
         
@@ -1376,7 +1490,11 @@ class Game {
         
         // Rifle stock
         const stockGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.4);
-        const stockMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+        const stockMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x8B4513,
+            roughness: 0.9,
+            metalness: 0.1
+        });
         const stock = new THREE.Mesh(stockGeometry, stockMaterial);
         stock.position.z = -0.4;
         rifle.add(stock);
@@ -1391,7 +1509,7 @@ class Game {
         // Muzzle flash (initially invisible)
         const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
         const muzzleMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xFFFF00, 
+            color: 0xFFFF00,
             transparent: true,
             opacity: 0.8
         });
@@ -1404,9 +1522,9 @@ class Game {
         // Create hands to hold the rifle
         this.createHands(rifle);
         
-        // Position the rifle in player's hands - MODIFIED positioning for forward aiming
-        rifle.position.set(0.25, 0.4, 0.1); // Move rifle forward and slightly right
-        rifle.rotation.y = -0.15; // Adjust initial angle to point more forward
+        // Position rifle for proper third-person aiming
+        rifle.position.set(0.3, 0.4, -0.2); // Moved forward and to the right
+        rifle.rotation.set(0, -0.2, 0); // Slight angle for natural hold
         
         this.player.add(rifle);
         this.rifle = rifle;
@@ -1471,7 +1589,7 @@ class Game {
             }
         });
         
-        // Mouse controls
+        // Mouse controls with corrected up/down movement
         this.container.addEventListener('click', () => {
             this.container.requestPointerLock();
         });
@@ -1482,11 +1600,15 @@ class Game {
                 this.playerState.rotation.y -= e.movementX * 0.002;
                 
                 // Update vertical camera angle with constraints
+                // Inverted Y movement for standard third-person controls
+                this.cameraAngles.vertical -= e.movementY * 0.002;
+                
+                // Constrain vertical look
                 this.cameraAngles.vertical = Math.max(
                     -Math.PI / 3, // Look up limit
                     Math.min(
                         Math.PI / 6, // Look down limit
-                        this.cameraAngles.vertical + e.movementY * 0.002
+                        this.cameraAngles.vertical
                     )
                 );
             }
@@ -1622,28 +1744,29 @@ class Game {
         const aimDirection = lookTarget.clone().sub(this.playerState.position);
         aimDirection.normalize();
         
-        // Calculate rifle angles based on aim direction
+        // Calculate rifle angles for proper third-person aiming
         const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
         rifleRotation.y = Math.atan2(aimDirection.x, aimDirection.z);
-        rifleRotation.x = -Math.asin(aimDirection.y);
+        rifleRotation.x = -Math.asin(aimDirection.y) * 0.8; // Reduced vertical rotation for better look
         
-        // Apply rotations to rifle
-        this.rifle.rotation.copy(rifleRotation);
+        // Smoothly interpolate current rotation to target rotation
+        this.rifle.rotation.x += (rifleRotation.x - this.rifle.rotation.x) * 0.3;
+        this.rifle.rotation.y += (rifleRotation.y - this.rifle.rotation.y) * 0.3;
         
-        // Add weapon sway during movement
+        // Add subtle weapon sway during movement
         if (this.playerState.moving) {
-            const swayAmount = 0.03;
+            const swayAmount = 0.02;
             const swaySpeed = 4;
             const time = performance.now() * 0.001;
             
             this.rifle.rotation.z = Math.sin(time * swaySpeed) * swayAmount;
-            this.rifle.position.y = 0.4 + Math.sin(time * swaySpeed * 2) * 0.02;
+            this.rifle.position.y = 0.4 + Math.sin(time * swaySpeed * 2) * 0.01;
         } else {
             this.rifle.rotation.z = 0;
             this.rifle.position.y = 0.4;
         }
         
-        // Update arm rotations to match rifle
+        // Update arm rotations to follow rifle
         const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
         const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
         
@@ -1761,12 +1884,6 @@ class Game {
             
             // Update player mesh rotation
             this.player.rotation.y = this.playerState.rotation.y;
-            
-            // Animate legs when moving
-            this.animatePlayerLegs(deltaTime);
-        } else {
-            // Reset leg positions when not moving
-            this.resetPlayerLegs();
         }
         
         // Handle jumping and gravity with delta time
@@ -1810,30 +1927,6 @@ class Game {
         // Handle continuous shooting
         if (this.playerState.shooting) {
             this.shoot();
-        }
-    }
-    
-    animatePlayerLegs(deltaTime) {
-        // Use real time for smoother animation that's independent of frame rate
-        const time = performance.now() * 0.005;
-        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
-        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
-        
-        if (leftLeg && rightLeg) {
-            // Animation speed based on movement speed
-            const animSpeed = 5.0 * this.playerState.moveSpeed; 
-            leftLeg.rotation.x = Math.sin(time * animSpeed) * 0.4;
-            rightLeg.rotation.x = Math.sin(time * animSpeed + Math.PI) * 0.4;
-        }
-    }
-    
-    resetPlayerLegs() {
-        const leftLeg = this.player.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
-        const rightLeg = this.player.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
-        
-        if (leftLeg && rightLeg) {
-            leftLeg.rotation.x = 0;
-            rightLeg.rotation.x = 0;
         }
     }
 }
