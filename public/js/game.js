@@ -29,9 +29,443 @@ const Constants = {
         TREE_FOLIAGE: 0x2E8B57,
         SOLDIER_BODY: 0x2F4F4F,
         SOLDIER_FACE: 0xD2B48C,
-        CAMO: [0x4b5320, 0x3a421a, 0x5d6d21, 0x2c3317]
+        CAMO: [0x4b5320, 0x3a421a, 0x5d6d21, 0x2c3317],
+        DINO_BODY: 0x2d8659,
+        DINO_BELLY: 0x3da677,
+        DINO_SPIKES: 0x1a5038
+    },
+    
+    // Dinosaur settings
+    DINOSAUR: {
+        MOVE_SPEED: 0.08,
+        ROAR_INTERVAL: 15000, // milliseconds between roars
+        WANDER_RADIUS: 40,
+        SIZE: 1.5 // Scale factor
     }
 };
+
+// Dinosaur class for realistic dinosaur that walks around
+class Dinosaur {
+    constructor(scene, position) {
+        this.scene = scene;
+        this.position = position.clone();
+        this.rotation = new THREE.Euler(0, Math.random() * Math.PI * 2, 0, 'YXZ');
+        this.moveSpeed = Constants.DINOSAUR.MOVE_SPEED;
+        this.model = this.createDinosaurModel();
+        this.targetPosition = this.getNewTargetPosition();
+        this.updateInterval = Math.random() * 5000 + 8000; // Random update interval between 8-13 seconds
+        this.lastUpdate = performance.now();
+        this.lastRoar = 0;
+        this.roarInterval = Constants.DINOSAUR.ROAR_INTERVAL;
+        this.legAngle = 0;
+        this.tailAngle = 0;
+        this.moving = false;
+        this.health = 100;
+        this.bloodParticles = [];
+        
+        // Add to scene
+        this.model.position.copy(this.position);
+        this.model.rotation.copy(this.rotation);
+        scene.add(this.model);
+    }
+    
+    createDinosaurModel() {
+        const dinosaur = new THREE.Group();
+        const scale = Constants.DINOSAUR.SIZE;
+        
+        // Body material with texture
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: Constants.COLORS.DINO_BODY,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        
+        const bellyMaterial = new THREE.MeshStandardMaterial({
+            color: Constants.COLORS.DINO_BELLY,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        
+        const spikeMaterial = new THREE.MeshStandardMaterial({
+            color: Constants.COLORS.DINO_SPIKES,
+            roughness: 0.5,
+            metalness: 0.2
+        });
+        
+        // Create dinosaur body parts
+        
+        // Main body
+        const bodyGeometry = new THREE.BoxGeometry(1.2 * scale, 1 * scale, 2.5 * scale);
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 1.5 * scale;
+        dinosaur.add(body);
+        
+        // Belly
+        const bellyGeometry = new THREE.BoxGeometry(1.1 * scale, 0.9 * scale, 2.4 * scale);
+        const belly = new THREE.Mesh(bellyGeometry, bellyMaterial);
+        belly.position.set(0, -0.05 * scale, 0);
+        body.add(belly);
+        
+        // Neck
+        const neckGeometry = new THREE.BoxGeometry(0.6 * scale, 0.6 * scale, 1.2 * scale);
+        const neck = new THREE.Mesh(neckGeometry, bodyMaterial);
+        neck.position.set(0, 0.3 * scale, -1.6 * scale);
+        neck.rotation.x = -Math.PI / 8;
+        body.add(neck);
+        
+        // Head
+        const headGeometry = new THREE.BoxGeometry(0.7 * scale, 0.5 * scale, 1 * scale);
+        const head = new THREE.Mesh(headGeometry, bodyMaterial);
+        head.position.set(0, 0.4 * scale, -0.7 * scale);
+        head.rotation.x = Math.PI / 12;
+        neck.add(head);
+        
+        // Snout
+        const snoutGeometry = new THREE.BoxGeometry(0.5 * scale, 0.3 * scale, 0.8 * scale);
+        const snout = new THREE.Mesh(snoutGeometry, bodyMaterial);
+        snout.position.set(0, -0.1 * scale, -0.8 * scale);
+        head.add(snout);
+        
+        // Eyes
+        const eyeGeometry = new THREE.SphereGeometry(0.08 * scale, 8, 8);
+        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        
+        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        leftEye.position.set(0.25 * scale, 0.1 * scale, -0.3 * scale);
+        head.add(leftEye);
+        
+        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        rightEye.position.set(-0.25 * scale, 0.1 * scale, -0.3 * scale);
+        head.add(rightEye);
+        
+        // Tail
+        this.tail = new THREE.Group();
+        body.add(this.tail);
+        
+        const tailBase = new THREE.Mesh(
+            new THREE.BoxGeometry(0.8 * scale, 0.7 * scale, 1 * scale),
+            bodyMaterial
+        );
+        tailBase.position.set(0, -0.1 * scale, 1.5 * scale);
+        this.tail.add(tailBase);
+        
+        const tailMid = new THREE.Mesh(
+            new THREE.BoxGeometry(0.6 * scale, 0.5 * scale, 1.2 * scale),
+            bodyMaterial
+        );
+        tailMid.position.set(0, 0, 1 * scale);
+        tailBase.add(tailMid);
+        
+        const tailEnd = new THREE.Mesh(
+            new THREE.BoxGeometry(0.4 * scale, 0.3 * scale, 1.4 * scale),
+            bodyMaterial
+        );
+        tailEnd.position.set(0, 0, 1.1 * scale);
+        tailMid.add(tailEnd);
+        
+        // Back spikes
+        for (let i = 0; i < 7; i++) {
+            const spikeHeight = (0.2 + Math.random() * 0.2) * scale;
+            const spikeGeometry = new THREE.ConeGeometry(0.1 * scale, spikeHeight, 4);
+            const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+            spike.position.set(0, 0.5 * scale, (-0.8 + i * 0.3) * scale);
+            spike.rotation.x = -Math.PI / 2;
+            body.add(spike);
+        }
+        
+        // Legs
+        this.legs = [];
+        
+        // Front legs
+        const createLeg = (isLeft, isFront) => {
+            const legGroup = new THREE.Group();
+            const xPos = isLeft ? 0.5 * scale : -0.5 * scale;
+            const zPos = isFront ? -0.8 * scale : 0.8 * scale;
+            
+            const upperLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3 * scale, 0.7 * scale, 0.3 * scale),
+                bodyMaterial
+            );
+            upperLeg.position.y = -0.35 * scale;
+            legGroup.add(upperLeg);
+            
+            const lowerLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25 * scale, 0.7 * scale, 0.25 * scale),
+                bodyMaterial
+            );
+            lowerLeg.position.y = -0.7 * scale;
+            upperLeg.add(lowerLeg);
+            
+            const foot = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35 * scale, 0.15 * scale, 0.4 * scale),
+                bodyMaterial
+            );
+            foot.position.y = -0.4 * scale;
+            foot.position.z = 0.05 * scale;
+            lowerLeg.add(foot);
+            
+            // Add claws
+            for (let i = 0; i < 3; i++) {
+                const claw = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.05 * scale, 0.15 * scale, 4),
+                    new THREE.MeshBasicMaterial({ color: 0x111111 })
+                );
+                claw.position.set((-0.1 + i * 0.1) * scale, -0.05 * scale, -0.2 * scale);
+                claw.rotation.x = -Math.PI / 4;
+                foot.add(claw);
+            }
+            
+            legGroup.position.set(xPos, 0, zPos);
+            body.add(legGroup);
+            this.legs.push({ group: legGroup, upper: upperLeg, lower: lowerLeg, foot: foot, isFront });
+            
+            return legGroup;
+        };
+        
+        createLeg(true, true);   // Front left
+        createLeg(false, true);  // Front right
+        createLeg(true, false);  // Back left
+        createLeg(false, false); // Back right
+        
+        return dinosaur;
+    }
+    
+    getNewTargetPosition() {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * Constants.DINOSAUR.WANDER_RADIUS;
+        return new THREE.Vector3(
+            Math.cos(angle) * distance,
+            0,
+            Math.sin(angle) * distance
+        );
+    }
+    
+    update(deltaTime, playerPosition) {
+        const now = performance.now();
+        
+        // Update leg animation
+        if (this.moving) {
+            this.legAngle += deltaTime * 5;
+            this.tailAngle += deltaTime * 3;
+            
+            // Animate legs
+            this.legs.forEach((leg, index) => {
+                const offset = index % 2 === 0 ? 0 : Math.PI;
+                const legSwing = Math.sin(this.legAngle + offset) * 0.3;
+                
+                if (leg.isFront) {
+                    leg.upper.rotation.x = legSwing;
+                    leg.lower.rotation.x = -Math.abs(legSwing) * 0.5;
+                } else {
+                    leg.upper.rotation.x = -legSwing;
+                    leg.lower.rotation.x = Math.abs(legSwing) * 0.5;
+                }
+            });
+            
+            // Animate tail
+            if (this.tail) {
+                this.tail.rotation.y = Math.sin(this.tailAngle) * 0.2;
+            }
+        }
+        
+        // Check if it's time to update target position
+        if (now - this.lastUpdate > this.updateInterval) {
+            this.targetPosition = this.getNewTargetPosition();
+            this.lastUpdate = now;
+            this.updateInterval = Math.random() * 5000 + 8000; // 8-13 seconds
+        }
+        
+        // Move towards target position
+        const direction = new THREE.Vector3();
+        direction.subVectors(this.targetPosition, this.position);
+        
+        // Only move if we're not too close to the target
+        if (direction.length() > 0.5) {
+            this.moving = true;
+            
+            // Calculate rotation to face the target
+            const targetRotation = Math.atan2(direction.x, direction.z);
+            
+            // Smoothly rotate towards the target
+            let rotationDiff = targetRotation - this.rotation.y;
+            
+            // Handle the -PI to PI transition
+            if (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+            if (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+            
+            this.rotation.y += rotationDiff * 0.05;
+            
+            // Move forward in the direction we're facing
+            const moveDirection = new THREE.Vector3(0, 0, -1);
+            moveDirection.applyEuler(this.rotation);
+            
+            // Scale by move speed and delta time
+            moveDirection.multiplyScalar(this.moveSpeed * deltaTime * 60);
+            
+            // Update position
+            this.position.add(moveDirection);
+            
+            // Update model position and rotation
+            this.model.position.copy(this.position);
+            this.model.rotation.copy(this.rotation);
+        } else {
+            this.moving = false;
+        }
+        
+        // Occasionally roar
+        if (now - this.lastRoar > this.roarInterval) {
+            this.roar();
+            this.lastRoar = now;
+            this.roarInterval = Constants.DINOSAUR.ROAR_INTERVAL + Math.random() * 5000; // Add some randomness
+        }
+        
+        // Update blood particles if any
+        if (this.bloodParticles.length > 0) {
+            this.updateBloodParticles(deltaTime);
+        }
+    }
+    
+    roar() {
+        // Play roar sound if audio is initialized
+        if (window.game && window.game.audioInitialized && window.game.audioContext) {
+            try {
+                // Create oscillator for roar sound
+                const oscillator = window.game.audioContext.createOscillator();
+                const gainNode = window.game.audioContext.createGain();
+                
+                // Connect nodes
+                oscillator.connect(gainNode);
+                gainNode.connect(window.game.audioContext.destination);
+                
+                // Set parameters for a roar-like sound
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(100, window.game.audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, window.game.audioContext.currentTime + 1.5);
+                
+                // Volume envelope
+                gainNode.gain.setValueAtTime(0, window.game.audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, window.game.audioContext.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, window.game.audioContext.currentTime + 1.5);
+                
+                // Start and stop
+                oscillator.start();
+                oscillator.stop(window.game.audioContext.currentTime + 1.5);
+            } catch (error) {
+                console.warn('Could not play dinosaur roar:', error);
+            }
+        }
+    }
+    
+    takeDamage(amount, hitPosition) {
+        this.health -= amount;
+        this.createBloodSplatter(hitPosition);
+        
+        // React to being hit - turn toward player
+        if (window.game && window.game.playerState) {
+            const playerDir = new THREE.Vector3();
+            playerDir.subVectors(window.game.playerState.position, this.position);
+            this.rotation.y = Math.atan2(playerDir.x, playerDir.z);
+            this.model.rotation.copy(this.rotation);
+        }
+        
+        // If health depleted, remove the dinosaur
+        if (this.health <= 0) {
+            this.scene.remove(this.model);
+            
+            // Remove from game's dinosaurs array if it exists
+            if (window.game && window.game.dinosaurs) {
+                const index = window.game.dinosaurs.indexOf(this);
+                if (index !== -1) {
+                    window.game.dinosaurs.splice(index, 1);
+                }
+            }
+        }
+    }
+    
+    createBloodSplatter(hitPosition) {
+        // Create blood particles at hit position
+        const particleCount = 20 + Math.floor(Math.random() * 10);
+        
+        for (let i = 0; i < particleCount; i++) {
+            // Create a small sphere for each blood particle
+            const size = 0.03 + Math.random() * 0.05;
+            const geometry = new THREE.SphereGeometry(size, 4, 4);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x8B0000,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const particle = new THREE.Mesh(geometry, material);
+            
+            // Position at hit location
+            particle.position.copy(hitPosition);
+            
+            // Random velocity
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,
+                Math.random() * 0.1,
+                (Math.random() - 0.5) * 0.1
+            );
+            
+            // Add to scene and track
+            this.scene.add(particle);
+            this.bloodParticles.push({
+                mesh: particle,
+                velocity: velocity,
+                life: 1.0 // Life value from 1.0 to 0.0
+            });
+        }
+    }
+    
+    updateBloodParticles(deltaTime) {
+        const gravity = new THREE.Vector3(0, -0.005, 0);
+        
+        for (let i = this.bloodParticles.length - 1; i >= 0; i--) {
+            const particle = this.bloodParticles[i];
+            
+            // Apply gravity
+            particle.velocity.add(gravity.clone().multiplyScalar(deltaTime * 60));
+            
+            // Move particle
+            particle.mesh.position.add(particle.velocity.clone().multiplyScalar(deltaTime * 60));
+            
+            // Reduce life
+            particle.life -= deltaTime * 0.5;
+            
+            // Update opacity based on life
+            particle.mesh.material.opacity = particle.life * 0.8;
+            
+            // Remove if life is depleted or it hit the ground
+            if (particle.life <= 0 || particle.mesh.position.y <= 0.05) {
+                this.scene.remove(particle.mesh);
+                this.bloodParticles.splice(i, 1);
+            }
+        }
+    }
+    
+    checkBulletHit(rayOrigin, rayDirection) {
+        // Create a bounding box for the dinosaur
+        const boundingBox = new THREE.Box3().setFromObject(this.model);
+        
+        // Create a ray for intersection testing
+        const ray = new THREE.Ray(rayOrigin, rayDirection);
+        
+        // Check if ray intersects the bounding box
+        const intersectionPoint = new THREE.Vector3();
+        if (ray.intersectBox(boundingBox, intersectionPoint)) {
+            // Calculate damage based on distance
+            const distance = rayOrigin.distanceTo(intersectionPoint);
+            const damage = Math.max(10, 30 - distance); // More damage when closer
+            
+            // Apply damage
+            this.takeDamage(damage, intersectionPoint);
+            return true;
+        }
+        
+        return false;
+    }
+}
 
 class Enemy {
     constructor(scene, position) {
@@ -551,6 +985,7 @@ class Game {
         // Initialize arrays before using them
         this.trees = [];
         this.enemies = [];
+        this.dinosaurs = [];
         this.maxEnemies = 1; // Just one enemy as requested
         
         // Initialize camera angles before player creation
@@ -608,6 +1043,18 @@ class Game {
         } else {
             console.warn('createEnemy function not available - skipping enemy creation');
             this.debug.innerHTML += '<br>Enemy creation skipped (function not available)';
+        }
+        
+        // Create dinosaur
+        if (typeof this.createDinosaur === 'function') {
+            try {
+                this.createDinosaur();
+                this.debug.innerHTML += '<br>Dinosaur created';
+            } catch (dinoError) {
+                console.error('Dinosaur creation failed:', dinoError);
+                this.debug.innerHTML += `<br>Dinosaur creation failed: ${dinoError.message}`;
+                // Don't throw here - game can still run without dinosaur
+            }
         }
         
         // Hide loading screen
@@ -1897,12 +2344,41 @@ class Game {
     }
     
     createPlayerModel() {
-        // Create simple soldier model using basic materials
+        // Create detailed soldier model
         this.player = new THREE.Group();
         
-        // Body
+        // Create a canvas for camo texture
+        const camoCanvas = document.createElement('canvas');
+        camoCanvas.width = 256;
+        camoCanvas.height = 256;
+        const ctx = camoCanvas.getContext('2d');
+        
+        // Fill with base color
+        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(0, 0, 256, 256);
+        
+        // Add random camo spots
+        for (let i = 0; i < 80; i++) {
+            const x = Math.random() * 256;
+            const y = Math.random() * 256;
+            const size = 15 + Math.random() * 30;
+            const colorIndex = Math.floor(Math.random() * Constants.COLORS.CAMO.length);
+            ctx.fillStyle = '#' + Constants.COLORS.CAMO[colorIndex].toString(16);
+            ctx.beginPath();
+            ctx.ellipse(x, y, size, size * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Create texture from canvas
+        const camoTexture = new THREE.CanvasTexture(camoCanvas);
+        
+        // Body with camo uniform
         const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY }); 
+        const bodyMaterial = new THREE.MeshStandardMaterial({ 
+            map: camoTexture,
+            roughness: 0.8,
+            metalness: 0.1
+        });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 0.4;
         this.player.add(body);
@@ -1910,15 +2386,39 @@ class Game {
         // Create helmet with camo pattern
         this.createPlayerHelmet();
         
-        // Face (visible under the helmet)
+        // Face with facepaint
         const faceGeometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
-        const faceMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_FACE });
+        
+        // Create face texture with facepaint
+        const faceCanvas = document.createElement('canvas');
+        faceCanvas.width = 128;
+        faceCanvas.height = 128;
+        const faceCtx = faceCanvas.getContext('2d');
+        
+        // Base skin color
+        faceCtx.fillStyle = '#D2B48C';
+        faceCtx.fillRect(0, 0, 128, 128);
+        
+        // Add facepaint stripes
+        faceCtx.fillStyle = '#2d3a1a';
+        faceCtx.fillRect(0, 20, 128, 15);
+        faceCtx.fillRect(0, 60, 128, 15);
+        faceCtx.fillRect(0, 100, 128, 15);
+        
+        // Create texture from canvas
+        const faceTexture = new THREE.CanvasTexture(faceCanvas);
+        const faceMaterial = new THREE.MeshStandardMaterial({ 
+            map: faceTexture,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        
         const face = new THREE.Mesh(faceGeometry, faceMaterial);
-        face.position.set(0, 0.95, 0.05); // Position slightly lower than helmet and forward
+        face.position.set(0, 0.95, 0.05);
         this.player.add(face);
         
-        // Create limbs
-        this.createPlayerLimbs();
+        // Create limbs with improved textures
+        this.createPlayerLimbs(camoTexture);
         
         // Create rifle
         this.createRifle();
@@ -1972,10 +2472,14 @@ class Game {
         this.player.add(rim);
     }
     
-    createPlayerLimbs() {
-        // Legs
+    createPlayerLimbs(camoTexture) {
+        // Legs with camo texture
         const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const legMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY });
+        const legMaterial = new THREE.MeshStandardMaterial({ 
+            map: camoTexture,
+            roughness: 0.8,
+            metalness: 0.1
+        });
         
         const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
         leftLeg.position.set(0.15, -0.3, 0);
@@ -1985,17 +2489,41 @@ class Game {
         rightLeg.position.set(-0.15, -0.3, 0);
         this.player.add(rightLeg);
         
-        // Arms
+        // Black boots
+        const bootGeometry = new THREE.BoxGeometry(0.22, 0.15, 0.25);
+        const bootMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.7,
+            metalness: 0.3
+        });
+        
+        const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        leftBoot.position.set(0.15, -0.675, 0.02);
+        this.player.add(leftBoot);
+        
+        const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+        rightBoot.position.set(-0.15, -0.675, 0.02);
+        this.player.add(rightBoot);
+        
+        // Arms with camo texture - positioned for holding rifle
         const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const armMaterial = new THREE.MeshBasicMaterial({ color: Constants.COLORS.SOLDIER_BODY });
+        const armMaterial = new THREE.MeshStandardMaterial({ 
+            map: camoTexture,
+            roughness: 0.8,
+            metalness: 0.1
+        });
         
-        const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-        leftArm.position.set(0.35, 0.4, 0);
-        this.player.add(leftArm);
+        // Left arm positioned forward to hold rifle
+        this.leftArm = new THREE.Mesh(armGeometry, armMaterial);
+        this.leftArm.position.set(0.35, 0.4, -0.1);
+        this.leftArm.rotation.set(0, 0, -0.3);
+        this.player.add(this.leftArm);
         
-        const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-        rightArm.position.set(-0.35, 0.4, 0);
-        this.player.add(rightArm);
+        // Right arm positioned to hold rifle trigger
+        this.rightArm = new THREE.Mesh(armGeometry, armMaterial);
+        this.rightArm.position.set(-0.35, 0.4, -0.1);
+        this.rightArm.rotation.set(0, 0, 0.3);
+        this.player.add(this.rightArm);
     }
     
     createRifle() {
@@ -2004,7 +2532,7 @@ class Game {
         // Rifle body
         const rifleBodyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8);
         const rifleMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x000000,
+            color: 0x111111,
             roughness: 0.7,
             metalness: 0.3
         });
@@ -2036,6 +2564,13 @@ class Game {
         sight.position.z = 0.1;
         rifle.add(sight);
         
+        // Rifle magazine
+        const magazineGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.1);
+        const magazine = new THREE.Mesh(magazineGeometry, rifleMaterial);
+        magazine.position.y = -0.12;
+        magazine.position.z = 0.1;
+        rifle.add(magazine);
+        
         // Muzzle flash (initially invisible)
         const muzzleGeometry = new THREE.ConeGeometry(0.08, 0.2, 8);
         const muzzleMaterial = new THREE.MeshBasicMaterial({ 
@@ -2052,9 +2587,8 @@ class Game {
         // Create hands to hold the rifle
         this.createHands(rifle);
         
-        // Position rifle for proper third-person aiming
-        rifle.position.set(0.3, 0.4, -0.2); // Moved forward and to the right
-        rifle.rotation.set(0, -0.2, 0); // Slight angle for natural hold
+        // Position rifle for standard third-person shooter position
+        rifle.position.set(0.3, 0.4, 0.3); // Positioned in front of player
         
         this.player.add(rifle);
         this.rifle = rifle;
@@ -2158,39 +2692,22 @@ class Game {
     }
     
     shoot() {
-        // Check cooldown and pointer lock
+        // Check if enough time has passed since last shot
         const now = performance.now();
-        if (now - this.playerState.lastShot < this.playerState.shotCooldown || 
-            document.pointerLockElement !== this.container) {
+        if (now - this.playerState.lastShot < this.playerState.shotCooldown) {
             return;
         }
         
+        // Update last shot time
         this.playerState.lastShot = now;
         
-        // Play rifle sound
-        if (this.audioInitialized && this.rifleSound && this.rifleSound.buffer) {
-            try {
-                // Check if audio context is available and running
-                if (!this.listener || !this.listener.context) {
-                    console.warn('AudioListener or AudioContext not available for rifle sound');
-                } else if (this.listener.context.state !== 'running') {
-                    // Try to resume the audio context
-                    this.listener.context.resume().catch(e => {
-                        console.warn('Could not resume audio context:', e);
-                    });
-                } else {
-                    // Play the sound if everything is good
-                    const soundClone = this.rifleSound.clone();
-                    const pitchVariation = 0.9 + Math.random() * 0.2;
-                    soundClone.setPlaybackRate(pitchVariation);
-                    soundClone.play();
-                }
-            } catch (audioError) {
-                console.warn('Error playing rifle sound:', audioError);
-            }
-        }
+        // Set shooting flag for animation
+        this.playerState.shooting = true;
+        setTimeout(() => {
+            this.playerState.shooting = false;
+        }, 100);
         
-        // Show muzzle flash
+        // Show muzzle flash briefly
         if (this.muzzleFlash) {
             this.muzzleFlash.visible = true;
             setTimeout(() => {
@@ -2198,40 +2715,97 @@ class Game {
             }, 50);
         }
         
-        // Calculate ray from camera for bullet trajectory
-        const raycaster = new THREE.Raycaster();
-        
-        // Get direction from camera
-        const cameraDirection = new THREE.Vector3(0, 0, -1);
-        cameraDirection.applyEuler(new THREE.Euler(
-            this.cameraAngles.vertical,
-            this.playerState.rotation.y,
-            0,
-            'YXZ'
-        ));
-        
-        // Set raycaster origin and direction
-        raycaster.set(this.playerState.position, cameraDirection);
-        
-        // Check for enemy hits
-        let hitEnemy = false;
-        for (const enemy of this.enemies) {
-            if (enemy.health > 0 && enemy.checkBulletHit(this.playerState.position, cameraDirection)) {
-                hitEnemy = true;
-                break;
+        // Play rifle sound
+        if (this.audioInitialized && this.audioContext && this.audioContext.state === 'running') {
+            try {
+                // Create oscillator for gunshot sound
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                // Connect nodes
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                // Set parameters for a gunshot-like sound
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(20, this.audioContext.currentTime + 0.1);
+                
+                // Volume envelope
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.8, this.audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+                
+                // Start and stop
+                oscillator.start();
+                oscillator.stop(this.audioContext.currentTime + 0.1);
+                
+                // Add a mechanical click sound
+                setTimeout(() => {
+                    const clickOsc = this.audioContext.createOscillator();
+                    const clickGain = this.audioContext.createGain();
+                    
+                    clickOsc.connect(clickGain);
+                    clickGain.connect(this.audioContext.destination);
+                    
+                    clickOsc.type = 'square';
+                    clickOsc.frequency.setValueAtTime(800, this.audioContext.currentTime);
+                    
+                    clickGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    clickGain.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+                    clickGain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.03);
+                    
+                    clickOsc.start();
+                    clickOsc.stop(this.audioContext.currentTime + 0.03);
+                }, 50);
+            } catch (error) {
+                console.warn('Could not play rifle sound:', error);
             }
         }
         
-        // If no enemy was hit, create a bullet impact effect on terrain or objects
-        if (!hitEnemy) {
-            // Cast ray to find impact point
+        // Calculate ray from camera for hit detection
+        const raycaster = new THREE.Raycaster();
+        const rayOrigin = this.camera.position.clone();
+        
+        // Direction from camera
+        const rayDirection = new THREE.Vector3(0, 0, -1);
+        rayDirection.applyQuaternion(this.camera.quaternion);
+        rayDirection.normalize();
+        
+        // Set raycaster
+        raycaster.set(rayOrigin, rayDirection);
+        
+        // Check for enemy hits
+        let hitSomething = false;
+        
+        // Check enemies
+        if (this.enemies) {
+            for (const enemy of this.enemies) {
+                if (enemy.checkBulletHit(rayOrigin, rayDirection)) {
+                    hitSomething = true;
+                    break;
+                }
+            }
+        }
+        
+        // Check dinosaurs
+        if (!hitSomething && this.dinosaurs) {
+            for (const dinosaur of this.dinosaurs) {
+                if (dinosaur.checkBulletHit(rayOrigin, rayDirection)) {
+                    hitSomething = true;
+                    break;
+                }
+            }
+        }
+        
+        // If nothing was hit, check for environment hits
+        if (!hitSomething) {
+            // Check for intersections with scene objects
             const intersects = raycaster.intersectObjects(this.scene.children, true);
             
             if (intersects.length > 0) {
-                const impact = intersects[0];
-                
-                // Create impact effect (simple dust particles)
-                this.createImpactEffect(impact.point, impact.face.normal);
+                // Create impact effect at hit point
+                this.createImpactEffect(intersects[0].point, intersects[0].face.normal);
             }
         }
     }
@@ -2379,91 +2953,66 @@ class Game {
         const aimDirection = lookTarget.clone().sub(this.playerState.position);
         aimDirection.normalize();
         
-        // Calculate rifle angles for proper third-person aiming
+        // Standard third-person shooter rifle positioning
+        // Always points forward in the direction of the crosshair
+        
+        // Calculate rifle angles
         const rifleRotation = new THREE.Euler(0, 0, 0, 'YXZ');
         rifleRotation.y = Math.atan2(aimDirection.x, aimDirection.z);
-        rifleRotation.x = -Math.asin(aimDirection.y) * 0.8; // Reduced vertical rotation for better look
+        rifleRotation.x = -Math.asin(aimDirection.y);
         
-        // Smoothly interpolate current rotation to target rotation
-        this.rifle.rotation.x += (rifleRotation.x - this.rifle.rotation.x) * 0.3;
-        this.rifle.rotation.y += (rifleRotation.y - this.rifle.rotation.y) * 0.3;
+        // Update rifle rotation to match camera direction
+        this.rifle.rotation.x = rifleRotation.x;
+        this.rifle.rotation.y = rifleRotation.y;
         
-        // Add subtle weapon sway during movement
-        if (this.playerState.moving) {
-            const swayAmount = 0.02;
-            const swaySpeed = 4;
-            const time = performance.now() * 0.001;
+        // Position rifle in front of player
+        this.rifle.position.set(0.3, 0.4, 0.3);
+        
+        // Update arm positions to naturally hold the rifle
+        if (this.leftArm && this.rightArm) {
+            // Left arm forward to hold rifle
+            this.leftArm.rotation.x = rifleRotation.x * 0.7;
+            this.leftArm.rotation.y = rifleRotation.y * 0.5;
             
-            this.rifle.rotation.z = Math.sin(time * swaySpeed) * swayAmount;
-            this.rifle.position.y = 0.4 + Math.sin(time * swaySpeed * 2) * 0.01;
-        } else {
-            this.rifle.rotation.z = 0;
-            this.rifle.position.y = 0.4;
-        }
-        
-        // Update arm rotations to follow rifle
-        const rightArm = this.player.children.find(child => child.position.x === -0.35 && child.position.y === 0.4);
-        const leftArm = this.player.children.find(child => child.position.x === 0.35 && child.position.y === 0.4);
-        
-        if (rightArm && leftArm) {
-            rightArm.rotation.x = this.rifle.rotation.x * 0.7;
-            rightArm.rotation.y = this.rifle.rotation.y * 0.5;
-            
-            leftArm.rotation.x = this.rifle.rotation.x * 0.7;
-            leftArm.rotation.y = this.rifle.rotation.y * 0.5;
+            // Right arm to hold trigger
+            this.rightArm.rotation.x = rifleRotation.x * 0.7;
+            this.rightArm.rotation.y = rifleRotation.y * 0.5;
         }
     }
     
     animate() {
-        // Use proper game loop with delta time
+        requestAnimationFrame(this.animate.bind(this));
+        
+        // Calculate delta time for smooth animation
         const now = performance.now();
-        this.deltaTime = (now - (this.lastTime || now)) / 1000; // Convert to seconds
+        let deltaTime = (now - this.lastTime) / 1000;
+        
+        // Cap delta time to prevent large jumps after tab switch
+        deltaTime = Math.min(deltaTime, Constants.GAME.MAX_DELTA_TIME);
         this.lastTime = now;
-
-        // Cap delta time to avoid huge jumps if tab was inactive
-        if (this.deltaTime > Constants.GAME.MAX_DELTA_TIME) {
-            this.deltaTime = Constants.GAME.MAX_DELTA_TIME;
-        }
-
-        // Track FPS
-        if (!this.fpsCounter) {
-            this.fpsCounter = {
-                frameCount: 0,
-                lastCheck: now,
-                fps: 0
-            };
-        }
         
-        this.fpsCounter.frameCount++;
-        if (now - this.fpsCounter.lastCheck >= 1000) {
-            // Update FPS once per second
-            this.fpsCounter.fps = this.fpsCounter.frameCount;
-            this.fpsCounter.frameCount = 0;
-            this.fpsCounter.lastCheck = now;
-        }
-
-        requestAnimationFrame(() => this.animate());
+        // Update player
+        this.updatePlayer(deltaTime);
         
-        try {
-            // Update player with delta time
-            this.updatePlayer(this.deltaTime);
-            
-            // Update enemies
-            this.enemies.forEach(enemy => {
-                enemy.update(this.deltaTime, this.playerState.position);
-            });
-            
-            // Render scene
-            this.renderer.render(this.scene, this.camera);
-            
-            // Update debug info occasionally
-            if (now % 100 < 16) { // Update about every 100ms
-                this.updateDebugInfo();
+        // Update enemies
+        if (this.enemies) {
+            for (let i = this.enemies.length - 1; i >= 0; i--) {
+                this.enemies[i].update(deltaTime, this.playerState.position);
             }
-        } catch (animateError) {
-            console.error('Animation error:', animateError);
-            this.debug.innerHTML += `<br>Animation error: ${animateError.message}`;
         }
+        
+        // Update dinosaurs
+        if (this.dinosaurs) {
+            for (let i = this.dinosaurs.length - 1; i >= 0; i--) {
+                this.dinosaurs[i].update(deltaTime, this.playerState.position);
+            }
+        }
+        
+        // Update debug info
+        this.updateDebugInfo();
+        
+        // Render scene
+        this.renderer.render(this.scene, this.camera);
     }
 
     updateDebugInfo() {
@@ -2617,6 +3166,59 @@ class Game {
         }
         
         return height;
+    }
+
+    // Add createDinosaur method to Game class after createEnemy method
+    createDinosaur() {
+        try {
+            // Generate a random position away from the player
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 30 + Math.random() * 20; // Between 30-50 units from center
+            const position = new THREE.Vector3(
+                Math.cos(angle) * distance,
+                1,
+                Math.sin(angle) * distance
+            );
+            
+            // Check if position is valid (not inside objects)
+            let validPosition = true;
+            
+            // Check collision with trees
+            for (const tree of this.trees) {
+                const dx = tree.position.x - position.x;
+                const dz = tree.position.z - position.z;
+                const distSquared = dx * dx + dz * dz;
+                
+                if (distSquared < (tree.radius + 2) * (tree.radius + 2)) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            // If position is valid, create the dinosaur
+            if (validPosition) {
+                const dinosaur = new Dinosaur(this.scene, position);
+                
+                // Initialize dinosaurs array if it doesn't exist
+                if (!this.dinosaurs) {
+                    this.dinosaurs = [];
+                }
+                
+                this.dinosaurs.push(dinosaur);
+                
+                // Pass audio context to dinosaur if available
+                if (this.audioInitialized && this.listener) {
+                    dinosaur.listener = this.listener;
+                    dinosaur.audioInitialized = true;
+                }
+            } else {
+                // Try again with a different position
+                this.createDinosaur();
+            }
+        } catch (error) {
+            console.error('Error creating dinosaur:', error);
+            this.debug.innerHTML += `<br>Error creating dinosaur: ${error.message}`;
+        }
     }
 }
 
