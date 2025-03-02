@@ -48,15 +48,11 @@ export class Player {
     }
     
     setupCamera() {
-        this.defaultCameraDistance = 9.75;
-        this.cameraOffset = new THREE.Vector3(0, 2, this.defaultCameraDistance);
-        this.cameraLookOffset = new THREE.Vector3(0, 1, 0);
-        this.currentZoomDistance = this.defaultCameraDistance;
-        this.minZoomDistance = this.defaultCameraDistance * 0.5;
-        this.maxZoomDistance = this.defaultCameraDistance * 1.5;
-        this.zoomSpeed = 0.0015;
-        
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.cameraOffset = new THREE.Vector3(0, 2, 9.75);
+        this.cameraLookOffset = new THREE.Vector3(0, 1, 0);
+        
+        // Set initial camera position
         this.updateCamera();
     }
     
@@ -210,34 +206,27 @@ export class Player {
     }
     
     updateCamera() {
-        const idealOffset = this.cameraOffset.clone();
+        if (!this.camera) return;
         
-        const verticalRotationMatrix = new THREE.Matrix4();
-        verticalRotationMatrix.makeRotationX(this.verticalAngle);
-        idealOffset.applyMatrix4(verticalRotationMatrix);
+        // Calculate camera position based on player position and offset
+        const cameraPosition = this.object.position.clone().add(this.cameraOffset);
+        this.camera.position.copy(cameraPosition);
         
-        idealOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.object.rotation.y);
-        const idealPosition = this.object.position.clone().add(idealOffset);
-        
-        idealPosition.y = Math.max(0.5, idealPosition.y);
-        
-        this.camera.position.copy(idealPosition);
-        
+        // Calculate look target
         const lookTarget = this.object.position.clone().add(this.cameraLookOffset);
         this.camera.lookAt(lookTarget);
     }
     
     handleMouseMovement(movementX, movementY) {
+        if (this.isDead) return;
+        
         // Rotate player horizontally
         this.object.rotation.y -= movementX * this.rotationSpeed;
         
         // Update vertical angle for camera
         this.verticalAngle = Math.max(
             this.minVerticalAngle,
-            Math.min(
-                this.maxVerticalAngle,
-                this.verticalAngle - movementY * this.rotationSpeed
-            )
+            Math.min(this.maxVerticalAngle, this.verticalAngle - movementY * this.rotationSpeed)
         );
         
         // Update camera position
