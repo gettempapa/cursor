@@ -23,9 +23,9 @@ class SkiingGame {
         this.scene.add(directionalLight);
 
         // Snowy mountain
-        const mountainTexture = new THREE.TextureLoader().load('textures/snow.jpg');
-        mountainTexture.wrapS = mountainTexture.wrapT = THREE.RepeatWrapping;
-        mountainTexture.repeat.set(100, 100);
+        // const mountainTexture = new THREE.TextureLoader().load('textures/snow.jpg');
+        // mountainTexture.wrapS = mountainTexture.wrapT = THREE.RepeatWrapping;
+        // mountainTexture.repeat.set(100, 100);
 
         const mountain = new THREE.Mesh(
             new THREE.CylinderGeometry(4000, 4000, 8000, 32, 1, true),
