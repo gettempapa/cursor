@@ -6,20 +6,23 @@ class Game {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.getElementById('game-container').appendChild(this.renderer.domElement);
         
-        // Basic scene
+        // Basic scene setup
         this.scene.add(new THREE.AmbientLight(0xffffff));
-        this.scene.add(new THREE.Mesh(
+        const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
             new THREE.MeshBasicMaterial({ color: 0x3a5f0b })
-        )).rotation.x = -Math.PI/2;
+        );
+        ground.rotation.x = -Math.PI / 2;
+        this.scene.add(ground);
         
-        // Player and target
+        // Player setup
         this.player = new THREE.Mesh(
             new THREE.BoxGeometry(1, 2, 1),
             new THREE.MeshBasicMaterial({ color: 0x567d46 })
         );
         this.scene.add(this.player);
         
+        // Target setup
         this.target = new THREE.Mesh(
             new THREE.BoxGeometry(4, 4, 6),
             new THREE.MeshBasicMaterial({ color: 0x8b4513 })
@@ -27,7 +30,7 @@ class Game {
         this.target.position.set(20, 2, 20);
         this.scene.add(this.target);
         
-        // Core game state
+        // Game state
         this.moveInput = new THREE.Vector2();
         this.yaw = 0;
         this.pitch = 0;
@@ -39,11 +42,12 @@ class Game {
         document.addEventListener('mousemove', e => {
             if (document.pointerLockElement) {
                 this.yaw -= e.movementX * 0.002;
-                this.pitch = Math.max(-1, Math.min(1, this.pitch + e.movementY * 0.002));
+                this.pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, this.pitch + e.movementY * 0.002));
             }
         });
         
-        requestAnimationFrame(() => this.update());
+        // Start game loop
+        this.animate();
     }
     
     handleKey(key, pressed) {
@@ -56,8 +60,6 @@ class Game {
     }
     
     update() {
-        requestAnimationFrame(() => this.update());
-        
         // Move player
         if (this.moveInput.lengthSq() > 0) {
             const move = this.moveInput.normalize().multiplyScalar(0.15);
@@ -67,21 +69,19 @@ class Game {
         this.player.rotation.y = this.yaw;
         
         // Position camera
-        const dist = 5;
-        const height = 2;
-        const lookHeight = 1.5;
+        const cameraOffset = new THREE.Vector3(0, 2, 5);
+        cameraOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), this.pitch);
+        cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
         
-        this.camera.position.x = this.player.position.x - Math.sin(this.yaw) * dist * Math.cos(this.pitch);
-        this.camera.position.y = this.player.position.y + height + dist * Math.sin(this.pitch);
-        this.camera.position.z = this.player.position.z - Math.cos(this.yaw) * dist * Math.cos(this.pitch);
-        
-        this.camera.lookAt(
-            this.player.position.x,
-            this.player.position.y + lookHeight,
-            this.player.position.z
-        );
+        this.camera.position.copy(this.player.position).add(cameraOffset);
+        this.camera.lookAt(this.player.position);
         
         this.renderer.render(this.scene, this.camera);
+    }
+    
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        this.update();
     }
 }
 
