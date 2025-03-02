@@ -235,25 +235,43 @@ class Game {
     
     checkCollisions(newPosition) {
         const playerPosition = new THREE.Vector2(newPosition.x, newPosition.z);
+        let collisionResult = {
+            hasCollision: false,
+            newY: newPosition.y
+        };
         
         // Check tree collisions
         for (const tree of this.trees) {
             const distance = playerPosition.distanceTo(tree.position);
             if (distance < (this.playerCollisionRadius + tree.radius)) {
-                return true;
+                collisionResult.hasCollision = true;
+                return collisionResult;
             }
         }
         
-        // Check crate collisions
+        // Check crate collisions with improved vertical collision
         for (const crate of this.crates) {
-            // Only check horizontal collision if we're not above the crate
-            if (newPosition.y <= crate.position.y + crate.size.y) {
-                const dx = Math.abs(newPosition.x - crate.position.x);
-                const dz = Math.abs(newPosition.z - crate.position.z);
+            const dx = Math.abs(newPosition.x - crate.position.x);
+            const dz = Math.abs(newPosition.z - crate.position.z);
+            const isWithinHorizontalBounds = dx < (crate.size.x / 2 + this.playerCollisionRadius) &&
+                                           dz < (crate.size.z / 2 + this.playerCollisionRadius);
+            
+            if (isWithinHorizontalBounds) {
+                const crateTop = crate.position.y + crate.size.y;
+                const playerBottom = newPosition.y;
+                const playerTop = newPosition.y + 2; // Approximate player height
                 
-                if (dx < (crate.size.x / 2 + this.playerCollisionRadius) &&
-                    dz < (crate.size.z / 2 + this.playerCollisionRadius)) {
-                    return true;
+                // Check if falling onto crate
+                if (this.velocity.y <= 0 && playerBottom <= crateTop && playerBottom > crate.position.y) {
+                    collisionResult.hasCollision = false;
+                    collisionResult.newY = crateTop;
+                    return collisionResult;
+                }
+                
+                // Check if hitting crate from sides or bottom
+                if (playerBottom < crateTop && playerTop > crate.position.y) {
+                    collisionResult.hasCollision = true;
+                    return collisionResult;
                 }
             }
         }
@@ -270,11 +288,12 @@ class Game {
                  newPosition.z < this.bunkerBox.max.z + margin) ||
                 (!isInBunkerX && isInBunkerZ && newPosition.x > this.bunkerBox.min.x - margin && 
                  newPosition.x < this.bunkerBox.max.x + margin)) {
-                return true;
+                collisionResult.hasCollision = true;
+                return collisionResult;
             }
         }
         
-        return false;
+        return collisionResult;
     }
     
     setupScene() {
@@ -420,18 +439,37 @@ class Game {
     }
     
     updateMovement() {
-        if (this.isDead) return; // No movement when dead
+        if (this.isDead) return;
         
         // Update vertical movement (jumping/falling)
         if (!this.isGrounded) {
             this.velocity.y += this.gravity;
-            this.player.position.y += this.velocity.y;
+            const newPosition = new THREE.Vector3(
+                this.player.position.x,
+                this.player.position.y + this.velocity.y,
+                this.player.position.z
+            );
             
-            // Check for ground collision
-            if (this.player.position.y <= 1) {
-                this.player.position.y = 1;
+            // Check for collisions including ground and crates
+            const collisionResult = this.checkCollisions(newPosition);
+            
+            if (collisionResult.hasCollision) {
+                // Hit something from the side or bottom
                 this.velocity.y = 0;
-                this.isGrounded = true;
+            } else {
+                // Update position, might be adjusted by collision detection
+                this.player.position.y = collisionResult.newY;
+                
+                // Check if landed on ground or crate
+                if (this.player.position.y <= 1) {
+                    this.player.position.y = 1;
+                    this.velocity.y = 0;
+                    this.isGrounded = true;
+                } else if (collisionResult.newY !== newPosition.y) {
+                    // Landed on a crate
+                    this.velocity.y = 0;
+                    this.isGrounded = true;
+                }
             }
         }
         
@@ -469,8 +507,14 @@ class Game {
             );
             
             // Check for collisions before updating position
-            if (!this.checkCollisions(newPosition)) {
-                this.player.position.copy(newPosition);
+            const collisionResult = this.checkCollisions(newPosition);
+            if (!collisionResult.hasCollision) {
+                this.player.position.x = newPosition.x;
+                this.player.position.z = newPosition.z;
+                // Keep the adjusted Y position from any vertical collisions
+                if (collisionResult.newY !== newPosition.y) {
+                    this.player.position.y = collisionResult.newY;
+                }
             }
         } else {
             // Reset legs to standing position when not moving
