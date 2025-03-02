@@ -36,8 +36,26 @@ class Game {
         this.playerCollisionRadius = 0.5; // Collision radius for player
         
         // Camera settings
-        this.cameraOffset = new THREE.Vector3(0, 2, 15); // 2 units up, 15 units back
-        this.cameraLookOffset = new THREE.Vector3(0, 1, 0); // Look at point above player's head
+        this.defaultCameraDistance = 9.75; // 35% closer than 15 units
+        this.cameraOffset = new THREE.Vector3(0, 2, this.defaultCameraDistance);
+        this.cameraLookOffset = new THREE.Vector3(0, 1, 0);
+        this.currentZoomDistance = this.defaultCameraDistance;
+        this.minZoomDistance = this.defaultCameraDistance * 0.5; // 50% closer
+        this.maxZoomDistance = this.defaultCameraDistance * 1.5; // 50% further
+        this.zoomSpeed = 0.0005;
+        
+        // Shooting state
+        this.isShooting = false;
+        this.muzzleFlash = null;
+        this.muzzleLight = null;
+        this.flashDuration = 50; // milliseconds
+        
+        // Animation state
+        this.legAngle = 0;
+        this.legAnimationSpeed = 0.15;
+        this.verticalAngle = 0;
+        this.minVerticalAngle = -Math.PI / 6; // -30 degrees
+        this.maxVerticalAngle = Math.PI / 3;  // 60 degrees
         
         // Set up basic scene
         this.setupScene();
@@ -52,6 +70,9 @@ class Game {
         this.container.addEventListener('click', () => {
             this.container.requestPointerLock();
         });
+        
+        // Add crosshair
+        this.setupCrosshair();
         
         // Start the animation loop
         this.animate();
@@ -100,6 +121,45 @@ class Game {
         const rightArm = new THREE.Mesh(armGeometry, uniformMaterial);
         rightArm.position.set(-0.4, 0.4, 0);
         soldier.add(rightArm);
+
+        // Add rifle
+        const rifleMaterial = new THREE.MeshStandardMaterial({ color: 0x2f2f2f }); // Dark gray for rifle
+        
+        // Rifle body
+        const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
+        const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
+        rifle.position.set(0.3, 0.4, 0.3);
+        
+        // Rifle stock
+        const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
+        const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
+        stock.position.set(0, -0.05, -0.45);
+        rifle.add(stock);
+        
+        // Rifle scope
+        const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8);
+        const scope = new THREE.Mesh(scopeGeometry, rifleMaterial);
+        scope.rotation.z = Math.PI / 2;
+        scope.position.set(0, 0.1, 0);
+        rifle.add(scope);
+
+        // Create muzzle flash (initially invisible)
+        const flashGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const flashMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0
+        });
+        this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+        this.muzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
+        rifle.add(this.muzzleFlash);
+
+        // Create muzzle light (initially disabled)
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
+        this.muzzleLight.position.copy(this.muzzleFlash.position);
+        rifle.add(this.muzzleLight);
+        
+        soldier.add(rifle);
         
         return soldier;
     }
@@ -204,9 +264,14 @@ class Game {
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
                 this.mouseX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+                this.mouseY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
                 
-                // Only rotate player horizontally
+                // Horizontal rotation
                 this.player.rotation.y -= this.mouseX * this.rotationSpeed;
+                
+                // Vertical camera angle with limits
+                this.verticalAngle -= this.mouseY * this.rotationSpeed;
+                this.verticalAngle = Math.max(this.minVerticalAngle, Math.min(this.maxVerticalAngle, this.verticalAngle));
             }
         });
         
@@ -232,6 +297,30 @@ class Game {
                 case 'KeyS': this.moveState.backward = false; break;
                 case 'KeyA': this.moveState.left = false; break;
                 case 'KeyD': this.moveState.right = false; break;
+            }
+        });
+
+        // Add mouse click handler for shooting
+        this.container.addEventListener('mousedown', (e) => {
+            if (document.pointerLockElement === this.container && e.button === 0) {
+                this.shoot();
+            }
+        });
+
+        // Add mouse wheel handler for zooming
+        document.addEventListener('wheel', (e) => {
+            if (document.pointerLockElement === this.container) {
+                // Update zoom distance based on wheel delta
+                this.currentZoomDistance += e.deltaY * this.zoomSpeed;
+                
+                // Clamp zoom distance between min and max
+                this.currentZoomDistance = Math.max(
+                    this.minZoomDistance,
+                    Math.min(this.maxZoomDistance, this.currentZoomDistance)
+                );
+                
+                // Update camera offset z component
+                this.cameraOffset.z = this.currentZoomDistance;
             }
         });
     }
@@ -263,6 +352,19 @@ class Game {
             direction.normalize();
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
             
+            // Animate legs when moving
+            this.legAngle += this.legAnimationSpeed;
+            
+            // Get references to legs
+            const leftLeg = this.soldier.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+            const rightLeg = this.soldier.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+            
+            if (leftLeg && rightLeg) {
+                // Alternate leg movements
+                leftLeg.rotation.x = Math.sin(this.legAngle) * 0.5;
+                rightLeg.rotation.x = Math.sin(this.legAngle + Math.PI) * 0.5;
+            }
+
             // Calculate new position
             const newPosition = new THREE.Vector3(
                 this.player.position.x + direction.x * this.moveSpeed,
@@ -274,14 +376,33 @@ class Game {
             if (!this.checkCollisions(newPosition)) {
                 this.player.position.copy(newPosition);
             }
+        } else {
+            // Reset legs to standing position when not moving
+            const leftLeg = this.soldier.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+            const rightLeg = this.soldier.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+            
+            if (leftLeg && rightLeg) {
+                leftLeg.rotation.x = 0;
+                rightLeg.rotation.x = 0;
+            }
         }
     }
     
     updateCamera() {
         // Calculate desired camera position
         const idealOffset = this.cameraOffset.clone();
+        
+        // Apply vertical rotation to camera offset
+        const verticalRotationMatrix = new THREE.Matrix4();
+        verticalRotationMatrix.makeRotationX(this.verticalAngle);
+        idealOffset.applyMatrix4(verticalRotationMatrix);
+        
+        // Apply horizontal rotation
         idealOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
         const idealPosition = this.player.position.clone().add(idealOffset);
+        
+        // Ensure camera doesn't go below ground level
+        idealPosition.y = Math.max(0.5, idealPosition.y);
         
         // Update camera position
         this.camera.position.copy(idealPosition);
@@ -302,6 +423,67 @@ class Game {
         this.updateMovement();
         this.updateCamera();
         this.renderer.render(this.scene, this.camera);
+    }
+
+    setupCrosshair() {
+        // Create crosshair container
+        const crosshairContainer = document.createElement('div');
+        crosshairContainer.style.position = 'absolute';
+        crosshairContainer.style.top = '50%';
+        crosshairContainer.style.left = '50%';
+        crosshairContainer.style.transform = 'translate(-50%, -50%)';
+        crosshairContainer.style.width = '20px';
+        crosshairContainer.style.height = '20px';
+        crosshairContainer.style.pointerEvents = 'none'; // Make sure it doesn't interfere with clicking
+
+        // Create crosshair
+        const crosshair = document.createElement('div');
+        crosshair.style.width = '100%';
+        crosshair.style.height = '100%';
+        crosshair.style.position = 'relative';
+        
+        // Add crosshair lines
+        const createLine = (vertical) => {
+            const line = document.createElement('div');
+            line.style.position = 'absolute';
+            line.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            
+            if (vertical) {
+                line.style.width = '2px';
+                line.style.height = '100%';
+                line.style.left = '50%';
+                line.style.transform = 'translateX(-50%)';
+            } else {
+                line.style.height = '2px';
+                line.style.width = '100%';
+                line.style.top = '50%';
+                line.style.transform = 'translateY(-50%)';
+            }
+            
+            return line;
+        };
+
+        crosshair.appendChild(createLine(true));  // Vertical line
+        crosshair.appendChild(createLine(false)); // Horizontal line
+        
+        crosshairContainer.appendChild(crosshair);
+        this.container.appendChild(crosshairContainer);
+    }
+
+    shoot() {
+        if (this.isShooting) return;
+        this.isShooting = true;
+
+        // Show muzzle flash
+        this.muzzleFlash.material.opacity = 1;
+        this.muzzleLight.intensity = 2;
+
+        // Hide muzzle flash after duration
+        setTimeout(() => {
+            this.muzzleFlash.material.opacity = 0;
+            this.muzzleLight.intensity = 0;
+            this.isShooting = false;
+        }, this.flashDuration);
     }
 }
 
