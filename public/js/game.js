@@ -34,7 +34,7 @@ export class Game {
     setupRenderer() {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x87ceeb); // Sky blue background
+        renderer.setClearColor(0xADD8E6); // Light sky blue background
         this.container.appendChild(renderer.domElement);
         return renderer;
     }

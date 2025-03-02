@@ -23,11 +23,11 @@ export class Environment {
     createGround() {
         const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2d5a27,
-            roughness: 0.9,
+            color: 0x4CAF50,
+            roughness: 1.0,
             metalness: 0.0,
-            emissive: 0x1a3819,
-            emissiveIntensity: 0.2
+            emissive: 0x2E7D32,
+            emissiveIntensity: 0.1
         });
         
         // Create terrain undulation
