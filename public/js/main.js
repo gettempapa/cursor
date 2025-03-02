@@ -174,6 +174,14 @@ function createHumanoidMesh() {
     playerAimHelper.position.y = 1.2; // Position at shoulder height
     playerGroup.add(playerAimHelper);
     
+    // Military camo colors
+    const camoColors = {
+        darkGreen: 0x4B5320,
+        lightGreen: 0x6B8E23,
+        tan: 0x8B7E66,
+        brown: 0x654321
+    };
+    
     // Body parts
     // Head (sphere)
     const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
@@ -184,45 +192,66 @@ function createHumanoidMesh() {
     
     // Helmet
     const helmetGeometry = new THREE.SphereGeometry(0.27, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const helmetMaterial = new THREE.MeshBasicMaterial({ color: 0x444444 }); // Dark gray
+    const helmetMaterial = new THREE.MeshBasicMaterial({ color: camoColors.darkGreen }); // Camo green
     const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
     helmet.position.y = 1.55; // Slightly above head
     playerGroup.add(helmet);
     
-    // Body (box)
+    // Body (box) - camo torso
     const bodyGeometry = new THREE.BoxGeometry(0.5, 0.7, 0.25);
-    const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
+    const bodyMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     body.position.y = 1.0;
     playerGroup.add(body);
     
-    // Left arm
+    // Left arm - match the camo pattern
     const leftArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
-    const leftArmMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
+    const leftArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
     const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
     leftArm.position.set(-0.325, 1.0, 0); // Left of body
     playerGroup.add(leftArm);
     
-    // Right arm (will hold the gun)
+    // Right arm (will hold the gun) - match the camo pattern
     const rightArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
-    const rightArmMaterial = new THREE.MeshBasicMaterial({ color: 0x1E88E5 }); // Blue
+    const rightArmMaterial = new THREE.MeshBasicMaterial({ color: camoColors.lightGreen }); // Camo green
     const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
     rightArm.position.set(0.35, 1.0, 0); // Right of body, adjusted for aim helper
     playerAimHelper.add(rightArm); // Attach to aim helper so it moves with aiming
     
-    // Legs
-    const legGeometry = new THREE.BoxGeometry(0.2, 0.7, 0.2);
-    const legMaterial = new THREE.MeshBasicMaterial({ color: 0x212121 }); // Dark gray
+    // Legs - camo pants
+    const legGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
+    const legMaterial = new THREE.MeshBasicMaterial({ color: camoColors.tan }); // Tan camo
     
     // Left leg
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-    leftLeg.position.set(-0.15, 0.35, 0);
+    leftLeg.position.set(-0.15, 0.45, 0);
     playerGroup.add(leftLeg);
     
     // Right leg
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-    rightLeg.position.set(0.15, 0.35, 0);
+    rightLeg.position.set(0.15, 0.45, 0);
     playerGroup.add(rightLeg);
+    
+    // Boots
+    const bootGeometry = new THREE.BoxGeometry(0.22, 0.2, 0.25); // Slightly larger than legs
+    const bootMaterial = new THREE.MeshBasicMaterial({ color: 0x271A0A }); // Dark brown
+    
+    // Left boot
+    const leftBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+    leftBoot.position.set(-0.15, 0.1, 0.02); // Position at bottom of leg
+    playerGroup.add(leftBoot);
+    
+    // Right boot
+    const rightBoot = new THREE.Mesh(bootGeometry, bootMaterial);
+    rightBoot.position.set(0.15, 0.1, 0.02); // Position at bottom of leg
+    playerGroup.add(rightBoot);
+    
+    // Add camo details (patches/spots) to make the outfit more visually interesting
+    addCamoPatches(body, camoColors);
+    addCamoPatches(leftArm, camoColors);
+    addCamoPatches(rightArm, camoColors);
+    addCamoPatches(leftLeg, camoColors);
+    addCamoPatches(rightLeg, camoColors);
     
     // Add a gun to the right hand
     const gunGroup = new THREE.Group();
@@ -251,6 +280,18 @@ function createHumanoidMesh() {
     gunGroup.add(aimIndicator);
     
     return playerGroup;
+}
+
+// Function to add camo patches to an object
+function addCamoPatches(object, camoColors) {
+    // Can't actually add detailed camo texture in this simple setup,
+    // but we can at least change the color to simulate the effect
+    const randomCamo = Math.random();
+    if (randomCamo > 0.5) {
+        object.material.color.setHex(
+            randomCamo > 0.75 ? camoColors.brown : camoColors.darkGreen
+        );
+    }
 }
 
 // Add setupEventListeners function to handle keyboard and mouse input
