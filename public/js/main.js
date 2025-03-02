@@ -3,6 +3,8 @@ import * as THREE from 'https://cdn.skypack.dev/three@0.137.0';
 // Scene setup
 let camera, scene, renderer;
 let player;
+let playerBody; // Separate body and aim control
+let playerAimHelper; // Helper for aiming direction
 let ground;
 const bullets = [];
 let lastShootTime = 0;
@@ -11,16 +13,20 @@ const shootCooldown = 250; // milliseconds between shots
 // Movement variables
 const keys = {};
 const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
+const moveDirection = new THREE.Vector3();
 const friction = 0.95; // Add friction to make movement more realistic
 
+// Player forward direction (movement direction)
+const playerDirection = new THREE.Vector3(0, 0, -1);
+// Aim direction (can be different from movement)
+const aimDirection = new THREE.Vector3(0, 0, -1);
+
 // Camera controls
-let cameraOffset = new THREE.Vector3(0, 2, 5); // Position behind and above player
+const cameraOffset = new THREE.Vector3(0, 2, 5); // Position behind and above player
 let mouseX = 0;
-let mouseY = 0; // Add vertical mouse control
-const rotationSpeed = 0.002;
-const verticalRotationSpeed = 0.002;
-const maxVerticalRotation = Math.PI / 4; // Limit up/down rotation to 45 degrees
+let mouseY = 0; // Vertical aim control
+const aimSensitivity = 0.002; // How sensitive the aiming is
+const maxVerticalRotation = Math.PI / 3; // Limit up/down rotation
 let isPointerLocked = false;
 
 // Debug information for tracking script loading
@@ -51,21 +57,31 @@ if (!checkWebGL()) {
 
 // Create a simple humanoid figure
 function createHumanoidMesh() {
-    const group = new THREE.Group();
+    // Create a group for the entire player
+    const playerGroup = new THREE.Group();
+    
+    // Create a group for the body parts that rotate with movement
+    playerBody = new THREE.Group();
+    playerGroup.add(playerBody);
+    
+    // Create a group for the parts that rotate with aiming
+    playerAimHelper = new THREE.Group();
+    playerAimHelper.position.y = 1.5; // Position at head height
+    playerGroup.add(playerAimHelper);
     
     // Head (sphere)
     const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
     const headMaterial = new THREE.MeshBasicMaterial({ color: 0xFFCC99 });
     const head = new THREE.Mesh(headGeometry, headMaterial);
     head.position.y = 1.75;
-    group.add(head);
+    playerBody.add(head);
     
     // Torso (box)
     const torsoGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.25);
     const torsoMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 }); // Navy blue for the uniform
     const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
     torso.position.y = 1.2;
-    group.add(torso);
+    playerBody.add(torso);
     
     // Legs
     const legGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.2);
@@ -73,35 +89,47 @@ function createHumanoidMesh() {
     
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
     leftLeg.position.set(-0.15, 0.5, 0);
-    group.add(leftLeg);
+    playerBody.add(leftLeg);
     
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
     rightLeg.position.set(0.15, 0.5, 0);
-    group.add(rightLeg);
+    playerBody.add(rightLeg);
     
-    // Arms
+    // Left arm (stays with body)
     const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
     const armMaterial = new THREE.MeshBasicMaterial({ color: 0x000080 });
     
     const leftArm = new THREE.Mesh(armGeometry, armMaterial);
     leftArm.position.set(-0.35, 1.2, 0);
-    group.add(leftArm);
+    playerBody.add(leftArm);
+    
+    // Right arm and gun (follows aim direction)
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(0.35, 1.2, 0);
+    playerAimHelper.add(rightArmGroup);
     
     const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-    rightArm.position.set(0.35, 1.2, 0);
-    group.add(rightArm);
+    rightArmGroup.add(rightArm);
     
     // Add a small "gun" to the right hand
     const gunGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.3);
     const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
     const gun = new THREE.Mesh(gunGeometry, gunMaterial);
-    gun.position.set(0.35, 1.1, -0.25);
-    group.add(gun);
+    gun.position.set(0, 0, -0.25);
+    rightArmGroup.add(gun);
+    
+    // Create a visible aim direction indicator (for debugging)
+    const aimIndicatorGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.5, 8);
+    const aimIndicatorMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const aimIndicator = new THREE.Mesh(aimIndicatorGeometry, aimIndicatorMaterial);
+    aimIndicator.rotation.x = Math.PI / 2; // Make it point forward (z-axis)
+    aimIndicator.position.z = -0.5; // Position it in front of the gun
+    rightArmGroup.add(aimIndicator);
     
     // Position the entire model so it stands on the ground
-    group.position.y = 0.1; // Small offset to avoid z-fighting with ground
+    playerGroup.position.y = 0.1; // Small offset to avoid z-fighting with ground
     
-    return group;
+    return playerGroup;
 }
 
 function init() {
@@ -161,14 +189,14 @@ function init() {
             isPointerLocked = document.pointerLockElement === renderer.domElement;
         });
         
-        // Mouse movement for camera
+        // Mouse movement for aiming
         document.addEventListener('mousemove', (e) => {
             if (isPointerLocked) {
-                // Horizontal rotation (yaw)
-                mouseX += e.movementX * rotationSpeed;
+                // Horizontal aim
+                mouseX += e.movementX * aimSensitivity;
                 
-                // Vertical rotation (pitch) with limits
-                mouseY -= e.movementY * verticalRotationSpeed;
+                // Vertical aim with limits
+                mouseY -= e.movementY * aimSensitivity;
                 mouseY = Math.max(-maxVerticalRotation, Math.min(maxVerticalRotation, mouseY));
             }
         });
@@ -206,17 +234,19 @@ function shoot() {
         const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
         const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
         
-        // Get the forward direction using camera rotation
+        // Get bullet direction from aim
         const bulletDirection = new THREE.Vector3(0, 0, -1);
-        bulletDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
         bulletDirection.applyAxisAngle(new THREE.Vector3(1, 0, 0), mouseY);
+        bulletDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
         
-        // Position the bullet at the correct position (right arm of player)
+        // Get position of the gun
         const bulletStartPos = new THREE.Vector3();
-        bulletStartPos.copy(player.position);
-        bulletStartPos.y += 1.1; // Height of the gun
-        bulletStartPos.x += Math.sin(mouseX) * 0.35; // Right hand offset
+        playerAimHelper.updateWorldMatrix(true, false); // Update matrices
+        bulletStartPos.setFromMatrixPosition(playerAimHelper.matrixWorld);
+        bulletStartPos.x += Math.sin(mouseX) * 0.35; // Offset to gun position
         bulletStartPos.z += Math.cos(mouseX) * 0.35;
+        
+        // Position the bullet at the gun's position
         bullet.position.copy(bulletStartPos);
         
         // Store bullet direction and speed for animation
@@ -257,19 +287,37 @@ function animate() {
         requestAnimationFrame(animate);
         
         // Handle player movement with WASD
-        direction.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
-        direction.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
+        moveDirection.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
+        moveDirection.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
         
-        if (direction.length() > 0) {
-            direction.normalize();
+        // Calculate actual movement direction based on camera orientation
+        // This keeps movement relative to the camera's view
+        if (moveDirection.length() > 0) {
+            moveDirection.normalize();
             
-            // Apply rotation to direction based on camera angle (horizontal only)
-            const angle = mouseX;
-            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+            // Calculate the world forward direction (always camera-relative)
+            const worldForward = new THREE.Vector3(0, 0, -1);
+            worldForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            
+            // Calculate the world right direction
+            const worldRight = new THREE.Vector3(1, 0, 0);
+            worldRight.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            
+            // Combine the directions
+            direction.set(0, 0, 0);
+            if (moveDirection.z !== 0) direction.add(worldForward.clone().multiplyScalar(moveDirection.z));
+            if (moveDirection.x !== 0) direction.add(worldRight.clone().multiplyScalar(moveDirection.x));
+            
+            direction.normalize();
             
             // Add acceleration
             velocity.x += direction.x * 0.05;
             velocity.z += direction.z * 0.05;
+            
+            // Update player's facing direction for body rotation
+            if (velocity.length() > 0.01) {
+                playerDirection.copy(direction);
+            }
         }
         
         // Apply friction
@@ -280,33 +328,28 @@ function animate() {
         player.position.x += velocity.x;
         player.position.z += velocity.z;
         
-        // Always rotate player model to face camera direction (horizontal only)
-        player.rotation.y = mouseX;
+        // Rotate the player body to face movement direction
+        if (velocity.length() > 0.01) {
+            const bodyAngle = Math.atan2(playerDirection.x, playerDirection.z);
+            playerBody.rotation.y = bodyAngle;
+        }
         
-        // Update camera position to follow player from behind
-        // Calculate camera position based on camera offset and rotations
-        const rotatedOffset = cameraOffset.clone();
+        // Update aim direction based on mouse
+        playerAimHelper.rotation.y = mouseX;
+        playerAimHelper.rotation.x = mouseY;
         
-        // Apply horizontal rotation (around Y axis)
-        rotatedOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
+        // Position camera directly behind player
+        const cameraAngle = Math.atan2(playerDirection.x, playerDirection.z);
+        camera.position.x = player.position.x - Math.sin(cameraAngle) * cameraOffset.z;
+        camera.position.z = player.position.z - Math.cos(cameraAngle) * cameraOffset.z;
+        camera.position.y = player.position.y + cameraOffset.y;
         
-        // Set camera position relative to player
-        camera.position.x = player.position.x + rotatedOffset.x;
-        camera.position.y = player.position.y + rotatedOffset.y;
-        camera.position.z = player.position.z + rotatedOffset.z;
-        
-        // Calculate the look target based on vertical rotation
-        const lookTarget = new THREE.Vector3();
-        lookTarget.copy(player.position);
-        lookTarget.y += 1.5; // Look at head height
-        
-        // Apply vertical look (pitch)
-        const verticalOffset = new THREE.Vector3(0, 0, -1);
-        verticalOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), mouseY);
-        verticalOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), mouseX);
-        verticalOffset.multiplyScalar(5); // Look distance
-        
-        camera.lookAt(lookTarget.add(verticalOffset));
+        // Make camera look at player
+        camera.lookAt(
+            player.position.x,
+            player.position.y + 1.5, // Look at head height
+            player.position.z
+        );
         
         // Update bullets
         updateBullets();
