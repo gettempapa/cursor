@@ -1,4 +1,4 @@
-import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+import * as THREE from 'https://cdn.skypack.dev/three@0.137.0';
 
 // Scene setup
 let camera, scene, renderer;
@@ -18,6 +18,10 @@ const friction = 0.95; // Add friction to make movement more realistic
 let mouseX = 0;
 let rotationSpeed = 0.002;
 let isPointerLocked = false;
+
+// Debug information for tracking script loading
+console.log('Script loaded:', document.currentScript?.src);
+console.log('Base URL:', window.location.href);
 
 // Check for WebGL support
 function checkWebGL() {
