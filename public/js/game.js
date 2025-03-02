@@ -65,6 +65,15 @@ class Game {
         this.enemyRotationSpeed = 0.02;
         this.enemyUpdateInterval = 3000; // milliseconds between new random targets
         this.levelRadius = 20; // Confine enemy to this radius
+        this.enemyShootInterval = 2000; // Time between enemy shots
+        this.enemyLastShot = 0; // Track last enemy shot time
+        this.enemyMuzzleFlash = null; // Enemy's muzzle flash
+        this.enemyMuzzleLight = null; // Enemy's muzzle light
+        
+        // Audio setup
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.gunshotBuffer = null;
+        this.loadGunshotSound();
         
         // Set up basic scene
         this.setupScene();
@@ -87,7 +96,7 @@ class Game {
         this.animate();
     }
     
-    createSoldier() {
+    createSoldier(isEnemy = false) {
         const soldier = new THREE.Group();
         
         // Body (torso)
@@ -138,7 +147,6 @@ class Game {
         const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
         const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
         rifle.position.set(0.3, 0.4, 0.3);
-        // Rotate rifle to point forward
         rifle.rotation.y = -Math.PI / 2;
         
         // Rifle stock
@@ -161,14 +169,22 @@ class Game {
             transparent: true,
             opacity: 0
         });
-        this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-        this.muzzleFlash.position.set(0.7, 0, 0); // Position at rifle barrel
-        rifle.add(this.muzzleFlash);
-
-        // Create muzzle light (initially disabled)
-        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
-        this.muzzleLight.position.copy(this.muzzleFlash.position);
-        rifle.add(this.muzzleLight);
+        
+        if (isEnemy) {
+            this.enemyMuzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+            this.enemyMuzzleFlash.position.set(0.7, 0, 0);
+            this.enemyMuzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
+            this.enemyMuzzleLight.position.copy(this.enemyMuzzleFlash.position);
+            rifle.add(this.enemyMuzzleFlash);
+            rifle.add(this.enemyMuzzleLight);
+        } else {
+            this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+            this.muzzleFlash.position.set(0.7, 0, 0);
+            this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 3);
+            this.muzzleLight.position.copy(this.muzzleFlash.position);
+            rifle.add(this.muzzleFlash);
+            rifle.add(this.muzzleLight);
+        }
         
         soldier.add(rifle);
         
@@ -259,7 +275,7 @@ class Game {
         }
         
         // Create and add soldier model
-        this.soldier = this.createSoldier();
+        this.soldier = this.createSoldier(false);
         this.player = new THREE.Group();
         this.player.add(this.soldier);
         this.player.position.y = 1;
@@ -267,11 +283,11 @@ class Game {
         
         // Set up camera (now separate from player)
         this.camera.position.copy(this.player.position).add(this.cameraOffset);
-        this.scene.add(this.camera); // Camera is in the scene, not attached to player
+        this.scene.add(this.camera);
         
         // Create and add enemy
-        this.enemy = this.createSoldier();
-        this.enemy.scale.set(1, 1, 1); // Same size as player
+        this.enemy = this.createSoldier(true);
+        this.enemy.scale.set(1, 1, 1);
         
         // Position enemy randomly within level bounds
         const randomAngle = Math.random() * Math.PI * 2;
@@ -352,6 +368,13 @@ class Game {
                 this.cameraOffset.z = this.currentZoomDistance;
             }
         });
+
+        // Resume audio context on first click
+        this.container.addEventListener('click', () => {
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+        }, { once: true });
     }
     
     updateMovement() {
@@ -500,20 +523,96 @@ class Game {
         this.container.appendChild(crosshairContainer);
     }
 
-    shoot() {
-        if (this.isShooting) return;
-        this.isShooting = true;
+    loadGunshotSound() {
+        // Create a short, synthesized gunshot sound
+        const duration = 0.15;
+        const sampleRate = this.audioContext.sampleRate;
+        this.gunshotBuffer = this.audioContext.createBuffer(1, duration * sampleRate, sampleRate);
+        const data = this.gunshotBuffer.getChannelData(0);
+        
+        // Generate a punchy, percussive sound
+        for (let i = 0; i < data.length; i++) {
+            const t = i / sampleRate;
+            // Mix noise and a quick decay
+            const decay = Math.exp(-t * 30);
+            data[i] = (Math.random() * 2 - 1) * decay;
+        }
+    }
 
-        // Show muzzle flash
-        this.muzzleFlash.material.opacity = 1;
-        this.muzzleLight.intensity = 2;
+    playGunshot() {
+        if (!this.gunshotBuffer) return;
+        
+        const source = this.audioContext.createBufferSource();
+        source.buffer = this.gunshotBuffer;
+        
+        // Add a lowpass filter for more "boom"
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 2000;
+        
+        // Add some distortion for a sharper sound
+        const distortion = this.audioContext.createWaveShaper();
+        function makeDistortionCurve(amount) {
+            const k = amount;
+            const samples = 44100;
+            const curve = new Float32Array(samples);
+            for (let i = 0; i < samples; ++i) {
+                const x = (i * 2) / samples - 1;
+                curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+        distortion.curve = makeDistortionCurve(50);
+        
+        // Create volume control
+        const gainNode = this.audioContext.createGain();
+        gainNode.gain.value = 0.3; // Reduce volume to 30%
+        
+        // Connect the audio nodes
+        source.connect(filter);
+        filter.connect(distortion);
+        distortion.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        // Play the sound
+        source.start();
+    }
 
-        // Hide muzzle flash after duration
-        setTimeout(() => {
-            this.muzzleFlash.material.opacity = 0;
-            this.muzzleLight.intensity = 0;
-            this.isShooting = false;
-        }, this.flashDuration);
+    shoot(isEnemy = false) {
+        if (isEnemy) {
+            if (!this.enemyMuzzleFlash) return;
+            
+            // Show enemy muzzle flash
+            this.enemyMuzzleFlash.material.opacity = 1;
+            this.enemyMuzzleLight.intensity = 2;
+            
+            // Play gunshot sound
+            this.playGunshot();
+            
+            // Hide enemy muzzle flash after duration
+            setTimeout(() => {
+                this.enemyMuzzleFlash.material.opacity = 0;
+                this.enemyMuzzleLight.intensity = 0;
+            }, this.flashDuration);
+            
+        } else {
+            if (this.isShooting) return;
+            this.isShooting = true;
+            
+            // Show player muzzle flash
+            this.muzzleFlash.material.opacity = 1;
+            this.muzzleLight.intensity = 2;
+            
+            // Play gunshot sound
+            this.playGunshot();
+            
+            // Hide player muzzle flash after duration
+            setTimeout(() => {
+                this.muzzleFlash.material.opacity = 0;
+                this.muzzleLight.intensity = 0;
+                this.isShooting = false;
+            }, this.flashDuration);
+        }
     }
 
     updateEnemyTarget() {
@@ -550,10 +649,16 @@ class Game {
             }
         }
 
-        // Rotate towards target rotation
-        const rotationDiff = ((this.enemyRotationTarget - this.enemy.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-        if (Math.abs(rotationDiff) > 0.01) {
-            this.enemy.rotation.y += Math.sign(rotationDiff) * this.enemyRotationSpeed;
+        // Make enemy face player
+        const toPlayer = new THREE.Vector3();
+        toPlayer.subVectors(this.player.position, this.enemy.position);
+        this.enemy.rotation.y = Math.atan2(-toPlayer.x, -toPlayer.z);
+
+        // Enemy shooting logic
+        const currentTime = performance.now();
+        if (currentTime - this.enemyLastShot > this.enemyShootInterval) {
+            this.shoot(true);
+            this.enemyLastShot = currentTime;
         }
 
         // Check for collisions with trees
