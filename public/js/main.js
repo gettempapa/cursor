@@ -653,6 +653,14 @@ function init() {
         audioListener = new THREE.AudioListener();
         camera.add(audioListener);
         
+        // Make sure audio context is initialized properly
+        const initAudio = () => {
+            if (audioListener.context.state === 'suspended') {
+                audioListener.context.resume();
+            }
+        };
+        document.addEventListener('click', initAudio, { once: true });
+
         // Load gunshot sound - powerful rifle sound
         gunshotSound = new THREE.Audio(audioListener);
         const audioLoader = new THREE.AudioLoader();
@@ -781,57 +789,67 @@ function shoot() {
     if (currentTime - lastShootTime < shootCooldown) return;
     lastShootTime = currentTime;
     
-    // Play gunshot sound
-    if (gunshotSoundLoaded) {
-        // Clone the sound for overlapping shots
-        const gunshotInstance = gunshotSound.clone();
-        gunshotInstance.setVolume(0.5);
-        // Add slight random pitch variation for realism
-        gunshotInstance.setPlaybackRate(0.95 + Math.random() * 0.1);
-        gunshotInstance.play();
-    } else {
-        // Use fallback procedural sound if the audio file isn't loaded
-        createFallbackGunshotSound();
+    try {
+        // Play gunshot sound
+        if (gunshotSoundLoaded && gunshotSound && gunshotSound.context) {
+            // Make sure audio context is running
+            if (gunshotSound.context.state !== 'running') {
+                gunshotSound.context.resume();
+            }
+            
+            // Play the sound directly instead of cloning
+            if (!gunshotSound.isPlaying) {
+                gunshotSound.play();
+            }
+        } else {
+            console.log("Sound not loaded correctly, using fallback");
+            createFallbackGunshotSound();
+            if (gunshotSound && !gunshotSound.isPlaying) {
+                gunshotSound.play();
+            }
+        }
+        
+        // Get gun position and aim direction from playerAimHelper
+        const gunGroup = findObjectByName(playerAimHelper, "gunGroup");
+        if (!gunGroup) return;
+        
+        // Calculate gun position in world space
+        const gunPosition = new THREE.Vector3();
+        gunGroup.getWorldPosition(gunPosition);
+        
+        // Use playerAimHelper direction for accurate aiming
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyEuler(playerAimHelper.rotation);
+        
+        // Add slight random spread
+        direction.x += (Math.random() - 0.5) * 0.02;
+        direction.y += (Math.random() - 0.5) * 0.02;
+        direction.z += (Math.random() - 0.5) * 0.02;
+        direction.normalize();
+        
+        // Create bullet
+        const bulletGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+        const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+        
+        // Position bullet at gun barrel
+        bullet.position.copy(gunPosition);
+        // Offset slightly to appear from barrel
+        bullet.position.add(direction.clone().multiplyScalar(0.5));
+        
+        scene.add(bullet);
+        
+        // Add bullet data for movement
+        bullets.push({
+            mesh: bullet,
+            direction: direction,
+            speed: 1.5,
+            distance: 0,
+            maxDistance: 100
+        });
+    } catch (error) {
+        console.error("Error in shoot function:", error);
     }
-    
-    // Get gun position and aim direction from playerAimHelper
-    const gunGroup = findObjectByName(playerAimHelper, "gunGroup");
-    if (!gunGroup) return;
-    
-    // Calculate gun position in world space
-    const gunPosition = new THREE.Vector3();
-    gunGroup.getWorldPosition(gunPosition);
-    
-    // Use playerAimHelper direction for accurate aiming
-    const direction = new THREE.Vector3(0, 0, -1);
-    direction.applyEuler(playerAimHelper.rotation);
-    
-    // Add slight random spread
-    direction.x += (Math.random() - 0.5) * 0.02;
-    direction.y += (Math.random() - 0.5) * 0.02;
-    direction.z += (Math.random() - 0.5) * 0.02;
-    direction.normalize();
-    
-    // Create bullet
-    const bulletGeometry = new THREE.SphereGeometry(0.02, 8, 8);
-    const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
-    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-    
-    // Position bullet at gun barrel
-    bullet.position.copy(gunPosition);
-    // Offset slightly to appear from barrel
-    bullet.position.add(direction.clone().multiplyScalar(0.5));
-    
-    scene.add(bullet);
-    
-    // Add bullet data for movement
-    bullets.push({
-        mesh: bullet,
-        direction: direction,
-        speed: 1.5,
-        distance: 0,
-        maxDistance: 100
-    });
 }
 
 // Utility function to find an object by name in the hierarchy
@@ -1030,47 +1048,55 @@ function animate() {
 // Create a fallback gunshot sound using oscillator if loading fails
 function createFallbackGunshotSound() {
     console.log('Creating fallback gunshot sound');
-    gunshotSound = new THREE.Audio(audioListener);
     
-    // Create a buffer for the sound
-    const context = audioListener.context;
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-    
-    // Create a short, harsh sound
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.setValueAtTime(150, context.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(20, context.currentTime + 0.2);
-    
-    // Shape the sound with gain
-    gainNode.gain.setValueAtTime(1, context.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
-    
-    // Connect nodes
-    oscillator.connect(gainNode);
-    
-    // Create a buffer from the sound
-    const recordingLength = context.sampleRate * 0.3; // 300ms sound
-    const recordingBuffer = context.createBuffer(1, recordingLength, context.sampleRate);
-    const recordingData = recordingBuffer.getChannelData(0);
-    
-    // Fill buffer
-    oscillator.start();
-    const startTime = context.currentTime;
-    for (let i = 0; i < recordingLength; i++) {
-        const t = i / context.sampleRate;
-        if (t < 0.01) { // Attack
-            recordingData[i] = t * 100 * Math.random();
-        } else if (t < 0.1) { // Body
-            recordingData[i] = (1 - (t - 0.01) * 10) * 0.5 * Math.random();
-        } else { // Decay
-            recordingData[i] = (1 - t) * 0.1 * Math.random();
+    try {
+        // Create a simple oscillator-based gunshot sound
+        const context = audioListener.context;
+        const sampleRate = context.sampleRate;
+        const duration = 0.3; // 300ms sound
+        const bufferSize = Math.floor(sampleRate * duration);
+        const buffer = context.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        // Generate a simple gunshot waveform
+        for (let i = 0; i < bufferSize; i++) {
+            const t = i / sampleRate;
+            let sample = 0;
+            
+            if (t < 0.01) {
+                // Quick attack
+                sample = t / 0.01;
+            } else if (t < 0.05) {
+                // Sharp decay
+                sample = 1 - ((t - 0.01) / 0.04);
+            } else {
+                // Long tail
+                sample = 0.5 * Math.exp(-(t - 0.05) * 10);
+            }
+            
+            // Add some noise
+            sample *= (0.5 + Math.random() * 0.5);
+            
+            // Apply bandpass-like filtering by reducing high and low components
+            if (i > 0 && i < bufferSize - 1) {
+                sample = 0.7 * sample + 0.15 * data[i-1] + 0.15 * (Math.random() - 0.5);
+            }
+            
+            data[i] = Math.max(-1, Math.min(1, sample * 0.8));
         }
+        
+        // Create a new audio with the buffer
+        if (gunshotSound) {
+            gunshotSound.disconnect();
+        }
+        
+        gunshotSound = new THREE.Audio(audioListener);
+        gunshotSound.setBuffer(buffer);
+        gunshotSound.setVolume(0.8);
+        gunshotSoundLoaded = true;
+        console.log('Fallback gunshot sound created successfully');
+    } catch (error) {
+        console.error('Error creating fallback sound:', error);
+        gunshotSoundLoaded = false;
     }
-    oscillator.stop(startTime + 0.3);
-    
-    // Set the buffer to our audio
-    gunshotSound.setBuffer(recordingBuffer);
-    gunshotSound.setVolume(0.8);
-    gunshotSoundLoaded = true;
 } 
