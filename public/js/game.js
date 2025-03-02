@@ -1,24 +1,57 @@
-import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+import * as THREE from 'three';
 
 class Game {
     constructor() {
-        // Debug mode
+        // Enhanced debug mode
         this.debug = document.getElementById('debug');
         this.debug.style.display = 'block';
-        this.debug.textContent = 'Initializing...';
+        this.debug.innerHTML = 'Initializing game...<br>Checking Three.js: ' + (typeof THREE !== 'undefined' ? 'OK' : 'FAILED');
+
+        // Add a basic cube as fallback if other elements fail
+        this.addFallbackCube = () => {
+            this.debug.innerHTML += '<br>Adding fallback cube for visibility test';
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.set(0, 0, 0);
+            this.scene.add(cube);
+            this.renderer.render(this.scene, this.camera);
+        };
 
         try {
             // Core setup
             this.setupCore();
+            this.debug.innerHTML += '<br>Core setup complete';
             
-            // Create environment
-            this.createEnvironment();
+            // Add fallback cube immediately to test rendering
+            this.addFallbackCube();
             
-            // Create player character
-            this.createPlayer();
+            // Create environment with error handling
+            try {
+                this.createEnvironment();
+                this.debug.innerHTML += '<br>Environment created';
+            } catch (envError) {
+                this.debug.innerHTML += `<br>Environment creation failed: ${envError.message}`;
+                console.error('Environment creation failed:', envError);
+            }
             
-            // Setup controls
-            this.setupControls();
+            // Create player with error handling
+            try {
+                this.createPlayer();
+                this.debug.innerHTML += '<br>Player created';
+            } catch (playerError) {
+                this.debug.innerHTML += `<br>Player creation failed: ${playerError.message}`;
+                console.error('Player creation failed:', playerError);
+            }
+            
+            // Setup controls with error handling
+            try {
+                this.setupControls();
+                this.debug.innerHTML += '<br>Controls setup complete';
+            } catch (controlsError) {
+                this.debug.innerHTML += `<br>Controls setup failed: ${controlsError.message}`;
+                console.error('Controls setup failed:', controlsError);
+            }
             
             // Hide loading screen
             const loadingScreen = document.getElementById('loadingScreen');
@@ -27,10 +60,10 @@ class Game {
             // Start animation loop
             this.animate();
             
-            this.debug.textContent = 'Game running - WASD to move, mouse to look';
+            this.debug.innerHTML += '<br>Game running - WASD to move, mouse to look';
         } catch (error) {
             console.error('Game initialization failed:', error);
-            this.debug.textContent = `Error: ${error.message}`;
+            this.debug.innerHTML = `Error: ${error.message}<br>Stack: ${error.stack}`;
         }
     }
     
@@ -51,6 +84,7 @@ class Game {
             0.1,
             1000
         );
+        this.camera.position.set(0, 5, 10); // Set an initial position in case player setup fails
         
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -59,6 +93,10 @@ class Game {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
+
+        // Do a test render to verify the renderer works
+        this.renderer.render(this.scene, this.camera);
+        this.debug.innerHTML += '<br>Test render complete';
         
         // Handle window resizing
         window.addEventListener('resize', () => {
@@ -69,107 +107,62 @@ class Game {
     }
     
     createEnvironment() {
-        // Create ground
+        // Create simple ground (no textures to minimize errors)
         const groundSize = 100;
-        const groundTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg');
-        groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-        groundTexture.repeat.set(25, 25);
-        groundTexture.anisotropy = 16;
-        
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            map: groundTexture,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x2d5a27 });
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
         this.ground.rotation.x = -Math.PI / 2;
-        this.ground.receiveShadow = true;
         this.scene.add(this.ground);
         
-        // Add trees
-        this.createTrees();
+        // Add trees using basic materials (no textures)
+        this.createSimpleTrees();
         
-        // Add lighting
-        this.createLighting();
+        // Add simple lighting
+        this.createSimpleLighting();
     }
     
-    createTrees() {
-        // Create simple tree model
-        const treeCount = 50;
-        const treePositions = [];
+    createSimpleTrees() {
+        // Create just a few simple trees
+        const treeCount = 10;
         
         for (let i = 0; i < treeCount; i++) {
             const tree = new THREE.Group();
             
             // Tree trunk
             const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
-            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
             trunk.position.y = 1;
-            trunk.castShadow = true;
             tree.add(trunk);
             
             // Tree foliage
             const foliageGeometry = new THREE.ConeGeometry(1, 3, 8);
-            const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x2E8B57 });
+            const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x2E8B57 });
             const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
             foliage.position.y = 3;
-            foliage.castShadow = true;
             tree.add(foliage);
             
-            // Position tree randomly on the ground
-            const area = 40; // Area to place trees
-            let x, z;
-            let validPosition = false;
+            // Position tree in a circle pattern
+            const angle = (i / treeCount) * Math.PI * 2;
+            const radius = 10;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
             
-            // Ensure trees aren't too close to each other
-            while (!validPosition) {
-                x = Math.random() * area - area/2;
-                z = Math.random() * area - area/2;
-                
-                validPosition = true;
-                for (const pos of treePositions) {
-                    const distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
-                    if (distance < 4) { // Minimum distance between trees
-                        validPosition = false;
-                        break;
-                    }
-                }
-            }
-            
-            treePositions.push({x, z});
             tree.position.set(x, 0, z);
             this.scene.add(tree);
         }
     }
     
-    createLighting() {
-        // Main directional light (sun)
-        const sunLight = new THREE.DirectionalLight(0xffffcc, 1);
-        sunLight.position.set(20, 30, 20);
-        sunLight.castShadow = true;
-        
-        // Configure shadow properties
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 100;
-        sunLight.shadow.camera.left = -50;
-        sunLight.shadow.camera.right = 50;
-        sunLight.shadow.camera.top = 50;
-        sunLight.shadow.camera.bottom = -50;
-        
-        this.scene.add(sunLight);
+    createSimpleLighting() {
+        // Simple directional light (no shadows)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 5);
+        this.scene.add(directionalLight);
         
         // Ambient light for general illumination
         const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
         this.scene.add(ambientLight);
-        
-        // Hemisphere light to enhance outdoor look
-        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x2E8B57, 0.6);
-        this.scene.add(hemisphereLight);
     }
     
     createPlayer() {
@@ -182,51 +175,45 @@ class Game {
             moving: false
         };
         
-        // Create simple soldier model
+        // Create simple soldier model using basic materials
         this.player = new THREE.Group();
         
         // Body
         const bodyGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.3);
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F4F }); // Dark slate for soldier uniform
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F }); // Basic material
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 0.4;
-        body.castShadow = true;
         this.player.add(body);
         
         // Head
         const headGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-        const headMaterial = new THREE.MeshStandardMaterial({ color: 0xD2B48C }); // Tan for skin tone
+        const headMaterial = new THREE.MeshBasicMaterial({ color: 0xD2B48C }); // Basic material
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.position.y = 1;
-        head.castShadow = true;
         this.player.add(head);
         
         // Legs
         const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F4F });
+        const legMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
         
         const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
         leftLeg.position.set(0.15, -0.3, 0);
-        leftLeg.castShadow = true;
         this.player.add(leftLeg);
         
         const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
         rightLeg.position.set(-0.15, -0.3, 0);
-        rightLeg.castShadow = true;
         this.player.add(rightLeg);
         
         // Arms
         const armGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-        const armMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F4F });
+        const armMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
         
         const leftArm = new THREE.Mesh(armGeometry, armMaterial);
         leftArm.position.set(0.35, 0.4, 0);
-        leftArm.castShadow = true;
         this.player.add(leftArm);
         
         const rightArm = new THREE.Mesh(armGeometry, armMaterial);
         rightArm.position.set(-0.35, 0.4, 0);
-        rightArm.castShadow = true;
         this.player.add(rightArm);
         
         // Position player and add to scene
@@ -354,24 +341,29 @@ class Game {
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        // Update player
-        this.updatePlayer();
-        
-        // Render scene
-        this.renderer.render(this.scene, this.camera);
+        try {
+            // Update player
+            this.updatePlayer();
+            
+            // Render scene
+            this.renderer.render(this.scene, this.camera);
+        } catch (animateError) {
+            console.error('Animation error:', animateError);
+            this.debug.innerHTML += `<br>Animation error: ${animateError.message}`;
+        }
     }
 }
 
 // Create game instance when page loads
 window.addEventListener('DOMContentLoaded', () => {
     try {
-        new Game();
+        window.game = new Game(); // Store in global scope for debugging
     } catch (error) {
         console.error('Failed to start game:', error);
         const debug = document.getElementById('debug');
         if (debug) {
             debug.style.display = 'block';
-            debug.textContent = `Failed to start game: ${error.message}`;
+            debug.innerHTML = `Failed to start game: ${error.message}<br>Stack: ${error.stack}`;
         }
     }
 }); 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Game</title>
+    <title>SOCOM-style Third Person Shooter</title>
     <style>
         * {
             margin: 0;
@@ -33,12 +33,28 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.8);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             color: white;
             font-family: Arial, sans-serif;
             font-size: 24px;
             z-index: 1000;
+        }
+        
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         .debug {
@@ -48,17 +64,26 @@
             color: white;
             font-family: monospace;
             z-index: 100;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.7);
             padding: 10px;
-            display: none;
+            border-radius: 5px;
+            max-width: 500px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.4;
         }
     </style>
 </head>
 <body>
     <div id="gameContainer"></div>
-    <div id="loadingScreen">Loading game assets...</div>
+    <div id="loadingScreen">
+        <div class="loading-spinner"></div>
+        Loading game assets...
+    </div>
     <div id="debug" class="debug"></div>
     
+    <!-- Import map - ensure this is correct -->
     <script type="importmap">
     {
         "imports": {
@@ -67,6 +92,26 @@
         }
     }
     </script>
+    
+    <!-- Make sure to include the type="module" attribute -->
     <script type="module" src="js/game.js"></script>
+    
+    <script>
+        // Add a timeout to show an error if the game doesn't load
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const debug = document.getElementById('debug');
+            
+            if (loadingScreen && loadingScreen.style.display !== 'none') {
+                debug.style.display = 'block';
+                debug.innerHTML += '<br>Game is taking too long to load. There might be an error.';
+                
+                // Check if THREE is loaded
+                if (typeof window.game === 'undefined') {
+                    debug.innerHTML += '<br>Game object not created. Check console for errors.';
+                }
+            }
+        }, 10000); // 10 seconds
+    </script>
 </body>
 </html> 
