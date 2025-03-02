@@ -35,6 +35,10 @@ class Game {
         this.treeCollisionRadius = 1.5; // Collision radius for trees
         this.playerCollisionRadius = 0.5; // Collision radius for player
         
+        // Camera settings
+        this.cameraOffset = new THREE.Vector3(0, 2, 15); // 2 units up, 15 units back
+        this.cameraLookOffset = new THREE.Vector3(0, 1, 0); // Look at point above player's head
+        
         // Set up basic scene
         this.setupScene();
         
@@ -185,14 +189,14 @@ class Game {
         
         // Create and add soldier model
         this.soldier = this.createSoldier();
-        this.player = new THREE.Group(); // Empty group for player root
+        this.player = new THREE.Group();
         this.player.add(this.soldier);
         this.player.position.y = 1;
         this.scene.add(this.player);
         
-        // Set up camera
-        this.camera.position.set(0, 1.7, 0);
-        this.player.add(this.camera);
+        // Set up camera (now separate from player)
+        this.camera.position.copy(this.player.position).add(this.cameraOffset);
+        this.scene.add(this.camera); // Camera is in the scene, not attached to player
     }
     
     setupControls() {
@@ -200,17 +204,9 @@ class Game {
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.container) {
                 this.mouseX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
-                this.mouseY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
                 
-                // Rotate player (and camera) horizontally
+                // Only rotate player horizontally
                 this.player.rotation.y -= this.mouseX * this.rotationSpeed;
-                
-                // Rotate camera vertically (limit up/down look)
-                this.camera.rotation.x = Math.max(-Math.PI/2, 
-                    Math.min(Math.PI/2, 
-                        this.camera.rotation.x - this.mouseY * this.rotationSpeed
-                    )
-                );
             }
         });
         
@@ -281,6 +277,20 @@ class Game {
         }
     }
     
+    updateCamera() {
+        // Calculate desired camera position
+        const idealOffset = this.cameraOffset.clone();
+        idealOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
+        const idealPosition = this.player.position.clone().add(idealOffset);
+        
+        // Update camera position
+        this.camera.position.copy(idealPosition);
+        
+        // Calculate look target (slightly above player)
+        const lookTarget = this.player.position.clone().add(this.cameraLookOffset);
+        this.camera.lookAt(lookTarget);
+    }
+    
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
@@ -290,6 +300,7 @@ class Game {
     animate() {
         requestAnimationFrame(() => this.animate());
         this.updateMovement();
+        this.updateCamera();
         this.renderer.render(this.scene, this.camera);
     }
 }
