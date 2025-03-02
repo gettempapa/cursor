@@ -57,6 +57,15 @@ class Game {
         this.minVerticalAngle = -Math.PI / 6; // -30 degrees
         this.maxVerticalAngle = Math.PI / 3;  // 60 degrees
         
+        // Enemy state
+        this.enemy = null;
+        this.enemyTarget = new THREE.Vector3();
+        this.enemyRotationTarget = 0;
+        this.enemyMoveSpeed = 0.05;
+        this.enemyRotationSpeed = 0.02;
+        this.enemyUpdateInterval = 3000; // milliseconds between new random targets
+        this.levelRadius = 20; // Confine enemy to this radius
+        
         // Set up basic scene
         this.setupScene();
         
@@ -129,11 +138,13 @@ class Game {
         const rifleBody = new THREE.BoxGeometry(0.1, 0.15, 1.2);
         const rifle = new THREE.Mesh(rifleBody, rifleMaterial);
         rifle.position.set(0.3, 0.4, 0.3);
+        // Rotate rifle to point forward
+        rifle.rotation.y = -Math.PI / 2;
         
         // Rifle stock
         const stockGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.3);
         const stock = new THREE.Mesh(stockGeometry, rifleMaterial);
-        stock.position.set(0, -0.05, -0.45);
+        stock.position.set(-0.45, -0.05, 0);
         rifle.add(stock);
         
         // Rifle scope
@@ -151,7 +162,7 @@ class Game {
             opacity: 0
         });
         this.muzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
-        this.muzzleFlash.position.set(0, 0, 0.7); // Position at rifle barrel
+        this.muzzleFlash.position.set(0.7, 0, 0); // Position at rifle barrel
         rifle.add(this.muzzleFlash);
 
         // Create muzzle light (initially disabled)
@@ -257,6 +268,24 @@ class Game {
         // Set up camera (now separate from player)
         this.camera.position.copy(this.player.position).add(this.cameraOffset);
         this.scene.add(this.camera); // Camera is in the scene, not attached to player
+        
+        // Create and add enemy
+        this.enemy = this.createSoldier();
+        this.enemy.scale.set(1, 1, 1); // Same size as player
+        
+        // Position enemy randomly within level bounds
+        const randomAngle = Math.random() * Math.PI * 2;
+        const randomRadius = Math.random() * this.levelRadius;
+        this.enemy.position.set(
+            Math.cos(randomAngle) * randomRadius,
+            1,
+            Math.sin(randomAngle) * randomRadius
+        );
+        this.scene.add(this.enemy);
+        
+        // Start enemy AI
+        this.updateEnemyTarget();
+        setInterval(() => this.updateEnemyTarget(), this.enemyUpdateInterval);
     }
     
     setupControls() {
@@ -422,6 +451,7 @@ class Game {
         requestAnimationFrame(() => this.animate());
         this.updateMovement();
         this.updateCamera();
+        this.updateEnemy(); // Add enemy update to animation loop
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -429,12 +459,12 @@ class Game {
         // Create crosshair container
         const crosshairContainer = document.createElement('div');
         crosshairContainer.style.position = 'absolute';
-        crosshairContainer.style.top = '50%';
-        crosshairContainer.style.left = '50%';
+        crosshairContainer.style.top = '40%'; // Move up from center
+        crosshairContainer.style.left = '55%'; // Move right from center
         crosshairContainer.style.transform = 'translate(-50%, -50%)';
-        crosshairContainer.style.width = '20px';
-        crosshairContainer.style.height = '20px';
-        crosshairContainer.style.pointerEvents = 'none'; // Make sure it doesn't interfere with clicking
+        crosshairContainer.style.width = '16px'; // Slightly smaller
+        crosshairContainer.style.height = '16px';
+        crosshairContainer.style.pointerEvents = 'none';
 
         // Create crosshair
         const crosshair = document.createElement('div');
@@ -449,12 +479,12 @@ class Game {
             line.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
             
             if (vertical) {
-                line.style.width = '2px';
+                line.style.width = '1px'; // Thinner lines
                 line.style.height = '100%';
                 line.style.left = '50%';
                 line.style.transform = 'translateX(-50%)';
             } else {
-                line.style.height = '2px';
+                line.style.height = '1px'; // Thinner lines
                 line.style.width = '100%';
                 line.style.top = '50%';
                 line.style.transform = 'translateY(-50%)';
@@ -463,8 +493,8 @@ class Game {
             return line;
         };
 
-        crosshair.appendChild(createLine(true));  // Vertical line
-        crosshair.appendChild(createLine(false)); // Horizontal line
+        crosshair.appendChild(createLine(true));
+        crosshair.appendChild(createLine(false));
         
         crosshairContainer.appendChild(crosshair);
         this.container.appendChild(crosshairContainer);
@@ -484,6 +514,58 @@ class Game {
             this.muzzleLight.intensity = 0;
             this.isShooting = false;
         }, this.flashDuration);
+    }
+
+    updateEnemyTarget() {
+        // Set new random position target within level bounds
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * this.levelRadius;
+        this.enemyTarget.set(
+            Math.cos(angle) * radius,
+            1,
+            Math.sin(angle) * radius
+        );
+        
+        // Set new random rotation target
+        this.enemyRotationTarget = Math.random() * Math.PI * 2;
+    }
+
+    updateEnemy() {
+        if (!this.enemy) return;
+
+        // Move towards target
+        const direction = this.enemyTarget.clone().sub(this.enemy.position);
+        if (direction.length() > 0.1) {
+            direction.normalize();
+            this.enemy.position.add(direction.multiplyScalar(this.enemyMoveSpeed));
+            
+            // Animate legs while moving
+            const leftLeg = this.enemy.children.find(child => child.position.x === 0.15 && child.position.y === -0.3);
+            const rightLeg = this.enemy.children.find(child => child.position.x === -0.15 && child.position.y === -0.3);
+            
+            if (leftLeg && rightLeg) {
+                const time = performance.now() * 0.005;
+                leftLeg.rotation.x = Math.sin(time) * 0.5;
+                rightLeg.rotation.x = Math.sin(time + Math.PI) * 0.5;
+            }
+        }
+
+        // Rotate towards target rotation
+        const rotationDiff = ((this.enemyRotationTarget - this.enemy.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        if (Math.abs(rotationDiff) > 0.01) {
+            this.enemy.rotation.y += Math.sign(rotationDiff) * this.enemyRotationSpeed;
+        }
+
+        // Check for collisions with trees
+        const enemyPosition2D = new THREE.Vector2(this.enemy.position.x, this.enemy.position.z);
+        for (const tree of this.trees) {
+            const distance = enemyPosition2D.distanceTo(tree.position);
+            if (distance < (this.playerCollisionRadius + tree.radius)) {
+                // If collision detected, get new target
+                this.updateEnemyTarget();
+                break;
+            }
+        }
     }
 }
 
