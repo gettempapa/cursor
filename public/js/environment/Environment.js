@@ -48,42 +48,94 @@ export class Environment {
      * Create the ground
      */
     createGround() {
-        // Create ground geometry
-        const groundSize = Constants.GAME.GROUND_SIZE;
-        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 64, 64);
+        // Create ground plane with vibrant green color
+        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const groundMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x2D8A27,  // Vibrant grass green
+            side: THREE.DoubleSide 
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = Math.PI / 2;
         
-        // Add subtle terrain variations
-        const vertices = groundGeometry.attributes.position.array;
-        for (let i = 0; i < vertices.length; i += 3) {
-            const x = vertices[i];
-            const z = vertices[i + 2];
-            const distanceFromCenter = Math.sqrt(x * x + z * z);
+        // Add grass patches
+        const grassCount = 2000;  // Increased from 500
+        const clusterProbability = 0.8;  // 80% chance of clustering
+        const clusterRadius = 20;  // Larger clusters
+        
+        for (let i = 0; i < grassCount; i++) {
+            const isCluster = Math.random() < clusterProbability;
+            let x, z;
             
-            if (distanceFromCenter < groundSize * 0.45) {
-                const xNoise = x * 0.02;
-                const zNoise = z * 0.02;
-                const noise = 
-                    Math.sin(xNoise) * Math.cos(zNoise) * 1.5 + 
-                    Math.sin(xNoise * 2.5) * Math.cos(zNoise * 2.5) * 0.8 +
-                    Math.sin(xNoise * 5) * Math.cos(zNoise * 5) * 0.4;
-                
-                vertices[i + 1] = noise * Math.max(0, 1 - distanceFromCenter / (groundSize * 0.45));
+            if (isCluster && i > 0) {
+                // Create clusters by positioning near previous patch
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * clusterRadius;
+                x = previousX + Math.cos(angle) * radius;
+                z = previousZ + Math.sin(angle) * radius;
+            } else {
+                // Random position
+                x = (Math.random() - 0.5) * 900;
+                z = (Math.random() - 0.5) * 900;
             }
+            
+            const grassPatch = this.createGrassPatch();
+            grassPatch.position.set(x, 0, z);
+            grassPatch.rotation.y = Math.random() * Math.PI;
+            grassPatch.scale.setScalar(2 + Math.random() * 3);  // Larger patches
+            
+            ground.add(grassPatch);
+            
+            previousX = x;
+            previousZ = z;
         }
-        groundGeometry.attributes.position.needsUpdate = true;
-        groundGeometry.computeVertexNormals();
         
-        // Create ground material with a much richer grass color
-        const groundMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0x2D8A27), // More vibrant grass green
-            side: THREE.DoubleSide
+        this.scene.add(ground);
+    }
+    
+    createGrassPatch() {
+        const bladeCount = 30;  // Increased from 20
+        const patchGeometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        
+        for (let i = 0; i < bladeCount; i++) {
+            const angle = (i / bladeCount) * Math.PI * 2;
+            const radius = 0.3 * Math.random();
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            const height = 25 + Math.random() * 35;  // Taller grass (25-60 units)
+            
+            // Base of blade
+            positions.push(x, 0, z);
+            
+            // Tip of blade (with random tilt)
+            const tiltAngle = Math.random() * 0.5;
+            const tiltDirection = Math.random() * Math.PI * 2;
+            positions.push(
+                x + Math.cos(tiltDirection) * tiltAngle,
+                height,
+                z + Math.sin(tiltDirection) * tiltAngle
+            );
+            
+            // Random vibrant green colors
+            const hue = 0.3 + Math.random() * 0.1;  // Green hue
+            const saturation = 0.6 + Math.random() * 0.4;  // High saturation
+            const lightness = 0.4 + Math.random() * 0.3;  // Varied lightness
+            const color = new THREE.Color().setHSL(hue, saturation, lightness);
+            
+            colors.push(color.r, color.g, color.b);
+            colors.push(color.r * 1.2, color.g * 1.2, color.b * 0.8);  // Lighter at tips
+        }
+        
+        patchGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        patchGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        
+        const grassMaterial = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            linewidth: 1.5
         });
         
-        // Create ground mesh
-        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = Math.PI / 2;
-        this.ground.receiveShadow = true;
-        this.scene.add(this.ground);
+        return new THREE.LineSegments(patchGeometry, grassMaterial);
     }
     
     /**
@@ -1401,16 +1453,17 @@ export class Environment {
     }
 
     createMilitaryBase() {
-        // Position the base outside the forest area
-        const baseDistance = 280; // Outside tree line
-        const baseAngle = Math.PI / 4; // 45 degrees
-        const baseX = Math.cos(baseAngle) * baseDistance;
-        const baseZ = Math.sin(baseAngle) * baseDistance;
-        
-        // Create base group
         const baseGroup = new THREE.Group();
-        baseGroup.position.set(baseX, 0, baseZ);
         
+        // Position the base at 280 units from center at 45 degrees
+        const baseDistance = 280;
+        const baseAngle = Math.PI / 4;
+        baseGroup.position.set(
+            Math.cos(baseAngle) * baseDistance,
+            0,
+            Math.sin(baseAngle) * baseDistance
+        );
+
         // Create main compound
         this.createCompoundWalls(baseGroup);
         this.createBarracks(baseGroup);
@@ -1418,398 +1471,223 @@ export class Environment {
         this.createVehicleDepot(baseGroup);
         this.createWatchTowers(baseGroup);
         this.createMilitaryProps(baseGroup);
-        
+
         this.scene.add(baseGroup);
     }
     
     createCompoundWalls(baseGroup) {
-        const wallLength = 100;
-        const wallHeight = 4;
-        const wallThickness = 0.5;
+        const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 }); // Military gray
+        const wallGeometry = new THREE.BoxGeometry(200, 8, 2);
         
-        // Create wall material with military texture
-        const wallMaterial = new THREE.MeshBasicMaterial({
-            color: 0x5A5A5A, // Military gray
-        });
-        
-        // Create walls
-        const walls = [
-            { start: [-wallLength/2, 0, -wallLength/2], end: [wallLength/2, 0, -wallLength/2] },
-            { start: [wallLength/2, 0, -wallLength/2], end: [wallLength/2, 0, wallLength/2] },
-            { start: [wallLength/2, 0, wallLength/2], end: [-wallLength/2, 0, wallLength/2] },
-            { start: [-wallLength/2, 0, wallLength/2], end: [-wallLength/2, 0, -wallLength/2] }
-        ];
-        
-        walls.forEach(wall => {
-            const length = Math.sqrt(
-                Math.pow(wall.end[0] - wall.start[0], 2) +
-                Math.pow(wall.end[2] - wall.start[2], 2)
-            );
+        // Create four walls
+        for (let i = 0; i < 4; i++) {
+            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall.position.y = 4;
+            wall.rotation.y = (Math.PI / 2) * i;
             
-            const wallGeometry = new THREE.BoxGeometry(length, wallHeight, wallThickness);
-            const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+            if (i % 2 === 0) {
+                wall.position.z = i === 0 ? -100 : 100;
+            } else {
+                wall.position.x = i === 1 ? 100 : -100;
+                wall.scale.x = 1; // Adjust for equal wall lengths
+            }
             
-            // Position wall
-            wallMesh.position.set(
-                (wall.start[0] + wall.end[0]) / 2,
-                wallHeight / 2,
-                (wall.start[2] + wall.end[2]) / 2
-            );
+            baseGroup.add(wall);
             
-            // Rotate wall
-            const angle = Math.atan2(
-                wall.end[2] - wall.start[2],
-                wall.end[0] - wall.start[0]
-            );
-            wallMesh.rotation.y = angle;
-            
-            baseGroup.add(wallMesh);
-        });
-        
-        // Add barbed wire on top
-        walls.forEach(wall => {
-            const barbedWireGeometry = new THREE.CylinderGeometry(0.1, 0.1, length, 8);
+            // Add barbed wire on top
+            const barbedWireGeometry = new THREE.TorusGeometry(0.5, 0.1, 8, 16);
             const barbedWireMaterial = new THREE.MeshBasicMaterial({ color: 0x303030 });
-            const barbedWire = new THREE.Mesh(barbedWireGeometry, barbedWireMaterial);
             
-            barbedWire.position.set(
-                (wall.start[0] + wall.end[0]) / 2,
-                wallHeight + 0.1,
-                (wall.start[2] + wall.end[2]) / 2
-            );
-            barbedWire.rotation.z = Math.PI / 2;
-            barbedWire.rotation.y = Math.atan2(
-                wall.end[2] - wall.start[2],
-                wall.end[0] - wall.start[0]
-            );
-            
-            baseGroup.add(barbedWire);
-        });
+            for (let j = 0; j < 20; j++) {
+                const barbedWire = new THREE.Mesh(barbedWireGeometry, barbedWireMaterial);
+                barbedWire.position.copy(wall.position);
+                barbedWire.position.y += 4;
+                barbedWire.position.x += (i % 2 === 0) ? -95 + j * 10 : 0;
+                barbedWire.position.z += (i % 2 === 1) ? -95 + j * 10 : 0;
+                baseGroup.add(barbedWire);
+            }
+        }
     }
     
     createBarracks(baseGroup) {
-        const barrackLength = 20;
-        const barrackWidth = 8;
-        const barrackHeight = 3;
+        const barracksGroup = new THREE.Group();
         
-        // Create barracks building
-        const barrackGeometry = new THREE.BoxGeometry(barrackLength, barrackHeight, barrackWidth);
-        const barrackMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5F39 }); // Military green
-        const barrack = new THREE.Mesh(barrackGeometry, barrackMaterial);
+        // Main building
+        const buildingGeometry = new THREE.BoxGeometry(40, 12, 20);
+        const buildingMaterial = new THREE.MeshBasicMaterial({ color: 0x5A5A5A });
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(-60, 6, -60);
         
-        // Position barracks
-        barrack.position.set(-30, barrackHeight/2, -20);
-        
-        // Add roof
-        const roofGeometry = new THREE.BoxGeometry(barrackLength + 1, 0.5, barrackWidth + 1);
-        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
+        // Roof
+        const roofGeometry = new THREE.BoxGeometry(44, 2, 24);
+        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x404040 });
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof.position.y = barrackHeight;
-        barrack.add(roof);
+        roof.position.set(-60, 13, -60);
         
-        // Add windows
-        const windowCount = 6;
-        const windowSpacing = barrackLength / (windowCount + 1);
-        for(let i = 1; i <= windowCount; i++) {
-            const windowGeometry = new THREE.PlaneGeometry(1, 1);
-            const windowMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0x88AAE0,
-                transparent: true,
-                opacity: 0.6
-            });
-            
-            // Front windows
-            const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-            frontWindow.position.set(-barrackLength/2 + i * windowSpacing, 0, barrackWidth/2 + 0.01);
-            barrack.add(frontWindow);
-            
-            // Back windows
-            const backWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-            backWindow.position.set(-barrackLength/2 + i * windowSpacing, 0, -barrackWidth/2 - 0.01);
-            backWindow.rotation.y = Math.PI;
-            barrack.add(backWindow);
+        // Windows
+        const windowGeometry = new THREE.PlaneGeometry(2, 3);
+        const windowMaterial = new THREE.MeshBasicMaterial({ color: 0x88CCFF });
+        
+        for (let i = 0; i < 6; i++) {
+            const window = new THREE.Mesh(windowGeometry, windowMaterial);
+            window.position.set(-75 + i * 6, 7, -49.9);
+            barracksGroup.add(window);
         }
         
-        baseGroup.add(barrack);
+        barracksGroup.add(building);
+        barracksGroup.add(roof);
+        baseGroup.add(barracksGroup);
     }
     
     createCommandCenter(baseGroup) {
-        const centerWidth = 15;
-        const centerHeight = 6;
+        const centerGroup = new THREE.Group();
         
-        // Create main building
-        const centerGeometry = new THREE.BoxGeometry(centerWidth, centerHeight, centerWidth);
-        const centerMaterial = new THREE.MeshBasicMaterial({ color: 0x3F4F4F });
-        const center = new THREE.Mesh(centerGeometry, centerMaterial);
+        // Main building
+        const buildingGeometry = new THREE.BoxGeometry(30, 20, 30);
+        const buildingMaterial = new THREE.MeshBasicMaterial({ color: 0x4A4A4A });
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(0, 10, 0);
         
-        // Position command center
-        center.position.set(0, centerHeight/2, 0);
+        // Communication array
+        const arrayGeometry = new THREE.CylinderGeometry(1, 1, 15, 8);
+        const arrayMaterial = new THREE.MeshBasicMaterial({ color: 0x303030 });
+        const array = new THREE.Mesh(arrayGeometry, arrayMaterial);
+        array.position.set(0, 25, 0);
         
-        // Add communication array on top
-        const antennaHeight = 8;
-        const antennaGeometry = new THREE.CylinderGeometry(0.2, 0.2, antennaHeight, 8);
-        const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
-        const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-        antenna.position.set(0, centerHeight + antennaHeight/2, 0);
-        center.add(antenna);
-        
-        // Add satellite dish
-        const dishRadius = 2;
-        const dishGeometry = new THREE.SphereGeometry(dishRadius, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const dishMaterial = new THREE.MeshBasicMaterial({ color: 0x8F8F8F });
+        // Satellite dish
+        const dishGeometry = new THREE.CylinderGeometry(5, 5, 1, 32);
+        const dishMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
         const dish = new THREE.Mesh(dishGeometry, dishMaterial);
-        dish.position.set(centerWidth/4, centerHeight, centerWidth/4);
-        dish.rotation.x = -Math.PI / 6;
-        dish.rotation.y = Math.PI / 4;
-        center.add(dish);
+        dish.rotation.x = Math.PI / 4;
+        dish.position.set(10, 18, 10);
         
-        baseGroup.add(center);
+        centerGroup.add(building);
+        centerGroup.add(array);
+        centerGroup.add(dish);
+        baseGroup.add(centerGroup);
     }
     
     createVehicleDepot(baseGroup) {
-        const depotWidth = 25;
-        const depotHeight = 5;
-        const depotDepth = 15;
+        const depotGroup = new THREE.Group();
         
-        // Create depot structure
-        const depotGeometry = new THREE.BoxGeometry(depotWidth, depotHeight, depotDepth);
-        const depotMaterial = new THREE.MeshBasicMaterial({ color: 0x4F4F4F });
-        const depot = new THREE.Mesh(depotGeometry, depotMaterial);
+        // Main structure
+        const buildingGeometry = new THREE.BoxGeometry(50, 15, 40);
+        const buildingMaterial = new THREE.MeshBasicMaterial({ color: 0x505050 });
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(60, 7.5, 60);
         
-        // Position depot
-        depot.position.set(30, depotHeight/2, 20);
+        // Entrance
+        const entranceGeometry = new THREE.BoxGeometry(20, 10, 1);
+        const entranceMaterial = new THREE.MeshBasicMaterial({ color: 0x404040 });
+        const entrance = new THREE.Mesh(entranceGeometry, entranceMaterial);
+        entrance.position.set(60, 5, 40);
         
-        // Add large entrance
-        const doorGeometry = new THREE.BoxGeometry(8, 4, 0.5);
-        const doorMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
-        const door = new THREE.Mesh(doorGeometry, doorMaterial);
-        door.position.set(0, 2, depotDepth/2);
-        depot.add(door);
+        // Add simplified military vehicles
+        const vehicleGeometry = new THREE.BoxGeometry(10, 6, 15);
+        const vehicleMaterial = new THREE.MeshBasicMaterial({ color: 0x4B5320 });
         
-        // Add military vehicles (simplified shapes)
-        this.createMilitaryVehicle(depot, -5, 0, -2);
-        this.createMilitaryVehicle(depot, 5, 0, -2);
+        for (let i = 0; i < 3; i++) {
+            const vehicle = new THREE.Mesh(vehicleGeometry, vehicleMaterial);
+            vehicle.position.set(45 + i * 15, 3, 55);
+            depotGroup.add(vehicle);
+        }
         
-        baseGroup.add(depot);
-    }
-    
-    createMilitaryVehicle(parent, x, y, z) {
-        const vehicleGroup = new THREE.Group();
-        
-        // Vehicle body
-        const bodyGeometry = new THREE.BoxGeometry(4, 2, 2);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5F39 });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        vehicleGroup.add(body);
-        
-        // Wheels
-        const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 8);
-        const wheelMaterial = new THREE.MeshBasicMaterial({ color: 0x1F1F1F });
-        
-        const wheelPositions = [
-            [-1.5, -1, 1], [1.5, -1, 1],
-            [-1.5, -1, -1], [1.5, -1, -1]
-        ];
-        
-        wheelPositions.forEach(pos => {
-            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-            wheel.position.set(...pos);
-            wheel.rotation.z = Math.PI / 2;
-            vehicleGroup.add(wheel);
-        });
-        
-        vehicleGroup.position.set(x, y + 1, z);
-        parent.add(vehicleGroup);
+        depotGroup.add(building);
+        depotGroup.add(entrance);
+        baseGroup.add(depotGroup);
     }
     
     createWatchTowers(baseGroup) {
         const towerPositions = [
-            [-45, -45], [45, -45],
-            [-45, 45], [45, 45]
+            { x: -95, z: -95 },
+            { x: 95, z: -95 },
+            { x: 95, z: 95 },
+            { x: -95, z: 95 }
         ];
         
         towerPositions.forEach(pos => {
-            const tower = this.createWatchTower();
-            tower.position.set(pos[0], 0, pos[1]);
-            baseGroup.add(tower);
+            const towerGroup = new THREE.Group();
+            
+            // Tower base
+            const baseGeometry = new THREE.BoxGeometry(6, 20, 6);
+            const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x606060 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.set(pos.x, 10, pos.z);
+            
+            // Tower top
+            const topGeometry = new THREE.BoxGeometry(8, 6, 8);
+            const topMaterial = new THREE.MeshBasicMaterial({ color: 0x505050 });
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.set(pos.x, 23, pos.z);
+            
+            // Spotlight
+            const spotlightGeometry = new THREE.ConeGeometry(2, 4, 32);
+            const spotlightMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+            const spotlight = new THREE.Mesh(spotlightGeometry, spotlightMaterial);
+            spotlight.position.set(pos.x, 20, pos.z);
+            spotlight.rotation.x = Math.PI;
+            
+            towerGroup.add(base);
+            towerGroup.add(top);
+            towerGroup.add(spotlight);
+            baseGroup.add(towerGroup);
         });
-    }
-    
-    createWatchTower() {
-        const towerGroup = new THREE.Group();
-        
-        // Tower base
-        const baseHeight = 8;
-        const baseGeometry = new THREE.BoxGeometry(2, baseHeight, 2);
-        const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x4F4F4F });
-        const base = new THREE.Mesh(baseGeometry, baseMaterial);
-        base.position.y = baseHeight/2;
-        towerGroup.add(base);
-        
-        // Watch post
-        const postWidth = 4;
-        const postHeight = 3;
-        const postGeometry = new THREE.BoxGeometry(postWidth, postHeight, postWidth);
-        const postMaterial = new THREE.MeshBasicMaterial({ color: 0x3F3F3F });
-        const post = new THREE.Mesh(postGeometry, postMaterial);
-        post.position.y = baseHeight + postHeight/2;
-        towerGroup.add(post);
-        
-        // Roof
-        const roofGeometry = new THREE.ConeGeometry(postWidth/1.4, 2, 4);
-        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
-        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof.position.y = baseHeight + postHeight + 1;
-        towerGroup.add(roof);
-        
-        // Spotlight
-        const spotlightGeometry = new THREE.ConeGeometry(0.5, 1, 8);
-        const spotlightMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
-        const spotlight = new THREE.Mesh(spotlightGeometry, spotlightMaterial);
-        spotlight.position.set(1.5, baseHeight + postHeight/2, 0);
-        spotlight.rotation.z = Math.PI/2;
-        towerGroup.add(spotlight);
-        
-        return towerGroup;
     }
     
     createMilitaryProps(baseGroup) {
-        // Add sandbag barriers
-        this.createSandbagBarriers(baseGroup);
+        // Sandbag barriers
+        const createSandbagWall = (x, z, rotation) => {
+            const wallGroup = new THREE.Group();
+            const sandbagGeometry = new THREE.BoxGeometry(2, 1, 4);
+            const sandbagMaterial = new THREE.MeshBasicMaterial({ color: 0x8B7355 });
+            
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const sandbag = new THREE.Mesh(sandbagGeometry, sandbagMaterial);
+                    sandbag.position.set(x + i * 2, j * 1, z);
+                    sandbag.rotation.y = rotation;
+                    wallGroup.add(sandbag);
+                }
+            }
+            
+            baseGroup.add(wallGroup);
+        };
+        
+        // Add sandbag positions
+        createSandbagWall(-30, -30, 0);
+        createSandbagWall(-30, -40, Math.PI / 2);
+        createSandbagWall(30, 30, Math.PI / 4);
         
         // Add cargo containers
-        this.createCargoContainers(baseGroup);
+        const containerGeometry = new THREE.BoxGeometry(20, 8, 8);
+        const containerMaterial = new THREE.MeshBasicMaterial({ color: 0x567d46 });
         
-        // Add miscellaneous props
-        this.createMiscProps(baseGroup);
-    }
-    
-    createSandbagBarriers(baseGroup) {
-        const barrierPositions = [
-            [-20, -30], [20, -30],
-            [-20, 30], [20, 30]
-        ];
+        const container1 = new THREE.Mesh(containerGeometry, containerMaterial);
+        container1.position.set(-50, 4, 50);
+        baseGroup.add(container1);
         
-        barrierPositions.forEach(pos => {
-            const barrier = this.createSandbagBarrier();
-            barrier.position.set(pos[0], 0, pos[1]);
-            baseGroup.add(barrier);
-        });
-    }
-    
-    createSandbagBarrier() {
-        const barrierGroup = new THREE.Group();
+        const container2 = new THREE.Mesh(containerGeometry, containerMaterial);
+        container2.position.set(-45, 4, 60);
+        container2.rotation.y = Math.PI / 2;
+        baseGroup.add(container2);
         
-        // Create rows of sandbags
-        for(let row = 0; row < 3; row++) {
-            for(let col = 0; col < 5; col++) {
-                const bagGeometry = new THREE.BoxGeometry(1, 0.5, 0.8);
-                const bagMaterial = new THREE.MeshBasicMaterial({ color: 0x8B7355 });
-                const bag = new THREE.Mesh(bagGeometry, bagMaterial);
-                
-                bag.position.set(
-                    col * 0.9 - 2,
-                    row * 0.4,
-                    row % 2 ? 0.4 : 0
-                );
-                
-                barrierGroup.add(bag);
-            }
-        }
+        // Add misc props (fuel drums, communication equipment, etc.)
+        const drumGeometry = new THREE.CylinderGeometry(2, 2, 4, 16);
+        const drumMaterial = new THREE.MeshBasicMaterial({ color: 0x3B3B3B });
         
-        return barrierGroup;
-    }
-    
-    createCargoContainers(baseGroup) {
-        const containerPositions = [
-            [35, -35], [35, -30],
-            [30, -35]
-        ];
-        
-        containerPositions.forEach(pos => {
-            const container = this.createCargoContainer();
-            container.position.set(pos[0], 0, pos[1]);
-            container.rotation.y = Math.random() * Math.PI / 2;
-            baseGroup.add(container);
-        });
-    }
-    
-    createCargoContainer() {
-        const containerGroup = new THREE.Group();
-        
-        // Container body
-        const bodyGeometry = new THREE.BoxGeometry(6, 2.5, 2.5);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x5A7F5A });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.position.y = 1.25;
-        containerGroup.add(body);
-        
-        // Container details (ridges)
-        const ridgeGeometry = new THREE.BoxGeometry(6.2, 0.1, 2.6);
-        const ridgeMaterial = new THREE.MeshBasicMaterial({ color: 0x4A6F4A });
-        
-        const topRidge = new THREE.Mesh(ridgeGeometry, ridgeMaterial);
-        topRidge.position.y = 2.5;
-        containerGroup.add(topRidge);
-        
-        const bottomRidge = new THREE.Mesh(ridgeGeometry, ridgeMaterial);
-        bottomRidge.position.y = 0;
-        containerGroup.add(bottomRidge);
-        
-        return containerGroup;
-    }
-    
-    createMiscProps(baseGroup) {
-        // Add fuel drums
-        const drumPositions = [
-            [25, -25], [26, -25], [25.5, -26]
-        ];
-        
-        drumPositions.forEach(pos => {
-            const drum = this.createFuelDrum();
-            drum.position.set(pos[0], 0, pos[1]);
+        for (let i = 0; i < 5; i++) {
+            const drum = new THREE.Mesh(drumGeometry, drumMaterial);
+            drum.position.set(-40 + i * 3, 2, -40);
             baseGroup.add(drum);
-        });
-        
-        // Add communication equipment
-        const commEquip = this.createCommEquipment();
-        commEquip.position.set(-15, 0, 15);
-        baseGroup.add(commEquip);
-    }
-    
-    createFuelDrum() {
-        const drumGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.2, 12);
-        const drumMaterial = new THREE.MeshBasicMaterial({ color: 0x8B2323 });
-        const drum = new THREE.Mesh(drumGeometry, drumMaterial);
-        drum.position.y = 0.6;
-        return drum;
-    }
-    
-    createCommEquipment() {
-        const equipGroup = new THREE.Group();
-        
-        // Base unit
-        const baseGeometry = new THREE.BoxGeometry(2, 1, 1.5);
-        const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
-        const base = new THREE.Mesh(baseGeometry, baseMaterial);
-        base.position.y = 0.5;
-        equipGroup.add(base);
-        
-        // Antenna array
-        const antennaGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 8);
-        const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x1F1F1F });
-        
-        for(let i = 0; i < 3; i++) {
-            const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-            antenna.position.set(
-                (i - 1) * 0.5,
-                1.5,
-                0
-            );
-            equipGroup.add(antenna);
         }
         
-        return equipGroup;
+        // Communication equipment
+        const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x1A1A1A });
+        const antennaGeometry = new THREE.CylinderGeometry(0.2, 0.2, 10, 8);
+        
+        const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+        antenna.position.set(40, 5, -40);
+        baseGroup.add(antenna);
     }
 }
 
