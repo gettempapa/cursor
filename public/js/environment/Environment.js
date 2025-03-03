@@ -36,6 +36,9 @@ export class Environment {
         this.addForestUndergrowth();
         this.createWaterFeatures();
         
+        // Add military base
+        this.createMilitaryBase();
+        
         // Add sky and atmospheric effects
         this.positionSkyElements();
         this.addAtmosphericFog();
@@ -1395,6 +1398,418 @@ export class Environment {
     addAtmosphericFog() {
         // Add atmospheric fog with a soft blue hue
         this.scene.fog = new THREE.FogExp2(0xC4E4F4, 0.005);
+    }
+
+    createMilitaryBase() {
+        // Position the base outside the forest area
+        const baseDistance = 280; // Outside tree line
+        const baseAngle = Math.PI / 4; // 45 degrees
+        const baseX = Math.cos(baseAngle) * baseDistance;
+        const baseZ = Math.sin(baseAngle) * baseDistance;
+        
+        // Create base group
+        const baseGroup = new THREE.Group();
+        baseGroup.position.set(baseX, 0, baseZ);
+        
+        // Create main compound
+        this.createCompoundWalls(baseGroup);
+        this.createBarracks(baseGroup);
+        this.createCommandCenter(baseGroup);
+        this.createVehicleDepot(baseGroup);
+        this.createWatchTowers(baseGroup);
+        this.createMilitaryProps(baseGroup);
+        
+        this.scene.add(baseGroup);
+    }
+    
+    createCompoundWalls(baseGroup) {
+        const wallLength = 100;
+        const wallHeight = 4;
+        const wallThickness = 0.5;
+        
+        // Create wall material with military texture
+        const wallMaterial = new THREE.MeshBasicMaterial({
+            color: 0x5A5A5A, // Military gray
+        });
+        
+        // Create walls
+        const walls = [
+            { start: [-wallLength/2, 0, -wallLength/2], end: [wallLength/2, 0, -wallLength/2] },
+            { start: [wallLength/2, 0, -wallLength/2], end: [wallLength/2, 0, wallLength/2] },
+            { start: [wallLength/2, 0, wallLength/2], end: [-wallLength/2, 0, wallLength/2] },
+            { start: [-wallLength/2, 0, wallLength/2], end: [-wallLength/2, 0, -wallLength/2] }
+        ];
+        
+        walls.forEach(wall => {
+            const length = Math.sqrt(
+                Math.pow(wall.end[0] - wall.start[0], 2) +
+                Math.pow(wall.end[2] - wall.start[2], 2)
+            );
+            
+            const wallGeometry = new THREE.BoxGeometry(length, wallHeight, wallThickness);
+            const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+            
+            // Position wall
+            wallMesh.position.set(
+                (wall.start[0] + wall.end[0]) / 2,
+                wallHeight / 2,
+                (wall.start[2] + wall.end[2]) / 2
+            );
+            
+            // Rotate wall
+            const angle = Math.atan2(
+                wall.end[2] - wall.start[2],
+                wall.end[0] - wall.start[0]
+            );
+            wallMesh.rotation.y = angle;
+            
+            baseGroup.add(wallMesh);
+        });
+        
+        // Add barbed wire on top
+        walls.forEach(wall => {
+            const barbedWireGeometry = new THREE.CylinderGeometry(0.1, 0.1, length, 8);
+            const barbedWireMaterial = new THREE.MeshBasicMaterial({ color: 0x303030 });
+            const barbedWire = new THREE.Mesh(barbedWireGeometry, barbedWireMaterial);
+            
+            barbedWire.position.set(
+                (wall.start[0] + wall.end[0]) / 2,
+                wallHeight + 0.1,
+                (wall.start[2] + wall.end[2]) / 2
+            );
+            barbedWire.rotation.z = Math.PI / 2;
+            barbedWire.rotation.y = Math.atan2(
+                wall.end[2] - wall.start[2],
+                wall.end[0] - wall.start[0]
+            );
+            
+            baseGroup.add(barbedWire);
+        });
+    }
+    
+    createBarracks(baseGroup) {
+        const barrackLength = 20;
+        const barrackWidth = 8;
+        const barrackHeight = 3;
+        
+        // Create barracks building
+        const barrackGeometry = new THREE.BoxGeometry(barrackLength, barrackHeight, barrackWidth);
+        const barrackMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5F39 }); // Military green
+        const barrack = new THREE.Mesh(barrackGeometry, barrackMaterial);
+        
+        // Position barracks
+        barrack.position.set(-30, barrackHeight/2, -20);
+        
+        // Add roof
+        const roofGeometry = new THREE.BoxGeometry(barrackLength + 1, 0.5, barrackWidth + 1);
+        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.y = barrackHeight;
+        barrack.add(roof);
+        
+        // Add windows
+        const windowCount = 6;
+        const windowSpacing = barrackLength / (windowCount + 1);
+        for(let i = 1; i <= windowCount; i++) {
+            const windowGeometry = new THREE.PlaneGeometry(1, 1);
+            const windowMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x88AAE0,
+                transparent: true,
+                opacity: 0.6
+            });
+            
+            // Front windows
+            const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+            frontWindow.position.set(-barrackLength/2 + i * windowSpacing, 0, barrackWidth/2 + 0.01);
+            barrack.add(frontWindow);
+            
+            // Back windows
+            const backWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+            backWindow.position.set(-barrackLength/2 + i * windowSpacing, 0, -barrackWidth/2 - 0.01);
+            backWindow.rotation.y = Math.PI;
+            barrack.add(backWindow);
+        }
+        
+        baseGroup.add(barrack);
+    }
+    
+    createCommandCenter(baseGroup) {
+        const centerWidth = 15;
+        const centerHeight = 6;
+        
+        // Create main building
+        const centerGeometry = new THREE.BoxGeometry(centerWidth, centerHeight, centerWidth);
+        const centerMaterial = new THREE.MeshBasicMaterial({ color: 0x3F4F4F });
+        const center = new THREE.Mesh(centerGeometry, centerMaterial);
+        
+        // Position command center
+        center.position.set(0, centerHeight/2, 0);
+        
+        // Add communication array on top
+        const antennaHeight = 8;
+        const antennaGeometry = new THREE.CylinderGeometry(0.2, 0.2, antennaHeight, 8);
+        const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
+        const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+        antenna.position.set(0, centerHeight + antennaHeight/2, 0);
+        center.add(antenna);
+        
+        // Add satellite dish
+        const dishRadius = 2;
+        const dishGeometry = new THREE.SphereGeometry(dishRadius, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const dishMaterial = new THREE.MeshBasicMaterial({ color: 0x8F8F8F });
+        const dish = new THREE.Mesh(dishGeometry, dishMaterial);
+        dish.position.set(centerWidth/4, centerHeight, centerWidth/4);
+        dish.rotation.x = -Math.PI / 6;
+        dish.rotation.y = Math.PI / 4;
+        center.add(dish);
+        
+        baseGroup.add(center);
+    }
+    
+    createVehicleDepot(baseGroup) {
+        const depotWidth = 25;
+        const depotHeight = 5;
+        const depotDepth = 15;
+        
+        // Create depot structure
+        const depotGeometry = new THREE.BoxGeometry(depotWidth, depotHeight, depotDepth);
+        const depotMaterial = new THREE.MeshBasicMaterial({ color: 0x4F4F4F });
+        const depot = new THREE.Mesh(depotGeometry, depotMaterial);
+        
+        // Position depot
+        depot.position.set(30, depotHeight/2, 20);
+        
+        // Add large entrance
+        const doorGeometry = new THREE.BoxGeometry(8, 4, 0.5);
+        const doorMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
+        const door = new THREE.Mesh(doorGeometry, doorMaterial);
+        door.position.set(0, 2, depotDepth/2);
+        depot.add(door);
+        
+        // Add military vehicles (simplified shapes)
+        this.createMilitaryVehicle(depot, -5, 0, -2);
+        this.createMilitaryVehicle(depot, 5, 0, -2);
+        
+        baseGroup.add(depot);
+    }
+    
+    createMilitaryVehicle(parent, x, y, z) {
+        const vehicleGroup = new THREE.Group();
+        
+        // Vehicle body
+        const bodyGeometry = new THREE.BoxGeometry(4, 2, 2);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5F39 });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        vehicleGroup.add(body);
+        
+        // Wheels
+        const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 8);
+        const wheelMaterial = new THREE.MeshBasicMaterial({ color: 0x1F1F1F });
+        
+        const wheelPositions = [
+            [-1.5, -1, 1], [1.5, -1, 1],
+            [-1.5, -1, -1], [1.5, -1, -1]
+        ];
+        
+        wheelPositions.forEach(pos => {
+            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheel.position.set(...pos);
+            wheel.rotation.z = Math.PI / 2;
+            vehicleGroup.add(wheel);
+        });
+        
+        vehicleGroup.position.set(x, y + 1, z);
+        parent.add(vehicleGroup);
+    }
+    
+    createWatchTowers(baseGroup) {
+        const towerPositions = [
+            [-45, -45], [45, -45],
+            [-45, 45], [45, 45]
+        ];
+        
+        towerPositions.forEach(pos => {
+            const tower = this.createWatchTower();
+            tower.position.set(pos[0], 0, pos[1]);
+            baseGroup.add(tower);
+        });
+    }
+    
+    createWatchTower() {
+        const towerGroup = new THREE.Group();
+        
+        // Tower base
+        const baseHeight = 8;
+        const baseGeometry = new THREE.BoxGeometry(2, baseHeight, 2);
+        const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x4F4F4F });
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.position.y = baseHeight/2;
+        towerGroup.add(base);
+        
+        // Watch post
+        const postWidth = 4;
+        const postHeight = 3;
+        const postGeometry = new THREE.BoxGeometry(postWidth, postHeight, postWidth);
+        const postMaterial = new THREE.MeshBasicMaterial({ color: 0x3F3F3F });
+        const post = new THREE.Mesh(postGeometry, postMaterial);
+        post.position.y = baseHeight + postHeight/2;
+        towerGroup.add(post);
+        
+        // Roof
+        const roofGeometry = new THREE.ConeGeometry(postWidth/1.4, 2, 4);
+        const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x2F2F2F });
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.y = baseHeight + postHeight + 1;
+        towerGroup.add(roof);
+        
+        // Spotlight
+        const spotlightGeometry = new THREE.ConeGeometry(0.5, 1, 8);
+        const spotlightMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+        const spotlight = new THREE.Mesh(spotlightGeometry, spotlightMaterial);
+        spotlight.position.set(1.5, baseHeight + postHeight/2, 0);
+        spotlight.rotation.z = Math.PI/2;
+        towerGroup.add(spotlight);
+        
+        return towerGroup;
+    }
+    
+    createMilitaryProps(baseGroup) {
+        // Add sandbag barriers
+        this.createSandbagBarriers(baseGroup);
+        
+        // Add cargo containers
+        this.createCargoContainers(baseGroup);
+        
+        // Add miscellaneous props
+        this.createMiscProps(baseGroup);
+    }
+    
+    createSandbagBarriers(baseGroup) {
+        const barrierPositions = [
+            [-20, -30], [20, -30],
+            [-20, 30], [20, 30]
+        ];
+        
+        barrierPositions.forEach(pos => {
+            const barrier = this.createSandbagBarrier();
+            barrier.position.set(pos[0], 0, pos[1]);
+            baseGroup.add(barrier);
+        });
+    }
+    
+    createSandbagBarrier() {
+        const barrierGroup = new THREE.Group();
+        
+        // Create rows of sandbags
+        for(let row = 0; row < 3; row++) {
+            for(let col = 0; col < 5; col++) {
+                const bagGeometry = new THREE.BoxGeometry(1, 0.5, 0.8);
+                const bagMaterial = new THREE.MeshBasicMaterial({ color: 0x8B7355 });
+                const bag = new THREE.Mesh(bagGeometry, bagMaterial);
+                
+                bag.position.set(
+                    col * 0.9 - 2,
+                    row * 0.4,
+                    row % 2 ? 0.4 : 0
+                );
+                
+                barrierGroup.add(bag);
+            }
+        }
+        
+        return barrierGroup;
+    }
+    
+    createCargoContainers(baseGroup) {
+        const containerPositions = [
+            [35, -35], [35, -30],
+            [30, -35]
+        ];
+        
+        containerPositions.forEach(pos => {
+            const container = this.createCargoContainer();
+            container.position.set(pos[0], 0, pos[1]);
+            container.rotation.y = Math.random() * Math.PI / 2;
+            baseGroup.add(container);
+        });
+    }
+    
+    createCargoContainer() {
+        const containerGroup = new THREE.Group();
+        
+        // Container body
+        const bodyGeometry = new THREE.BoxGeometry(6, 2.5, 2.5);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x5A7F5A });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 1.25;
+        containerGroup.add(body);
+        
+        // Container details (ridges)
+        const ridgeGeometry = new THREE.BoxGeometry(6.2, 0.1, 2.6);
+        const ridgeMaterial = new THREE.MeshBasicMaterial({ color: 0x4A6F4A });
+        
+        const topRidge = new THREE.Mesh(ridgeGeometry, ridgeMaterial);
+        topRidge.position.y = 2.5;
+        containerGroup.add(topRidge);
+        
+        const bottomRidge = new THREE.Mesh(ridgeGeometry, ridgeMaterial);
+        bottomRidge.position.y = 0;
+        containerGroup.add(bottomRidge);
+        
+        return containerGroup;
+    }
+    
+    createMiscProps(baseGroup) {
+        // Add fuel drums
+        const drumPositions = [
+            [25, -25], [26, -25], [25.5, -26]
+        ];
+        
+        drumPositions.forEach(pos => {
+            const drum = this.createFuelDrum();
+            drum.position.set(pos[0], 0, pos[1]);
+            baseGroup.add(drum);
+        });
+        
+        // Add communication equipment
+        const commEquip = this.createCommEquipment();
+        commEquip.position.set(-15, 0, 15);
+        baseGroup.add(commEquip);
+    }
+    
+    createFuelDrum() {
+        const drumGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.2, 12);
+        const drumMaterial = new THREE.MeshBasicMaterial({ color: 0x8B2323 });
+        const drum = new THREE.Mesh(drumGeometry, drumMaterial);
+        drum.position.y = 0.6;
+        return drum;
+    }
+    
+    createCommEquipment() {
+        const equipGroup = new THREE.Group();
+        
+        // Base unit
+        const baseGeometry = new THREE.BoxGeometry(2, 1, 1.5);
+        const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x2F4F4F });
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.position.y = 0.5;
+        equipGroup.add(base);
+        
+        // Antenna array
+        const antennaGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 8);
+        const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x1F1F1F });
+        
+        for(let i = 0; i < 3; i++) {
+            const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+            antenna.position.set(
+                (i - 1) * 0.5,
+                1.5,
+                0
+            );
+            equipGroup.add(antenna);
+        }
+        
+        return equipGroup;
     }
 }
 
