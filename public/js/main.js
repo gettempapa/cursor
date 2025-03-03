@@ -53,6 +53,11 @@ const LEG_SWING_SPEED = 8; // How fast the legs move
 const MAX_LEG_ROTATION = Math.PI / 4; // Maximum leg swing angle
 let legAnimationTime = 0; // Time tracker for leg animation
 
+// Add bullet hole and impact effect variables after the bullet array
+const bulletHoles = [];
+const maxBulletHoles = 50; // Maximum number of bullet holes to keep
+const impactEffects = [];
+
 // Debug information for tracking script loading
 console.log('Script loaded:', document.currentScript?.src);
 console.log('Base URL:', window.location.href);
@@ -259,9 +264,9 @@ function createHumanoidMesh() {
     playerGroup.add(leftLegGroup);
     playerGroup.add(rightLegGroup);
     
-    // Create separate group for aiming parts
+    // Create separate group for aiming parts and arms
     playerAimHelper = new THREE.Group();
-    playerAimHelper.position.set(0, 1.5, 0); // Raised shoulder height for better proportions
+    playerAimHelper.position.set(0, 1.5, 0); // Shoulder height
     playerGroup.add(playerAimHelper);
     
     // Modern tactical color scheme
@@ -269,12 +274,118 @@ function createHumanoidMesh() {
         black: 0x111111,
         darkGrey: 0x333333,
         oliveGreen: 0x556B2F,
-        desertTan: 0xC2B280,
-        foliageGreen: 0x4F7942,
         gunmetal: 0x2C3539,
-        khaki: 0xBDB76B,
-        navy: 0x000080
+        weaponMetal: 0x4C4C4C,
+        weaponBlack: 0x1A1A1A
     };
+
+    // Create M16-style rifle
+    const createM16 = () => {
+        const rifleGroup = new THREE.Group();
+        
+        // Main body
+        const bodyGeometry = new THREE.BoxGeometry(0.1, 0.2, 1.2);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.weaponBlack });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        rifleGroup.add(body);
+        
+        // Barrel
+        const barrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8);
+        const barrelMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.weaponMetal });
+        const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+        barrel.rotation.z = Math.PI / 2;
+        barrel.position.z = 0.8;
+        rifleGroup.add(barrel);
+        
+        // Stock
+        const stockGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.4);
+        const stock = new THREE.Mesh(stockGeometry, bodyMaterial);
+        stock.position.z = -0.6;
+        rifleGroup.add(stock);
+        
+        // Magazine
+        const magGeometry = new THREE.BoxGeometry(0.08, 0.25, 0.12);
+        const magazine = new THREE.Mesh(magGeometry, bodyMaterial);
+        magazine.position.y = -0.2;
+        rifleGroup.add(magazine);
+        
+        // Sight
+        const sightGeometry = new THREE.BoxGeometry(0.04, 0.08, 0.08);
+        const sight = new THREE.Mesh(sightGeometry, bodyMaterial);
+        sight.position.y = 0.12;
+        sight.position.z = 0.3;
+        rifleGroup.add(sight);
+        
+        // Handle grip
+        const gripGeometry = new THREE.BoxGeometry(0.08, 0.2, 0.1);
+        const grip = new THREE.Mesh(gripGeometry, bodyMaterial);
+        grip.position.y = -0.1;
+        grip.position.z = -0.2;
+        grip.rotation.x = Math.PI / 6;
+        rifleGroup.add(grip);
+
+        return rifleGroup;
+    };
+
+    // Create arms to hold the rifle
+    const createArms = () => {
+        const armsGroup = new THREE.Group();
+        
+        // Upper arms
+        const upperArmGeometry = new THREE.BoxGeometry(0.1, 0.3, 0.12);
+        const armMaterial = new THREE.MeshBasicMaterial({ color: tacticalColors.oliveGreen });
+        
+        // Left upper arm
+        const leftUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
+        leftUpperArm.position.set(-0.3, 0, 0);
+        leftUpperArm.rotation.x = -Math.PI / 4;
+        armsGroup.add(leftUpperArm);
+        
+        // Right upper arm
+        const rightUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
+        rightUpperArm.position.set(0.3, 0, 0);
+        rightUpperArm.rotation.x = -Math.PI / 4;
+        armsGroup.add(rightUpperArm);
+        
+        // Forearms
+        const forearmGeometry = new THREE.BoxGeometry(0.08, 0.25, 0.1);
+        
+        // Left forearm
+        const leftForearm = new THREE.Mesh(forearmGeometry, armMaterial);
+        leftForearm.position.set(-0.3, -0.2, 0.2);
+        leftForearm.rotation.x = -Math.PI / 2;
+        armsGroup.add(leftForearm);
+        
+        // Right forearm
+        const rightForearm = new THREE.Mesh(forearmGeometry, armMaterial);
+        rightForearm.position.set(0.3, -0.2, 0.2);
+        rightForearm.rotation.x = -Math.PI / 2;
+        armsGroup.add(rightForearm);
+        
+        // Hands
+        const handGeometry = new THREE.BoxGeometry(0.08, 0.1, 0.08);
+        const handMaterial = new THREE.MeshBasicMaterial({ color: 0xE0BEAC });
+        
+        // Left hand
+        const leftHand = new THREE.Mesh(handGeometry, handMaterial);
+        leftHand.position.set(-0.3, -0.2, 0.4);
+        armsGroup.add(leftHand);
+        
+        // Right hand
+        const rightHand = new THREE.Mesh(handGeometry, handMaterial);
+        rightHand.position.set(0.3, -0.2, 0.4);
+        armsGroup.add(rightHand);
+
+        return armsGroup;
+    };
+
+    // Create and add rifle and arms to aim helper
+    const rifle = createM16();
+    rifle.position.set(0, -0.3, 0.4); // Position rifle in front
+    playerAimHelper.add(rifle);
+
+    const arms = createArms();
+    playerAimHelper.add(arms);
     
     // Head with proper proportions
     const headGeometry = new THREE.SphereGeometry(0.15, 24, 24);
@@ -1133,12 +1244,9 @@ function shoot() {
     try {
         // Play gunshot sound
         if (gunshotSoundLoaded && gunshotSound && gunshotSound.context) {
-            // Make sure audio context is running
             if (gunshotSound.context.state !== 'running') {
                 gunshotSound.context.resume();
             }
-            
-            // Play the sound directly instead of cloning
             if (!gunshotSound.isPlaying) {
                 gunshotSound.play();
             }
@@ -1149,42 +1257,86 @@ function shoot() {
                 gunshotSound.play();
             }
         }
-        
-        // Get gun position and aim direction from playerAimHelper
-        const gunGroup = findObjectByName(playerAimHelper, "gunGroup");
-        if (!gunGroup) return;
-        
-        // Calculate gun position in world space
-        const gunPosition = new THREE.Vector3();
-        gunGroup.getWorldPosition(gunPosition);
-        
-        // Use playerAimHelper direction for accurate aiming
-        const direction = new THREE.Vector3(0, 0, -1);
-        direction.applyEuler(playerAimHelper.rotation);
-        
-        // Add slight random spread
-        direction.x += (Math.random() - 0.5) * 0.02;
-        direction.y += (Math.random() - 0.5) * 0.02;
-        direction.z += (Math.random() - 0.5) * 0.02;
-        direction.normalize();
-        
-        // Create bullet
+
+        // Create raycaster for accurate shooting
+        const raycaster = new THREE.Raycaster();
+        const shootDirection = new THREE.Vector3(0, 0, -1);
+        shootDirection.applyEuler(playerAimHelper.rotation);
+        raycaster.set(playerAimHelper.position, shootDirection);
+
+        // Check for intersections with objects
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            
+            // Create bullet hole
+            const bulletHoleGeometry = new THREE.CircleGeometry(0.05, 16);
+            const bulletHoleMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.8
+            });
+            const bulletHole = new THREE.Mesh(bulletHoleGeometry, bulletHoleMaterial);
+
+            // Position bullet hole slightly above the surface to prevent z-fighting
+            const offset = 0.001;
+            bulletHole.position.copy(hit.point);
+            bulletHole.position.add(hit.normal.multiplyScalar(offset));
+            
+            // Orient bullet hole to face the correct direction
+            bulletHole.lookAt(hit.point.clone().add(hit.normal));
+
+            scene.add(bulletHole);
+            bulletHoles.push(bulletHole);
+
+            // Remove oldest bullet hole if we exceed the maximum
+            if (bulletHoles.length > maxBulletHoles) {
+                const oldestHole = bulletHoles.shift();
+                scene.remove(oldestHole);
+            }
+
+            // Create impact effect
+            const impactGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+            const impactMaterial = new THREE.MeshBasicMaterial({
+                color: 0xFFFF00,
+                transparent: true,
+                opacity: 0.8
+            });
+            const impact = new THREE.Mesh(impactGeometry, impactMaterial);
+            impact.position.copy(hit.point);
+            scene.add(impact);
+            impactEffects.push({
+                mesh: impact,
+                created: Date.now()
+            });
+
+            // Play ricochet sound if loaded
+            if (ricochetSound && !ricochetSound.isPlaying) {
+                ricochetSound.play();
+            }
+        }
+
+        // Create visible bullet trail
         const bulletGeometry = new THREE.SphereGeometry(0.02, 8, 8);
-        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+        const bulletMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFD700,
+            transparent: true,
+            opacity: 0.8
+        });
         const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
         
-        // Position bullet at gun barrel
-        bullet.position.copy(gunPosition);
-        // Offset slightly to appear from barrel
-        bullet.position.add(direction.clone().multiplyScalar(0.5));
+        // Position bullet at gun position
+        bullet.position.copy(playerAimHelper.position);
         
         scene.add(bullet);
         
         // Add bullet data for movement
         bullets.push({
             mesh: bullet,
-            direction: direction,
-            speed: 1.5,
+            direction: shootDirection.clone(),
+            speed: 2.0, // Increased bullet speed
             distance: 0,
             maxDistance: 100
         });
@@ -1214,6 +1366,7 @@ function findObjectByName(root, name) {
 }
 
 function updateBullets() {
+    // Update bullet positions
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
         
@@ -1228,6 +1381,22 @@ function updateBullets() {
         if (bullet.distance > bullet.maxDistance) {
             scene.remove(bullet.mesh);
             bullets.splice(i, 1);
+        }
+    }
+
+    // Update impact effects
+    const currentTime = Date.now();
+    for (let i = impactEffects.length - 1; i >= 0; i--) {
+        const effect = impactEffects[i];
+        const age = currentTime - effect.created;
+        
+        // Fade out impact effect
+        if (age < 500) {
+            effect.mesh.material.opacity = 0.8 * (1 - age / 500);
+            effect.mesh.scale.multiplyScalar(1.05);
+        } else {
+            scene.remove(effect.mesh);
+            impactEffects.splice(i, 1);
         }
     }
 }
