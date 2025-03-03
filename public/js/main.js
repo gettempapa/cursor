@@ -85,6 +85,9 @@ function createTree(x, z) {
     const trunkRadius = 0.4 * scale;
     const foliageSize = 4.0 * scale;
     
+    // Determine tree type - adding more variety
+    const treeType = Math.floor(Math.random() * 4); // 0=oak, 1=pine, 2=birch, 3=willow
+    
     // More pronounced random rotation and tilt for natural look
     const rotation = Math.random() * Math.PI * 2;
     const tiltAmount = Math.random() * 0.1; // Increased tilt variation
@@ -96,19 +99,36 @@ function createTree(x, z) {
         trunkRadius * 1.2, // Wider at base with more flare
         trunkHeight,
         12,              // More radial segments for better roundness
-        6,               // Height segments for bark detail variation
+        8,               // More height segments for bark detail variation
         true             // Open-ended for branch connections
     );
+    
+    // Different bark colors based on tree type
+    let barkColor;
+    switch(treeType) {
+        case 0: // Oak - rich brown
+            barkColor = 0x5D4037;
+            break;
+        case 1: // Pine - dark brown
+            barkColor = 0x3E2723;
+            break;
+        case 2: // Birch - light grayish
+            barkColor = 0xBDBDBD;
+            break;
+        case 3: // Willow - medium brown
+            barkColor = 0x6D4C41;
+            break;
+    }
     
     // Use MeshStandardMaterial for better lighting effects if available
     const trunkMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
         new THREE.MeshStandardMaterial({ 
-            color: 0x5D4037,   // Rich brown
+            color: barkColor,
             roughness: 0.9,    // Very rough
             metalness: 0.1,    // Slight shine for wet bark look
             flatShading: true  // For more texture
         }) : 
-        new THREE.MeshBasicMaterial({ color: 0x5D4037 });
+        new THREE.MeshBasicMaterial({ color: barkColor });
     
     // Add subtle color variation to trunk
     trunkMaterial.color.r += (Math.random() * 0.1) - 0.05;
@@ -124,136 +144,392 @@ function createTree(x, z) {
     trunk.scale.x *= 1 + (Math.random() * 0.1 - 0.05);
     trunk.scale.z *= 1 + (Math.random() * 0.1 - 0.05);
     
+    // Add bark texture through geometry manipulation if using MeshStandardMaterial
+    if (typeof THREE.MeshStandardMaterial !== 'undefined') {
+        // Create bark-like extrusions on the trunk
+        const vertices = trunkGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            // Skip the top and bottom caps of the cylinder
+            const y = vertices[i + 1];
+            if (y > -trunkHeight/2 + 0.1 && y < trunkHeight/2 - 0.1) {
+                // Apply random noise to create bark texture
+                const angle = Math.atan2(vertices[i], vertices[i + 2]);
+                const noise = Math.sin(angle * 8 + y * 2) * 0.03 * scale;
+                
+                // Calculate the radial direction
+                const dx = vertices[i];
+                const dz = vertices[i + 2];
+                const len = Math.sqrt(dx * dx + dz * dz);
+                
+                // Apply the noise in the radial direction
+                if (len > 0) {
+                    vertices[i] += (dx / len) * noise;
+                    vertices[i + 2] += (dz / len) * noise;
+                }
+            }
+        }
+        trunkGeometry.attributes.position.needsUpdate = true;
+        trunkGeometry.computeVertexNormals();
+    }
+    
     tree.add(trunk);
     
     // Create multiple layers of foliage for a more realistic look
-    const foliageLayers = 4 + Math.floor(Math.random() * 3); // 4-6 layers for more fullness
+    const foliageLayers = 5 + Math.floor(Math.random() * 3); // 5-7 layers for lusher foliage
     
-    // Enhanced color palette with more variation
-    const foliageColors = [
-        0x1B5E20, // Deep green
-        0x2E7D32, // Dark green
-        0x388E3C, // Medium green
-        0x43A047, // Light green
-        0x4CAF50, // Bright green
-        0x66BB6A  // Pale green
-    ];
+    // Enhanced color palette with more variation based on tree type
+    let foliageColors;
     
-    // Create foliage layers with more variation and detail
-    for (let i = 0; i < foliageLayers; i++) {
-        // Layer size decreases as we go up, more variation in scaling
-        const layerScale = 1 - (i * (0.15 + Math.random() * 0.1));
-        const layerHeight = 3.5 * scale * layerScale;
-        const layerWidth = foliageSize * layerScale * (0.9 + Math.random() * 0.2); // Width variation
-        
-        // More shape variations
-        let foliageGeometry;
-        const shape = Math.random();
-        
-        if (shape > 0.8) { // 20% chance of rounded top
-            foliageGeometry = new THREE.SphereGeometry(
-                layerWidth, 
-                10, // More segments for smoother look
-                8, 
-                0, 
-                Math.PI * 2, 
-                0, 
-                Math.PI * (0.4 + Math.random() * 0.2) // Vary the slice amount
-            );
-        } else if (shape > 0.4) { // 40% chance of conical
-            foliageGeometry = new THREE.ConeGeometry(
-                layerWidth, 
-                layerHeight, 
-                10, // More segments 
-                4, // Height segments
-                true // Open ended
-            );
-        } else { // 40% chance of dodecahedron (for pine-like trees)
-            foliageGeometry = new THREE.DodecahedronGeometry(
-                layerWidth * 0.8,
-                0 // No subdivision for faceted look
-            );
-            // Scale to make it taller than wide
-            foliageGeometry.scale(1, 1.5, 1);
-        }
-        
-        // Choose a color with more variation
-        const colorIndex = Math.floor(Math.random() * foliageColors.length);
-        const baseColor = foliageColors[colorIndex];
-        
-        // Add more significant color variation for natural look
-        const color = new THREE.Color(baseColor);
-        color.r += (Math.random() * 0.15) - 0.075;
-        color.g += (Math.random() * 0.2) - 0.1; // More green variation
-        color.b += (Math.random() * 0.15) - 0.075;
-        
-        // Use StandardMaterial for better lighting if available
-        const foliageMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
-            new THREE.MeshStandardMaterial({ 
-                color: color,
-                roughness: 0.8,
-                metalness: 0.0,
-                flatShading: Math.random() > 0.5 // Random shading style
-            }) : 
-            new THREE.MeshBasicMaterial({ color: color });
-        
-        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-        
-        // Position each layer with more variation
-        const heightVariation = (Math.random() * 0.4 - 0.2) * scale;
-        const layerPosition = trunkHeight * (0.65 + Math.random() * 0.1) + (i * 1.2 * scale) + heightVariation;
-        foliage.position.y = layerPosition;
-        
-        // Add more pronounced offset for more natural appearance
-        foliage.position.x += (Math.random() - 0.5) * scale * 0.7;
-        foliage.position.z += (Math.random() - 0.5) * scale * 0.7;
-        
-        // Add random rotation and slight scaling for variety
-        foliage.rotation.y = Math.random() * Math.PI;
-        foliage.rotation.x = (Math.random() - 0.5) * 0.1;
-        foliage.rotation.z = (Math.random() - 0.5) * 0.1;
-        
-        // Random scaling for more natural variation
-        foliage.scale.x *= 0.9 + Math.random() * 0.2;
-        foliage.scale.z *= 0.9 + Math.random() * 0.2;
-        
-        tree.add(foliage);
+    switch(treeType) {
+        case 0: // Oak - more yellowy-greens
+            foliageColors = [
+                0x33691E, // Deep green
+                0x558B2F, // Dark green
+                0x7CB342, // Medium green
+                0x9CCC65, // Light green
+                0xC5E1A5, // Pale green
+                0xDCEDC8  // Very pale green
+            ];
+            break;
+        case 1: // Pine - deep blues and greens
+            foliageColors = [
+                0x1B5E20, // Deep green
+                0x2E7D32, // Dark green
+                0x388E3C, // Medium green
+                0x43A047, // Light green
+                0x4CAF50, // Bright green
+                0x66BB6A  // Pale green
+            ];
+            break;
+        case 2: // Birch - light greens and yellows
+            foliageColors = [
+                0x7CB342, // Medium green
+                0x9CCC65, // Light green
+                0xC5E1A5, // Pale green
+                0xDCEDC8, // Very pale green
+                0xF0F4C3, // Pale yellow-green
+                0xFFF9C4  // Very pale yellow
+            ];
+            break;
+        case 3: // Willow - grayish-greens
+            foliageColors = [
+                0x455A64, // Blue-gray
+                0x546E7A, // Light blue-gray
+                0x78909C, // Very light blue-gray
+                0x7CB342, // Medium green
+                0x9CCC65, // Light green
+                0xC5E1A5  // Pale green
+            ];
+            break;
     }
     
-    // Add random small branches for detail
-    const branchCount = Math.floor(Math.random() * 5) + 2; // 2-6 branches
+    // Add more branches for a lusher appearance
+    const primaryBranchCount = Math.floor(Math.random() * 6) + 8; // 8-13 main branches
     
-    for (let i = 0; i < branchCount; i++) {
-        const branchHeight = trunkHeight * (0.3 + Math.random() * 0.6); // Vary height along trunk
-        const branchAngle = Math.random() * Math.PI * 2;
+    for (let i = 0; i < primaryBranchCount; i++) {
+        const branchHeight = trunkHeight * (0.2 + Math.random() * 0.7); // Vary height along trunk
+        const branchAngle = (i / primaryBranchCount) * Math.PI * 2 + (Math.random() * 0.5 - 0.25);
         const branchTilt = Math.PI * 0.2 + Math.random() * Math.PI * 0.3; // Upward tilt
         
-        const branchLength = scale * (1 + Math.random());
+        const branchLength = scale * (1.2 + Math.random() * 0.8);
+        const branchThickness = scale * (0.05 + Math.random() * 0.1);
         
-        // Create branch geometry
+        // Create branch with a slight natural taper
         const branchGeometry = new THREE.CylinderGeometry(
-            scale * 0.1,  // Tip
-            scale * 0.2,  // Base
+            branchThickness * 0.7,  // Tip (thinner)
+            branchThickness,        // Base
             branchLength,
-            5,           // Lower detail for branches
-            1
+            6,                      // Fewer segments for branches
+            2                       // Two height segments for slight bending
         );
         
         const branch = new THREE.Mesh(branchGeometry, trunkMaterial.clone());
         
         // Position and rotate branch
         branch.position.y = branchHeight;
-        branch.position.x = Math.cos(branchAngle) * trunkRadius * 0.8;
-        branch.position.z = Math.sin(branchAngle) * trunkRadius * 0.8;
+        branch.position.x = Math.cos(branchAngle) * trunkRadius * 0.9;
+        branch.position.z = Math.sin(branchAngle) * trunkRadius * 0.9;
         
         // Rotate to point outward and upward
         branch.rotation.z = branchTilt;
         branch.rotation.y = branchAngle;
         
+        // Slight bend in larger branches
+        if (branchLength > scale * 1.5) {
+            branchGeometry.translate(0, branchLength * 0.1, 0);
+            branch.rotation.z += 0.1;
+        }
+        
         // Move origin to end of cylinder for correct rotation
-        branch.geometry.translate(0, branchLength/2, 0);
+        branchGeometry.translate(0, branchLength/2, 0);
+        
+        // For certain tree types, add sub-branches with leaves at the end
+        if (treeType === 0 || treeType === 2 || treeType === 3) { // Oak, Birch, Willow
+            // Add small leaf cluster at the end of each branch
+            const leafClusterGeometry = new THREE.SphereGeometry(
+                scale * (0.4 + Math.random() * 0.3),
+                8,
+                8
+            );
+            
+            // Choose a color based on tree type
+            const leafColorIndex = Math.floor(Math.random() * foliageColors.length);
+            const leafColor = new THREE.Color(foliageColors[leafColorIndex]);
+            
+            // Add variation
+            leafColor.r += (Math.random() * 0.15) - 0.075;
+            leafColor.g += (Math.random() * 0.15) - 0.075;
+            leafColor.b += (Math.random() * 0.15) - 0.075;
+            
+            const leafMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+                new THREE.MeshStandardMaterial({ 
+                    color: leafColor,
+                    roughness: 0.8,
+                    metalness: 0.0
+                }) : 
+                new THREE.MeshBasicMaterial({ color: leafColor });
+            
+            const leafCluster = new THREE.Mesh(leafClusterGeometry, leafMaterial);
+            leafCluster.position.y = branchLength;
+            
+            // Slight random offset for more natural look
+            leafCluster.position.x = (Math.random() * 0.2 - 0.1) * scale;
+            leafCluster.position.z = (Math.random() * 0.2 - 0.1) * scale;
+            
+            branch.add(leafCluster);
+        }
         
         tree.add(branch);
+    }
+    
+    // Create foliage layers with more variation and detail
+    // Different foliage for different tree types
+    if (treeType === 1) { // Pine - conical shape
+        // Create more connected pine-like foliage
+        for (let i = 0; i < foliageLayers; i++) {
+            // Layer size decreases as we go up, more variation in scaling
+            const layerScale = 1 - (i * (0.15 + Math.random() * 0.05));
+            const layerHeight = 3.5 * scale * layerScale;
+            const layerWidth = foliageSize * layerScale * (0.9 + Math.random() * 0.2); // Width variation
+            
+            // Pine trees use cones
+            const foliageGeometry = new THREE.ConeGeometry(
+                layerWidth, 
+                layerHeight, 
+                10, // More segments 
+                4,  // Height segments
+                true // Open ended
+            );
+            
+            // Choose a color with more variation
+            const colorIndex = Math.floor(Math.random() * foliageColors.length);
+            const baseColor = foliageColors[colorIndex];
+            
+            // Add more significant color variation for natural look
+            const color = new THREE.Color(baseColor);
+            color.r += (Math.random() * 0.1) - 0.05;
+            color.g += (Math.random() * 0.15) - 0.075; // More green variation
+            color.b += (Math.random() * 0.1) - 0.05;
+            
+            // Use StandardMaterial for better lighting if available
+            const foliageMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+                new THREE.MeshStandardMaterial({ 
+                    color: color,
+                    roughness: 0.8,
+                    metalness: 0.0,
+                    flatShading: Math.random() > 0.5 // Random shading style
+                }) : 
+                new THREE.MeshBasicMaterial({ color: color });
+            
+            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            
+            // Position each layer
+            const heightVariation = (Math.random() * 0.1 - 0.05) * scale;
+            const layerPosition = trunkHeight * 0.5 + (i * 1.0 * scale) + heightVariation;
+            foliage.position.y = layerPosition;
+            
+            // Add slight offset for more natural appearance
+            foliage.position.x += (Math.random() - 0.5) * scale * 0.2;
+            foliage.position.z += (Math.random() - 0.5) * scale * 0.2;
+            
+            // Add random rotation and slight scaling for variety
+            foliage.rotation.y = Math.random() * Math.PI;
+            
+            tree.add(foliage);
+        }
+    } else if (treeType === 3) { // Willow - drooping branches with leaves
+        // Create a central foliage cluster
+        const centralFoliageGeometry = new THREE.SphereGeometry(
+            foliageSize * 0.7,
+            10,
+            10
+        );
+        
+        const colorIndex = Math.floor(Math.random() * foliageColors.length);
+        const baseColor = foliageColors[colorIndex];
+        
+        const color = new THREE.Color(baseColor);
+        color.r += (Math.random() * 0.1) - 0.05;
+        color.g += (Math.random() * 0.15) - 0.075;
+        color.b += (Math.random() * 0.1) - 0.05;
+        
+        const foliageMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+            new THREE.MeshStandardMaterial({ 
+                color: color,
+                roughness: 0.8,
+                metalness: 0.0,
+                flatShading: false
+            }) : 
+            new THREE.MeshBasicMaterial({ color: color });
+        
+        const centralFoliage = new THREE.Mesh(centralFoliageGeometry, foliageMaterial);
+        centralFoliage.position.y = trunkHeight * 0.85;
+        tree.add(centralFoliage);
+        
+        // Add many drooping branches
+        const droopingBranchCount = 20 + Math.floor(Math.random() * 10);
+        for (let i = 0; i < droopingBranchCount; i++) {
+            const branchAngle = (i / droopingBranchCount) * Math.PI * 2 + (Math.random() * 0.3 - 0.15);
+            const branchLength = scale * (2.0 + Math.random() * 1.0);
+            
+            // Thin drooping branch
+            const branchGeometry = new THREE.CylinderGeometry(
+                0.01 * scale,
+                0.03 * scale,
+                branchLength,
+                4,
+                1
+            );
+            
+            const branch = new THREE.Mesh(branchGeometry, trunkMaterial.clone());
+            
+            // Position branch around the central foliage
+            branch.position.copy(centralFoliage.position);
+            branch.position.x += Math.cos(branchAngle) * foliageSize * 0.7 * 0.9;
+            branch.position.z += Math.sin(branchAngle) * foliageSize * 0.7 * 0.9;
+            
+            // Rotate to droop downward
+            branch.rotation.x = Math.PI / 2 + (Math.random() * 0.3 + 0.3);
+            branch.rotation.y = branchAngle;
+            
+            // Move origin to end for correct rotation
+            branchGeometry.translate(0, branchLength/2, 0);
+            
+            tree.add(branch);
+            
+            // Add small leaf clusters along the branch
+            const leafCount = Math.floor(Math.random() * 3) + 2;
+            for (let j = 0; j < leafCount; j++) {
+                const leafPosition = 0.3 + (j / leafCount) * 0.7; // Position along branch
+                const leafSize = 0.15 * scale * (1.0 - j / leafCount * 0.3); // Smaller leaves toward end
+                
+                const leafGeometry = new THREE.SphereGeometry(
+                    leafSize,
+                    6,
+                    6
+                );
+                
+                const leafColorIndex = Math.floor(Math.random() * foliageColors.length);
+                const leafColor = new THREE.Color(foliageColors[leafColorIndex]);
+                
+                // Add variation
+                leafColor.r += (Math.random() * 0.1) - 0.05;
+                leafColor.g += (Math.random() * 0.1) - 0.05;
+                leafColor.b += (Math.random() * 0.1) - 0.05;
+                
+                const leafMaterial = foliageMaterial.clone();
+                leafMaterial.color = leafColor;
+                
+                const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+                leaf.position.y = -branchLength * leafPosition; // Negative because branch points down
+                
+                // Random offset
+                leaf.position.x = (Math.random() * 0.1 - 0.05) * scale;
+                leaf.position.z = (Math.random() * 0.1 - 0.05) * scale;
+                
+                branch.add(leaf);
+            }
+        }
+    } else { // Oak or Birch - fuller, rounder foliage
+        // Create multiple layers of foliage for a more realistic look
+        for (let i = 0; i < foliageLayers; i++) {
+            // Layer size decreases as we go up, more variation in scaling
+            const layerScale = 1 - (i * (0.1 + Math.random() * 0.05));
+            const layerHeight = 3.0 * scale * layerScale;
+            const layerWidth = foliageSize * layerScale * (0.9 + Math.random() * 0.2); // Width variation
+            
+            // More shape variations
+            let foliageGeometry;
+            const shape = Math.random();
+            
+            if (shape > 0.7) { // 30% chance of rounded top
+                foliageGeometry = new THREE.SphereGeometry(
+                    layerWidth, 
+                    10, // More segments for smoother look
+                    8, 
+                    0, 
+                    Math.PI * 2, 
+                    0, 
+                    Math.PI * (0.4 + Math.random() * 0.2) // Vary the slice amount
+                );
+            } else if (shape > 0.3) { // 40% chance of flattened sphere
+                foliageGeometry = new THREE.SphereGeometry(
+                    layerWidth,
+                    10,
+                    8
+                );
+                foliageGeometry.scale(1, 0.7, 1); // Flatten slightly
+            } else { // 30% chance of dodecahedron
+                foliageGeometry = new THREE.DodecahedronGeometry(
+                    layerWidth * 0.9,
+                    0 // No subdivision for faceted look
+                );
+                // Scale to make it slightly taller than wide
+                foliageGeometry.scale(1, 1.1, 1);
+            }
+            
+            // Choose a color with more variation
+            const colorIndex = Math.floor(Math.random() * foliageColors.length);
+            const baseColor = foliageColors[colorIndex];
+            
+            // Add more significant color variation for natural look
+            const color = new THREE.Color(baseColor);
+            color.r += (Math.random() * 0.15) - 0.075;
+            color.g += (Math.random() * 0.2) - 0.1; // More green variation
+            color.b += (Math.random() * 0.15) - 0.075;
+            
+            // Use StandardMaterial for better lighting if available
+            const foliageMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+                new THREE.MeshStandardMaterial({ 
+                    color: color,
+                    roughness: 0.8,
+                    metalness: 0.0,
+                    flatShading: Math.random() > 0.7 // Less faceted
+                }) : 
+                new THREE.MeshBasicMaterial({ color: color });
+            
+            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            
+            // Position each layer with more variation
+            const heightVariation = (Math.random() * 0.4 - 0.2) * scale;
+            const layerPosition = trunkHeight * 0.7 + (i * 0.7 * scale) + heightVariation;
+            foliage.position.y = layerPosition;
+            
+            // Add more pronounced offset for more natural appearance
+            foliage.position.x += (Math.random() - 0.5) * scale * 0.5;
+            foliage.position.z += (Math.random() - 0.5) * scale * 0.5;
+            
+            // Add random rotation and slight scaling for variety
+            foliage.rotation.y = Math.random() * Math.PI;
+            foliage.rotation.x = (Math.random() - 0.5) * 0.1;
+            foliage.rotation.z = (Math.random() - 0.5) * 0.1;
+            
+            // Random scaling for more natural variation
+            foliage.scale.x *= 0.9 + Math.random() * 0.2;
+            foliage.scale.z *= 0.9 + Math.random() * 0.2;
+            
+            tree.add(foliage);
+        }
     }
     
     // Set position with slight random offset
@@ -268,6 +544,9 @@ function createTree(x, z) {
     
     return tree;
 }
+
+// Expose the createTree function globally
+window.createTree = createTree;
 
 // Create a simple humanoid figure
 function createHumanoidMesh() {
@@ -814,24 +1093,475 @@ function init() {
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        // Disable shadows for better performance
-        renderer.shadowMap.enabled = false;
+        
+        // Enable shadows based on device performance
+        const performanceCheck = () => {
+            // Check if the device can handle shadows
+            const gl = renderer.getContext();
+            const extensions = gl.getSupportedExtensions();
+            const hasGoodExtensions = extensions && (
+                extensions.includes('WEBGL_depth_texture') || 
+                extensions.includes('WEBKIT_WEBGL_depth_texture')
+            );
+            
+            // Check for mobile devices which might struggle with shadows
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // Enable shadows only on capable devices
+            if (hasGoodExtensions && !isMobile) {
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                return true;
+            } else {
+                renderer.shadowMap.enabled = false;
+                return false;
+            }
+        };
+        
+        const shadowsEnabled = performanceCheck();
         document.body.appendChild(renderer.domElement);
         
-        // Simplified lighting for better compatibility
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter ambient light
+        // Enhanced lighting for better scene quality
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Softer ambient light
         scene.add(ambientLight);
         
-        // Create ground with simpler material
-        const groundGeometry = new THREE.PlaneGeometry(500, 500);
-        const groundMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x2D572C, // Darker grass
+        // Add directional sunlight with shadows
+        const sunLight = new THREE.DirectionalLight(0xfffaf0, 0.8); // Warm sunlight color
+        sunLight.position.set(50, 100, 50);
+        
+        if (shadowsEnabled) {
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 500;
+            sunLight.shadow.camera.left = -100;
+            sunLight.shadow.camera.right = 100;
+            sunLight.shadow.camera.top = 100;
+            sunLight.shadow.camera.bottom = -100;
+        }
+        
+        scene.add(sunLight);
+        
+        // Create enhanced ground with texture and detail
+        const groundSize = 500;
+        const groundSegments = 64; // Reduced from 128 for better performance
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
+        
+        // Add terrain variations - gentle hills and dips
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            // Skip edges for a flat boundary
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            const distanceFromCenter = Math.sqrt(x * x + z * z);
+            
+            if (distanceFromCenter < groundSize * 0.45) {
+                // Apply simplex-like noise for natural terrain
+                const xNoise = x * 0.02;
+                const zNoise = z * 0.02;
+                const noise = 
+                    Math.sin(xNoise) * Math.cos(zNoise) * 1.5 + 
+                    Math.sin(xNoise * 2.5) * Math.cos(zNoise * 2.5) * 0.8 +
+                    Math.sin(xNoise * 5) * Math.cos(zNoise * 5) * 0.4;
+                
+                // Apply height variation, less intense farther from center
+                vertices[i + 1] = noise * Math.max(0, 1 - distanceFromCenter / (groundSize * 0.45));
+            }
+        }
+        groundGeometry.attributes.position.needsUpdate = true;
+        groundGeometry.computeVertexNormals();
+        
+        // Create richer ground texture
+        // Using MeshStandardMaterial for better lighting and shadow reception
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2D572C, // Base green
+            roughness: 0.9,
+            metalness: 0.0,
             side: THREE.DoubleSide
         });
+        
+        // Apply color variations to the ground for more realism
+        if (groundMaterial.color && typeof groundMaterial.color.offsetHSL === 'function') {
+            // Random hue variation for different areas
+            const groundColors = [];
+            const colorVariations = 5;
+            
+            for (let i = 0; i < colorVariations; i++) {
+                const color = new THREE.Color(0x2D572C);
+                // Subtle variations in hue and saturation
+                color.offsetHSL(
+                    (Math.random() * 0.1) - 0.05, // Hue variation
+                    (Math.random() * 0.2),        // Saturation increase
+                    (Math.random() * 0.1) - 0.05   // Lightness variation
+                );
+                groundColors.push(color);
+            }
+            
+            // Apply color variations
+            if (groundGeometry.setAttribute) {
+                const colors = [];
+                const positionArray = groundGeometry.attributes.position.array;
+                
+                for (let i = 0; i < positionArray.length; i += 3) {
+                    const x = positionArray[i];
+                    const z = positionArray[i + 2];
+                    
+                    // Different colors based on position
+                    const noiseVal = Math.sin(x * 0.05) * Math.cos(z * 0.05);
+                    const colorIndex = Math.floor(Math.abs(noiseVal) * colorVariations) % colorVariations;
+                    const color = groundColors[colorIndex];
+                    
+                    colors.push(color.r, color.g, color.b);
+                }
+                
+                const colorAttribute = new THREE.Float32BufferAttribute(colors, 3);
+                groundGeometry.setAttribute('color', colorAttribute);
+                groundMaterial.vertexColors = true;
+            }
+        }
+        
         ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
         ground.position.y = 0;
+        ground.receiveShadow = shadowsEnabled;
         scene.add(ground);
+        
+        // Add detailed grass patches and ground foliage
+        const createGrassAndFoliage = () => {
+            const totalPatches = 300; // Reduced from 500 for better performance
+            
+            // Create a simple grass texture using canvas
+            const grassTextureCanvas = document.createElement('canvas');
+            grassTextureCanvas.width = 64;
+            grassTextureCanvas.height = 64;
+            const ctx = grassTextureCanvas.getContext('2d');
+            
+            // Create grass blades
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // Transparent background
+            ctx.fillRect(0, 0, 64, 64);
+            
+            // Draw grass blades
+            for (let i = 0; i < 15; i++) {
+                const x = 32 + (Math.random() * 30 - 15);
+                const width = 1 + Math.random() * 2;
+                const height = 20 + Math.random() * 30;
+                
+                // Randomize grass blade color
+                const r = 50 + Math.random() * 40;
+                const g = 120 + Math.random() * 70;
+                const b = 30 + Math.random() * 40;
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                
+                // Draw blade
+                ctx.beginPath();
+                ctx.moveTo(x, 64);
+                ctx.quadraticCurveTo(
+                    x + (Math.random() * 10 - 5), // Control point x
+                    64 - height * 0.5,           // Control point y
+                    x + (Math.random() * 6 - 3),  // End point x
+                    64 - height                  // End point y
+                );
+                ctx.lineTo(x + width, 64 - height);
+                ctx.quadraticCurveTo(
+                    x + width + (Math.random() * 10 - 5), // Control point x
+                    64 - height * 0.5,                   // Control point y
+                    x + width, 64                        // End point x/y
+                );
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            const grassTexture = new THREE.CanvasTexture(grassTextureCanvas);
+            
+            // Create additional ground cover textures
+            const createFlowerTexture = (color1, color2) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const context = canvas.getContext('2d');
+                
+                context.clearRect(0, 0, 64, 64);
+                context.fillStyle = 'rgba(0, 0, 0, 0)';
+                context.fillRect(0, 0, 64, 64);
+                
+                // Draw stems
+                for (let i = 0; i < 3; i++) {
+                    const x = 20 + i * 10 + (Math.random() * 6 - 3);
+                    const stemHeight = 25 + Math.random() * 20;
+                    
+                    context.beginPath();
+                    context.moveTo(x, 64);
+                    context.lineTo(x, 64 - stemHeight);
+                    context.lineWidth = 1 + Math.random();
+                    context.strokeStyle = `rgb(60, ${100 + Math.random() * 50}, 60)`;
+                    context.stroke();
+                    
+                    // Draw flower
+                    context.beginPath();
+                    context.arc(x, 64 - stemHeight, 4 + Math.random() * 4, 0, Math.PI * 2);
+                    context.fillStyle = color1;
+                    context.fill();
+                    
+                    // Draw flower center
+                    context.beginPath();
+                    context.arc(x, 64 - stemHeight, 2, 0, Math.PI * 2);
+                    context.fillStyle = color2;
+                    context.fill();
+                }
+                
+                return new THREE.CanvasTexture(canvas);
+            };
+            
+            // Create various ground cover textures
+            const whiteFlowerTexture = createFlowerTexture('rgb(255, 255, 255)', 'rgb(255, 255, 150)');
+            const yellowFlowerTexture = createFlowerTexture('rgb(255, 255, 150)', 'rgb(255, 150, 0)');
+            const purpleFlowerTexture = createFlowerTexture('rgb(200, 150, 255)', 'rgb(100, 50, 150)');
+            
+            // Different types of ground cover
+            const textures = [
+                { texture: grassTexture, scale: 1.0, probability: 0.7 },
+                { texture: whiteFlowerTexture, scale: 0.7, probability: 0.1 },
+                { texture: yellowFlowerTexture, scale: 0.8, probability: 0.1 },
+                { texture: purpleFlowerTexture, scale: 0.6, probability: 0.1 }
+            ];
+            
+            // Create and distribute grass/flower patches
+            for (let i = 0; i < totalPatches; i++) {
+                // Get random position with higher concentration in certain areas
+                let x, z;
+                const placeInCluster = Math.random() < 0.7; // 70% in clusters
+                
+                if (placeInCluster) {
+                    // Create cluster centers
+                    const clusterCount = 8;
+                    const clusterIndex = Math.floor(Math.random() * clusterCount);
+                    const angle = (clusterIndex / clusterCount) * Math.PI * 2;
+                    const clusterDistance = 50 + Math.random() * 150;
+                    const clusterX = Math.cos(angle) * clusterDistance;
+                    const clusterZ = Math.sin(angle) * clusterDistance;
+                    
+                    // Position within cluster
+                    const radius = 20 + Math.random() * 30;
+                    const localAngle = Math.random() * Math.PI * 2;
+                    const localDistance = Math.random() * radius;
+                    
+                    x = clusterX + Math.cos(localAngle) * localDistance;
+                    z = clusterZ + Math.sin(localAngle) * localDistance;
+                } else {
+                    // Random position
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 20 + Math.random() * 230;
+                    x = Math.cos(angle) * distance;
+                    z = Math.sin(angle) * distance;
+                }
+                
+                // Get height at position by sampling ground geometry
+                let y = 0;
+                const sampleX = (x / groundSize) * 2;
+                const sampleZ = (z / groundSize) * 2;
+                
+                // Approximate height
+                y = Math.sin(sampleX * Math.PI * 2) * Math.cos(sampleZ * Math.PI * 2) * 1.5 +
+                    Math.sin(sampleX * Math.PI * 5) * Math.cos(sampleZ * Math.PI * 5) * 0.5;
+                
+                // Choose texture type based on probability
+                let textureInfo;
+                const rand = Math.random();
+                let cumProb = 0;
+                
+                for (const info of textures) {
+                    cumProb += info.probability;
+                    if (rand <= cumProb) {
+                        textureInfo = info;
+                        break;
+                    }
+                }
+                
+                if (!textureInfo) textureInfo = textures[0]; // Default to grass
+                
+                // Create grass/flower patch
+                const size = (1 + Math.random() * 1.5) * textureInfo.scale;
+                const patchGeometry = new THREE.PlaneGeometry(size, size);
+                const patchMaterial = new THREE.MeshBasicMaterial({
+                    map: textureInfo.texture,
+                    transparent: true,
+                    alphaTest: 0.5,
+                    side: THREE.DoubleSide
+                });
+                
+                const patch = new THREE.Mesh(patchGeometry, patchMaterial);
+                patch.position.set(x, y + 0.05, z);
+                patch.rotation.x = -Math.PI / 2;
+                patch.rotation.z = Math.random() * Math.PI * 2;
+                
+                scene.add(patch);
+            }
+            
+            // Create larger ferns and bushes for additional ground cover
+            const createFern = (x, z) => {
+                const fernGroup = new THREE.Group();
+                const stemCount = 5 + Math.floor(Math.random() * 5);
+                const fernHeight = 0.5 + Math.random() * 1.0;
+                
+                // Get height at position
+                let y = 0;
+                const sampleX = (x / groundSize) * 2;
+                const sampleZ = (z / groundSize) * 2;
+                
+                // Approximate height
+                y = Math.sin(sampleX * Math.PI * 2) * Math.cos(sampleZ * Math.PI * 2) * 1.5 +
+                    Math.sin(sampleX * Math.PI * 5) * Math.cos(sampleZ * Math.PI * 5) * 0.5;
+                
+                // Create each stem
+                for (let i = 0; i < stemCount; i++) {
+                    const stemGeometry = new THREE.PlaneGeometry(
+                        0.1 + Math.random() * 0.3,
+                        fernHeight * (0.6 + Math.random() * 0.4)
+                    );
+                    
+                    // Green color with variation
+                    const r = 30 + Math.random() * 30;
+                    const g = 100 + Math.random() * 50;
+                    const b = 30 + Math.random() * 30;
+                    
+                    const stemMaterial = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                        side: THREE.DoubleSide
+                    });
+                    
+                    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+                    
+                    // Position around center
+                    const angle = (i / stemCount) * Math.PI * 2 + (Math.random() * 0.5 - 0.25);
+                    const distance = Math.random() * 0.2;
+                    stem.position.x = Math.cos(angle) * distance;
+                    stem.position.z = Math.sin(angle) * distance;
+                    stem.position.y = fernHeight / 2;
+                    
+                    // Rotate outward
+                    stem.rotation.y = angle;
+                    stem.rotation.x = Math.random() * 0.3 - 0.15;
+                    
+                    fernGroup.add(stem);
+                }
+                
+                fernGroup.position.set(x, y, z);
+                scene.add(fernGroup);
+            };
+            
+            // Create bushes
+            const createBush = (x, z) => {
+                const bushGroup = new THREE.Group();
+                
+                // Get height at position
+                let y = 0;
+                const sampleX = (x / groundSize) * 2;
+                const sampleZ = (z / groundSize) * 2;
+                
+                // Approximate height
+                y = Math.sin(sampleX * Math.PI * 2) * Math.cos(sampleZ * Math.PI * 2) * 1.5 +
+                    Math.sin(sampleX * Math.PI * 5) * Math.cos(sampleZ * Math.PI * 5) * 0.5;
+                
+                // Bush size
+                const bushSize = 0.8 + Math.random() * 1.2;
+                
+                // Create bush from multiple spheres
+                const sphereCount = 3 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < sphereCount; i++) {
+                    const sphereGeometry = new THREE.SphereGeometry(
+                        bushSize * (0.6 + Math.random() * 0.4),
+                        6, 6
+                    );
+                    
+                    // Green color with variation
+                    const r = 20 + Math.random() * 30;
+                    const g = 80 + Math.random() * 60;
+                    const b = 20 + Math.random() * 30;
+                    
+                    const sphereMaterial = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(`rgb(${r}, ${g}, ${b})`)
+                    });
+                    
+                    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                    
+                    // Position randomly within bush bounds
+                    sphere.position.x = (Math.random() * 0.6 - 0.3) * bushSize;
+                    sphere.position.z = (Math.random() * 0.6 - 0.3) * bushSize;
+                    sphere.position.y = bushSize * 0.6 + (Math.random() * 0.4 - 0.2) * bushSize;
+                    
+                    // Scale randomly for variety
+                    sphere.scale.x = 0.8 + Math.random() * 0.4;
+                    sphere.scale.y = 0.8 + Math.random() * 0.4;
+                    sphere.scale.z = 0.8 + Math.random() * 0.4;
+                    
+                    bushGroup.add(sphere);
+                }
+                
+                bushGroup.position.set(x, y, z);
+                scene.add(bushGroup);
+            };
+            
+            // Add ferns and bushes
+            const fernCount = 50;
+            const bushCount = 30;
+            
+            for (let i = 0; i < fernCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 30 + Math.random() * 150;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                createFern(x, z);
+            }
+            
+            for (let i = 0; i < bushCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 40 + Math.random() * 150;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                createBush(x, z);
+            }
+        };
+        
+        // Create all the grass and ground foliage
+        createGrassAndFoliage();
+        
+        // Create a simple atmospheric effect
+        const createAtmosphericEffect = () => {
+            // Distant fog mountains for depth
+            const mountainGeometry = new THREE.PlaneGeometry(1000, 100);
+            const mountainMaterial = new THREE.MeshBasicMaterial({
+                color: 0x8FAFC5, // Foggy blue-gray
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            
+            // Create a ring of mountains around the scene
+            const mountainCount = 12;
+            for (let i = 0; i < mountainCount; i++) {
+                const angle = (i / mountainCount) * Math.PI * 2;
+                const distance = 300;
+                
+                const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+                mountain.position.set(
+                    Math.cos(angle) * distance,
+                    30, // Height above ground
+                    Math.sin(angle) * distance
+                );
+                
+                // Face inward
+                mountain.rotation.y = angle;
+                
+                scene.add(mountain);
+            }
+        };
+        
+        // Add atmospheric elements
+        createAtmosphericEffect();
         
         // Create player group
         player = new THREE.Group();

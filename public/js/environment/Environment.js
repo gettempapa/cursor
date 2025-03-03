@@ -26,12 +26,19 @@ export class Environment {
      * Initialize the environment
      */
     init() {
+        // Basic environment setup
         this.createGround();
         this.addGrassToGround();
         this.createScenicHill();
-        this.createSimpleTrees();
-        this.createLogCabin();
-        this.createSimpleLighting();
+        
+        // Enhanced environment features
+        this.createTrees();
+        this.addForestUndergrowth();
+        this.createWaterFeatures();
+        
+        // Add sky and atmospheric effects
+        this.positionSkyElements();
+        this.addAtmosphericFog();
     }
     
     /**
@@ -598,6 +605,596 @@ export class Environment {
         }
         
         return height;
+    }
+    
+    createTrees() {
+        const treeCount = 100; // Reduced from 150 for better performance
+        const minDistance = 40; // Minimum distance from center
+        const maxDistance = 230; // Maximum distance from center
+        
+        for (let i = 0; i < treeCount; i++) {
+            // Get a random position in a ring around the center
+            const angle = Math.random() * Math.PI * 2;
+            
+            // Create clusters of trees
+            const useCluster = Math.random() < 0.7; // 70% chance for clustered trees
+            let distance;
+            
+            if (useCluster) {
+                // Create denser clusters of trees
+                const clusterCount = 6;
+                const clusterIndex = Math.floor(Math.random() * clusterCount);
+                const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
+                const clusterDistance = minDistance + Math.random() * (maxDistance - minDistance);
+                const clusterX = Math.cos(clusterAngle) * clusterDistance;
+                const clusterZ = Math.sin(clusterAngle) * clusterDistance;
+                
+                // Position within cluster
+                const clusterRadius = 15 + Math.random() * 20;
+                const localAngle = Math.random() * Math.PI * 2;
+                const localDistance = Math.random() * clusterRadius;
+                
+                const x = clusterX + Math.cos(localAngle) * localDistance;
+                const z = clusterZ + Math.sin(localAngle) * localDistance;
+                
+                const tree = window.createTree(); // Using global createTree function from main.js
+                tree.position.set(x, 0, z);
+                this.scene.add(tree);
+            } else {
+                // Random trees throughout the environment
+                distance = minDistance + Math.random() * (maxDistance - minDistance);
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                const tree = window.createTree();
+                
+                // Add some variation to tree sizes for more natural look
+                const scale = 0.8 + Math.random() * 0.5;
+                tree.scale.set(scale, scale, scale);
+                
+                tree.position.set(x, 0, z);
+                this.scene.add(tree);
+            }
+        }
+    }
+    
+    // New method to add undergrowth beneath trees
+    addForestUndergrowth() {
+        const undergrowthCount = 200; // Reduced from 300 for better performance
+        const minDistance = 40;
+        const maxDistance = 220;
+        
+        // Create ferns, mushrooms, fallen logs, etc.
+        for (let i = 0; i < undergrowthCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = minDistance + Math.random() * (maxDistance - minDistance);
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+            
+            // Randomly select undergrowth type
+            const type = Math.random();
+            
+            if (type < 0.4) { // 40% chance for ferns
+                this.createFern(x, z);
+            } else if (type < 0.7) { // 30% chance for mushrooms
+                this.createMushroom(x, z);
+            } else if (type < 0.9) { // 20% chance for fallen logs
+                this.createFallenLog(x, z);
+            } else { // 10% chance for rocks
+                this.createRock(x, z);
+            }
+        }
+    }
+    
+    // Create a detailed fern
+    createFern(x, z) {
+        const fernGroup = new THREE.Group();
+        const stemCount = 7 + Math.floor(Math.random() * 8);
+        const fernHeight = 0.5 + Math.random() * 1.5;
+        
+        // Create each stem
+        for (let i = 0; i < stemCount; i++) {
+            const stemGeometry = new THREE.PlaneGeometry(
+                0.2 + Math.random() * 0.4,
+                fernHeight * (0.7 + Math.random() * 0.5)
+            );
+            
+            // Green color with variation
+            const r = 30 + Math.random() * 40;
+            const g = 100 + Math.random() * 60;
+            const b = 30 + Math.random() * 30;
+            
+            const stemMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                side: THREE.DoubleSide,
+                roughness: 0.8
+            });
+            
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            
+            // Position around center with outward splay
+            const angle = (i / stemCount) * Math.PI * 2 + (Math.random() * 0.3 - 0.15);
+            const distance = 0.05 + Math.random() * 0.15;
+            stem.position.x = Math.cos(angle) * distance;
+            stem.position.z = Math.sin(angle) * distance;
+            stem.position.y = fernHeight / 2;
+            
+            // Rotate outward and droop
+            stem.rotation.y = angle;
+            stem.rotation.x = Math.random() * 0.4 - 0.2 - 0.2; // Slight droop
+            
+            fernGroup.add(stem);
+        }
+        
+        fernGroup.position.set(x, 0, z);
+        this.scene.add(fernGroup);
+    }
+    
+    // Create mushrooms
+    createMushroom(x, z) {
+        const mushroomGroup = new THREE.Group();
+        const mushroomCount = 1 + Math.floor(Math.random() * 5); // Cluster of mushrooms
+        
+        for (let i = 0; i < mushroomCount; i++) {
+            // Create stem
+            const stemHeight = 0.2 + Math.random() * 0.4;
+            const stemRadius = 0.05 + Math.random() * 0.1;
+            const stemGeometry = new THREE.CylinderGeometry(
+                stemRadius * 0.8, stemRadius, stemHeight, 8
+            );
+            
+            const stemMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(0xEEEEEE),
+                roughness: 0.7
+            });
+            
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            stem.position.y = stemHeight / 2;
+            
+            // Create cap
+            const capRadius = stemRadius * (2 + Math.random());
+            const capHeight = capRadius * (0.6 + Math.random() * 0.4);
+            const capGeometry = new THREE.SphereGeometry(
+                capRadius, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2
+            );
+            
+            // Random cap color (red, brown, white, etc.)
+            let capColor;
+            const colorType = Math.random();
+            if (colorType < 0.4) {
+                // Reddish
+                capColor = new THREE.Color(0xAA3333);
+            } else if (colorType < 0.7) {
+                // Brownish
+                capColor = new THREE.Color(0x8B4513);
+            } else {
+                // Whitish
+                capColor = new THREE.Color(0xDDDDDD);
+            }
+            
+            const capMaterial = new THREE.MeshStandardMaterial({
+                color: capColor,
+                roughness: 0.8
+            });
+            
+            const cap = new THREE.Mesh(capGeometry, capMaterial);
+            cap.position.y = stemHeight;
+            cap.scale.set(1, capHeight / capRadius, 1);
+            
+            // Random position in cluster
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 0.3;
+            const localX = Math.cos(angle) * distance;
+            const localZ = Math.sin(angle) * distance;
+            
+            // Create full mushroom
+            const mushroom = new THREE.Group();
+            mushroom.add(stem);
+            mushroom.add(cap);
+            mushroom.position.set(localX, 0, localZ);
+            
+            // Random scaling and rotation
+            const scale = 0.7 + Math.random() * 0.6;
+            mushroom.scale.set(scale, scale, scale);
+            mushroom.rotation.y = Math.random() * Math.PI * 2;
+            mushroom.rotation.x = (Math.random() * 0.2) - 0.1;
+            mushroom.rotation.z = (Math.random() * 0.2) - 0.1;
+            
+            mushroomGroup.add(mushroom);
+        }
+        
+        mushroomGroup.position.set(x, 0, z);
+        this.scene.add(mushroomGroup);
+    }
+    
+    // Create a fallen log
+    createFallenLog(x, z) {
+        // Log dimensions
+        const length = 2 + Math.random() * 4;
+        const radius = 0.3 + Math.random() * 0.3;
+        
+        // Create log with detailed geometry
+        const logGeometry = new THREE.CylinderGeometry(
+            radius, radius, length, 10, 1
+        );
+        
+        // Create detailed wood texture for the log
+        const barkColor = new THREE.Color(0x614126);
+        barkColor.offsetHSL(
+            (Math.random() * 0.05) - 0.025, // Small hue variation
+            (Math.random() * 0.1) - 0.05,   // Saturation variation
+            (Math.random() * 0.1) - 0.05    // Lightness variation
+        );
+        
+        const logMaterial = new THREE.MeshStandardMaterial({
+            color: barkColor,
+            roughness: 0.9,
+            metalness: 0.0
+        });
+        
+        const log = new THREE.Mesh(logGeometry, logMaterial);
+        
+        // Position log horizontally
+        log.rotation.z = Math.PI / 2;
+        
+        // Add some random rotation for natural look
+        log.rotation.x = (Math.random() * 0.4) - 0.2;
+        log.rotation.y = Math.random() * Math.PI;
+        
+        // Position slightly into the ground
+        log.position.set(x, radius * 0.7, z);
+        
+        // Add moss patches to log
+        const mossCount = Math.floor(Math.random() * 5) + 2;
+        for (let i = 0; i < mossCount; i++) {
+            const mossSize = 0.2 + Math.random() * 0.3;
+            const mossGeometry = new THREE.SphereGeometry(mossSize, 8, 6, 0, Math.PI);
+            
+            // Create moss material
+            const mossColor = new THREE.Color(0x2D7038);
+            mossColor.offsetHSL(
+                (Math.random() * 0.1) - 0.05, // Hue variation
+                (Math.random() * 0.2),        // Saturation variation
+                (Math.random() * 0.1) - 0.05  // Lightness variation
+            );
+            
+            const mossMaterial = new THREE.MeshStandardMaterial({
+                color: mossColor,
+                roughness: 0.9
+            });
+            
+            const moss = new THREE.Mesh(mossGeometry, mossMaterial);
+            
+            // Position moss on top of log
+            const mossAngle = Math.random() * Math.PI;
+            const mossHeight = radius * 0.9;
+            moss.position.set(
+                (Math.random() * length) - (length / 2), // Along log
+                mossHeight * Math.sin(mossAngle),       // Around circumference
+                mossHeight * Math.cos(mossAngle)
+            );
+            
+            // Rotate to conform to log surface
+            moss.rotation.x = mossAngle + Math.PI / 2;
+            moss.rotation.z = Math.PI / 2;
+            moss.scale.set(1, 0.4, 1); // Flatten the moss
+            
+            log.add(moss);
+        }
+        
+        this.scene.add(log);
+    }
+    
+    // Create rocks
+    createRock(x, z) {
+        // Rock dimensions
+        const size = 0.5 + Math.random() * 1.0;
+        
+        // Create base rock mesh
+        let rockGeometry;
+        const rockType = Math.random();
+        
+        if (rockType < 0.33) {
+            // Spherical rock
+            rockGeometry = new THREE.SphereGeometry(size, 7, 7);
+        } else if (rockType < 0.66) {
+            // Dodecahedron rock
+            rockGeometry = new THREE.DodecahedronGeometry(size, 0);
+        } else {
+            // Icosahedron rock
+            rockGeometry = new THREE.IcosahedronGeometry(size, 0);
+        }
+        
+        // Deform the geometry for more natural shape
+        if (rockGeometry.attributes && rockGeometry.attributes.position) {
+            const positions = rockGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] += (Math.random() * 0.2 - 0.1) * size;
+                positions[i + 1] += (Math.random() * 0.2 - 0.1) * size;
+                positions[i + 2] += (Math.random() * 0.2 - 0.1) * size;
+            }
+            rockGeometry.attributes.position.needsUpdate = true;
+            rockGeometry.computeVertexNormals();
+        }
+        
+        // Create detailed rock texture
+        const rockColor = new THREE.Color(0x888888);
+        rockColor.offsetHSL(
+            0,                          // No hue variation
+            (Math.random() * 0.1) - 0.05, // Small saturation variation
+            (Math.random() * 0.2) - 0.1   // Lightness variation
+        );
+        
+        const rockMaterial = new THREE.MeshStandardMaterial({
+            color: rockColor,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        
+        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+        
+        // Rotate for natural look
+        rock.rotation.x = Math.random() * Math.PI;
+        rock.rotation.y = Math.random() * Math.PI;
+        rock.rotation.z = Math.random() * Math.PI;
+        
+        // Position with base partially in ground
+        rock.position.set(x, size * 0.3, z);
+        rock.receiveShadow = true;
+        rock.castShadow = true;
+        
+        this.scene.add(rock);
+    }
+    
+    // Add a more detailed water system
+    createWaterFeatures() {
+        const waterBodyCount = Math.random() < 0.5 ? 1 : 2; // 1 or 2 water bodies
+        
+        for (let i = 0; i < waterBodyCount; i++) {
+            // Position water away from center
+            const angle = (i / waterBodyCount) * Math.PI * 2 + (Math.random() * Math.PI / 2);
+            const distance = 80 + Math.random() * 100;
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+            
+            // Create pond or small lake
+            const size = 15 + Math.random() * 25;
+            const waterGeometry = new THREE.CircleGeometry(size, 24);
+            
+            // Pond material with water-like properties
+            const waterMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4A6FE3,
+                transparent: true,
+                opacity: 0.8,
+                metalness: 0.9,
+                roughness: 0.1
+            });
+            
+            const water = new THREE.Mesh(waterGeometry, waterMaterial);
+            water.rotation.x = -Math.PI / 2; // Lay flat
+            water.position.set(x, 0.2, z); // Slightly above ground
+            
+            this.scene.add(water);
+            
+            // Add shore details around the water
+            this.createShoreDetails(x, z, size);
+        }
+    }
+    
+    // Add details around water shore
+    createShoreDetails(centerX, centerZ, waterSize) {
+        // Add rocks, reeds, and shore vegetation
+        const detailCount = Math.floor(waterSize * 1.5);
+        
+        for (let i = 0; i < detailCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            // Position at the edge of water with some variation
+            const distance = waterSize * (0.9 + Math.random() * 0.3);
+            const x = centerX + Math.cos(angle) * distance;
+            const z = centerZ + Math.sin(angle) * distance;
+            
+            const detailType = Math.random();
+            
+            if (detailType < 0.3) {
+                // Shore rocks
+                this.createRock(x, z);
+            } else if (detailType < 0.8) {
+                // Reeds and cattails
+                this.createReed(x, z);
+            } else {
+                // Shore grass
+                this.createShoreGrass(x, z);
+            }
+        }
+    }
+    
+    // Create reed/cattail plants
+    createReed(x, z) {
+        const reedGroup = new THREE.Group();
+        const reedCount = 3 + Math.floor(Math.random() * 7);
+        
+        for (let i = 0; i < reedCount; i++) {
+            const height = 1.5 + Math.random() * 2;
+            const width = 0.05 + Math.random() * 0.05;
+            
+            // Reed stem
+            const stemGeometry = new THREE.CylinderGeometry(
+                width * 0.5, width, height, 4
+            );
+            
+            const stemColor = new THREE.Color(0x567D46);
+            stemColor.offsetHSL(
+                (Math.random() * 0.05) - 0.025, // Small hue variation
+                (Math.random() * 0.1),          // Saturation variation
+                (Math.random() * 0.1) - 0.05    // Lightness variation
+            );
+            
+            const stemMaterial = new THREE.MeshBasicMaterial({
+                color: stemColor
+            });
+            
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            
+            // Cattail top (for some reeds)
+            if (Math.random() < 0.7) {
+                const cattailHeight = height * 0.2;
+                const cattailRadius = width * 2;
+                const cattailGeometry = new THREE.CylinderGeometry(
+                    cattailRadius, cattailRadius, cattailHeight, 8
+                );
+                
+                const cattailMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x5C4033 // Brown
+                });
+                
+                const cattail = new THREE.Mesh(cattailGeometry, cattailMaterial);
+                cattail.position.y = height * 0.4;
+                stem.add(cattail);
+            }
+            
+            // Position and rotate reed
+            stem.position.y = height / 2;
+            stem.rotation.x = (Math.random() * 0.3) - 0.15;
+            stem.rotation.z = (Math.random() * 0.3) - 0.15;
+            
+            // Position in cluster
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 0.5;
+            const localX = Math.cos(angle) * distance;
+            const localZ = Math.sin(angle) * distance;
+            
+            const reedInstance = new THREE.Group();
+            reedInstance.add(stem);
+            reedInstance.position.set(localX, 0, localZ);
+            
+            reedGroup.add(reedInstance);
+        }
+        
+        reedGroup.position.set(x, 0, z);
+        this.scene.add(reedGroup);
+    }
+    
+    // Create shore grass
+    createShoreGrass(x, z) {
+        const grassGroup = new THREE.Group();
+        const bladeCount = 10 + Math.random() * 20;
+        
+        for (let i = 0; i < bladeCount; i++) {
+            const height = 0.5 + Math.random() * 1.0;
+            const width = 0.03 + Math.random() * 0.05;
+            
+            // Grass blade geometry
+            const bladeGeometry = new THREE.PlaneGeometry(width, height);
+            
+            // Green color with variation
+            const r = 60 + Math.random() * 40;
+            const g = 120 + Math.random() * 60;
+            const b = 30 + Math.random() * 40;
+            
+            const bladeMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                side: THREE.DoubleSide
+            });
+            
+            const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+            
+            // Position and orientation
+            blade.position.y = height / 2;
+            
+            // Bend grass blades outward from center
+            const angle = Math.random() * Math.PI * 2;
+            blade.rotation.y = angle;
+            blade.rotation.x = (Math.random() * 0.4) - 0.2;
+            
+            // Position in clump
+            const distance = Math.random() * 0.3;
+            const localX = Math.cos(angle) * distance;
+            const localZ = Math.sin(angle) * distance;
+            
+            blade.position.x = localX;
+            blade.position.z = localZ;
+            
+            grassGroup.add(blade);
+        }
+        
+        grassGroup.position.set(x, 0, z);
+        this.scene.add(grassGroup);
+    }
+    
+    // Create a simple sky with clouds
+    createSky() {
+        this.sky = new THREE.Group();
+        
+        // Create more realistic sky dome
+        const skyDomeRadius = 500;
+        const skyDomeGeometry = new THREE.SphereGeometry(skyDomeRadius, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const skyMaterial = new THREE.MeshBasicMaterial({
+            color: 0x87CEEB, // Sky blue
+            side: THREE.BackSide
+        });
+        
+        const skyDome = new THREE.Mesh(skyDomeGeometry, skyMaterial);
+        this.sky.add(skyDome);
+        
+        // Add more detailed clouds
+        const cloudCount = 20; // Reduced from 30 for better performance
+        for (let i = 0; i < cloudCount; i++) {
+            const cloudGroup = new THREE.Group();
+            const cloudSegmentCount = 3 + Math.floor(Math.random() * 5);
+            
+            // Create a cloud from multiple spheres
+            for (let j = 0; j < cloudSegmentCount; j++) {
+                const cloudSize = 15 + Math.random() * 25;
+                const cloudGeometry = new THREE.SphereGeometry(cloudSize, 7, 7);
+                const cloudMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xFFFFFF,
+                    transparent: true,
+                    opacity: 0.8 + Math.random() * 0.2
+                });
+                
+                const cloudSegment = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                
+                // Position segments to form cloud shape
+                cloudSegment.position.x = (j - cloudSegmentCount / 2) * (cloudSize * 0.8) + (Math.random() * 10 - 5);
+                cloudSegment.position.y = Math.random() * 10 - 5;
+                cloudSegment.position.z = Math.random() * 10 - 5;
+                
+                // Slight random scale for varied appearance
+                const segmentScale = 0.8 + Math.random() * 0.4;
+                cloudSegment.scale.set(segmentScale, segmentScale * 0.6, segmentScale * 1.2);
+                
+                cloudGroup.add(cloudSegment);
+            }
+            
+            // Position cloud in sky
+            const cloudAngle = Math.random() * Math.PI * 2;
+            const cloudElevation = 20 + Math.random() * 60;
+            const cloudDistance = skyDomeRadius * 0.7;
+            
+            cloudGroup.position.x = Math.cos(cloudAngle) * cloudDistance;
+            cloudGroup.position.y = cloudElevation;
+            cloudGroup.position.z = Math.sin(cloudAngle) * cloudDistance;
+            
+            this.sky.add(cloudGroup);
+        }
+        
+        return this.sky;
+    }
+    
+    // Position sky elements
+    positionSkyElements() {
+        if (!this.sky) {
+            this.createSky();
+        }
+        
+        this.sky.position.y = 150;
+        this.scene.add(this.sky);
+    }
+    
+    // Add atmospheric fog
+    addAtmosphericFog() {
+        // Add atmospheric fog with a soft blue hue
+        this.scene.fog = new THREE.FogExp2(0xC4E4F4, 0.005);
     }
 }
 
