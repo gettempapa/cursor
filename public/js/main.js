@@ -1222,7 +1222,14 @@ function init() {
         
         // Create player group
         player = new THREE.Group();
-        player.position.set(0, 1, 0); // Start at origin, slightly above ground
+        // Position player near the military base (280 units at 45 degrees)
+        const baseDistance = 260; // Slightly closer to the base
+        const baseAngle = Math.PI / 4; // 45 degrees
+        player.position.set(
+            Math.cos(baseAngle) * baseDistance,
+            1,
+            Math.sin(baseAngle) * baseDistance
+        );
         scene.add(player);
         
         // Create player body

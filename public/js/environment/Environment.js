@@ -73,9 +73,9 @@ export class Environment {
         groundGeometry.attributes.position.needsUpdate = true;
         groundGeometry.computeVertexNormals();
         
-        // Create ground material with a more natural grass color
+        // Create ground material with a much richer grass color
         const groundMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0x2D5A27), // Richer grass green
+            color: new THREE.Color(0x2D8A27), // More vibrant grass green
             side: THREE.DoubleSide
         });
         
@@ -93,26 +93,26 @@ export class Environment {
         // Create grass texture
         const grassTexture = this.createGrassTexture();
         
-        // Create grass patches with higher density
-        const patchCount = 500; // Increased from 100
+        // Create grass patches with much higher density
+        const patchCount = 2000; // Significantly increased from 500
         const groundSize = Constants.GAME.GROUND_SIZE;
         
         for (let i = 0; i < patchCount; i++) {
             // Random position within ground bounds with clustering
-            const useCluster = Math.random() < 0.7; // 70% chance for clustered grass
+            const useCluster = Math.random() < 0.8; // 80% chance for clustered grass
             let position;
             
             if (useCluster) {
                 // Create denser clusters of grass
-                const clusterCount = 8;
+                const clusterCount = 12; // Increased from 8
                 const clusterIndex = Math.floor(Math.random() * clusterCount);
                 const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
-                const clusterDistance = 20 + Math.random() * 200;
+                const clusterDistance = Math.random() * groundSize * 0.45; // More spread out
                 const clusterX = Math.cos(clusterAngle) * clusterDistance;
                 const clusterZ = Math.sin(clusterAngle) * clusterDistance;
                 
                 // Position within cluster
-                const radius = 15 + Math.random() * 25;
+                const radius = 20 + Math.random() * 30; // Larger clusters
                 const localAngle = Math.random() * Math.PI * 2;
                 const localDistance = Math.random() * radius;
                 
@@ -125,10 +125,10 @@ export class Environment {
             }
             
             // Create grass patch with varied sizes
-            const patchSize = 1.5 + Math.random() * 2.5; // Increased size range
+            const patchSize = 2 + Math.random() * 3; // Increased size range
             const patchGeometry = new THREE.PlaneGeometry(patchSize, patchSize);
             
-            // Randomize grass color slightly
+            // Randomize grass color slightly for more natural look
             const hueOffset = (Math.random() * 0.1) - 0.05;
             const satOffset = Math.random() * 0.2;
             const lightOffset = (Math.random() * 0.2) - 0.1;
@@ -138,22 +138,22 @@ export class Environment {
                 transparent: true,
                 alphaTest: 0.5,
                 side: THREE.DoubleSide,
-                color: new THREE.Color().setHSL(0.3 + hueOffset, 0.6 + satOffset, 0.4 + lightOffset)
+                color: new THREE.Color().setHSL(0.3 + hueOffset, 0.7 + satOffset, 0.4 + lightOffset)
             });
             
             const patch = new THREE.Mesh(patchGeometry, patchMaterial);
-            patch.position.set(position.x, 0.05 + Math.random() * 0.1, position.z); // Varied height
+            patch.position.set(position.x, 0.05 + Math.random() * 0.2, position.z); // More height variation
             patch.rotation.x = -Math.PI / 2;
             patch.rotation.z = Math.random() * Math.PI * 2;
             
             // Add slight random tilt for more natural look
-            patch.rotation.y = (Math.random() * 0.2) - 0.1;
+            patch.rotation.y = (Math.random() * 0.3) - 0.15;
             
             this.scene.add(patch);
             this.grassPatches.push(patch);
         }
         
-        // Add additional ground cover
+        // Add additional ground cover with higher density
         this.addGroundCover();
     }
     
@@ -400,8 +400,8 @@ export class Environment {
         ctx.fillStyle = 'rgba(0, 0, 0, 0)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw grass blades
-        const bladeCount = 20;
+        // Draw more grass blades
+        const bladeCount = 30; // Increased from 20
         
         for (let i = 0; i < bladeCount; i++) {
             // Random position
@@ -410,12 +410,12 @@ export class Environment {
             
             // Random width and height
             const width = 2 + Math.random() * 4;
-            const height = 20 + Math.random() * 30;
+            const height = 25 + Math.random() * 35; // Taller grass
             
-            // Random color
-            const r = 30 + Math.random() * 50;
-            const g = 100 + Math.random() * 80;
-            const b = 30 + Math.random() * 50;
+            // More vibrant grass colors
+            const r = 45 + Math.random() * 50;  // Increased green component
+            const g = 130 + Math.random() * 80; // More vibrant green
+            const b = 40 + Math.random() * 50;  // Slightly more yellow tint
             
             // Draw blade
             ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
