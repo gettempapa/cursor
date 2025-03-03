@@ -99,26 +99,31 @@ function initTreeTemplates() {
     const trunkGeometry = new THREE.CylinderGeometry(0.4, 0.5, 5, 8);
     const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
     treeMeshes.trunk = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, 1000);
+    treeMeshes.trunk.count = 0;  // Initialize count
     
     // Create high-detail foliage template
     const foliageHighGeometry = new THREE.SphereGeometry(2, 12, 12);
     const foliageHighMaterial = new THREE.MeshBasicMaterial({ color: 0x2E6E31 });
     treeMeshes.foliageHigh = new THREE.InstancedMesh(foliageHighGeometry, foliageHighMaterial, 1000);
+    treeMeshes.foliageHigh.count = 0;  // Initialize count
     
     // Create low-detail foliage template
     const foliageLowGeometry = new THREE.SphereGeometry(2, 6, 6);
     const foliageLowMaterial = new THREE.MeshBasicMaterial({ color: 0x2E6E31 });
     treeMeshes.foliageLow = new THREE.InstancedMesh(foliageLowGeometry, foliageLowMaterial, 1000);
+    treeMeshes.foliageLow.count = 0;  // Initialize count
     
     // Create high-detail branch template
     const branchHighGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 6);
     const branchHighMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
     treeMeshes.branchHigh = new THREE.InstancedMesh(branchHighGeometry, branchHighMaterial, 1000);
+    treeMeshes.branchHigh.count = 0;  // Initialize count
     
     // Create low-detail branch template
     const branchLowGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 4);
     const branchLowMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
     treeMeshes.branchLow = new THREE.InstancedMesh(branchLowGeometry, branchLowMaterial, 1000);
+    treeMeshes.branchLow.count = 0;  // Initialize count
     
     // Add meshes to scene
     Object.values(treeMeshes).forEach(mesh => scene.add(mesh));
@@ -656,66 +661,15 @@ function init() {
         // Set up audio system
         audioListener = new THREE.AudioListener();
         camera.add(audioListener);
-        
-        // Make sure audio context is initialized properly
+
+        // Initialize synthesized sounds
         const initAudio = () => {
             if (audioListener.context.state === 'suspended') {
                 audioListener.context.resume();
             }
+            createSynthesizedSounds();
         };
         document.addEventListener('click', initAudio, { once: true });
-
-        // Load gunshot sound - powerful rifle sound
-        gunshotSound = new THREE.Audio(audioListener);
-        const audioLoader = new THREE.AudioLoader();
-        
-        // Load main gunshot sound
-        audioLoader.load(
-            'https://freesound.org/data/previews/642/642315_7177907-lq.mp3', // Powerful rifle shot
-            function(buffer) {
-                gunshotSound.setBuffer(buffer);
-                gunshotSound.setVolume(0.8); // Slightly less than full volume
-                gunshotSound.setPlaybackRate(0.9); // Slightly slowed for more bass
-                gunshotSoundLoaded = true;
-                console.log('Gunshot sound loaded!');
-            },
-            function(xhr) {
-                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-            },
-            function(err) {
-                console.error('Error loading gunshot sound:', err);
-                // Fallback to create an oscillator sound if loading fails
-                createFallbackGunshotSound();
-            }
-        );
-        
-        // Load ricochet sound for bullet impact
-        ricochetSound = new THREE.Audio(audioListener);
-        audioLoader.load(
-            'https://freesound.org/data/previews/420/420368_7383104-lq.mp3',
-            function(buffer) {
-                ricochetSound.setBuffer(buffer);
-                ricochetSound.setVolume(0.5);
-            },
-            null,
-            function(err) {
-                console.error('Error loading ricochet sound:', err);
-            }
-        );
-        
-        // Load reload sound for potential reload mechanic
-        reloadSound = new THREE.Audio(audioListener);
-        audioLoader.load(
-            'https://freesound.org/data/previews/522/522396_9468981-lq.mp3',
-            function(buffer) {
-                reloadSound.setBuffer(buffer);
-                reloadSound.setVolume(0.6);
-            },
-            null,
-            function(err) {
-                console.error('Error loading reload sound:', err);
-            }
-        );
 
         // Create renderer with improved settings
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1064,13 +1018,13 @@ function init() {
                         6, 6
                     );
                     
-                    // Green color with variation
-                    const r = 20 + Math.random() * 30;
-                    const g = 80 + Math.random() * 60;
-                    const b = 20 + Math.random() * 30;
+                    // Green color with variation - ensure values are integers between 0-255
+                    const r = Math.floor(20 + Math.random() * 30);
+                    const g = Math.floor(80 + Math.random() * 60);
+                    const b = Math.floor(20 + Math.random() * 30);
                     
                     const sphereMaterial = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color(`rgb(${r}, ${g}, ${b})`)
+                        color: new THREE.Color(r/255, g/255, b/255)
                     });
                     
                     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
@@ -1089,7 +1043,7 @@ function init() {
                 }
                 
                 bushGroup.position.set(x, y, z);
-                scene.add(bushGroup);
+                return bushGroup;
             };
             
             // Add ferns and bushes
@@ -1171,6 +1125,9 @@ function init() {
         // Create the forest using the new system
         createForest();
         
+        // Add the walls
+        createMapWalls();
+        
         // Handle window resizing
         window.addEventListener('resize', onWindowResize);
         
@@ -1199,22 +1156,6 @@ function shoot() {
     lastShootTime = currentTime;
     
     try {
-        // Play gunshot sound
-        if (gunshotSoundLoaded && gunshotSound && gunshotSound.context) {
-            if (gunshotSound.context.state !== 'running') {
-                gunshotSound.context.resume();
-            }
-            if (!gunshotSound.isPlaying) {
-                gunshotSound.play();
-            }
-        } else {
-            console.log("Sound not loaded correctly, using fallback");
-            createFallbackGunshotSound();
-            if (gunshotSound && !gunshotSound.isPlaying) {
-                gunshotSound.play();
-            }
-        }
-
         // Create raycaster for accurate shooting
         const raycaster = new THREE.Raycaster();
         const shootDirection = new THREE.Vector3(0, 0, -1);
@@ -1551,7 +1492,7 @@ function createFallbackGunshotSound() {
         // Create a simple oscillator-based gunshot sound
         const context = audioListener.context;
         const sampleRate = context.sampleRate;
-        const duration = 0.3; // 300ms sound
+        const duration = 0.3;
         const bufferSize = Math.floor(sampleRate * duration);
         const buffer = context.createBuffer(1, bufferSize, sampleRate);
         const data = buffer.getChannelData(0);
@@ -1562,20 +1503,15 @@ function createFallbackGunshotSound() {
             let sample = 0;
             
             if (t < 0.01) {
-                // Quick attack
                 sample = t / 0.01;
             } else if (t < 0.05) {
-                // Sharp decay
                 sample = 1 - ((t - 0.01) / 0.04);
             } else {
-                // Long tail
                 sample = 0.5 * Math.exp(-(t - 0.05) * 10);
             }
             
-            // Add some noise
             sample *= (0.5 + Math.random() * 0.5);
             
-            // Apply bandpass-like filtering by reducing high and low components
             if (i > 0 && i < bufferSize - 1) {
                 sample = 0.7 * sample + 0.15 * data[i-1] + 0.15 * (Math.random() - 0.5);
             }
@@ -1584,7 +1520,7 @@ function createFallbackGunshotSound() {
         }
         
         // Create a new audio with the buffer
-        if (gunshotSound) {
+        if (gunshotSound && typeof gunshotSound.disconnect === 'function') {
             gunshotSound.disconnect();
         }
         
@@ -1594,7 +1530,230 @@ function createFallbackGunshotSound() {
         gunshotSoundLoaded = true;
         console.log('Fallback gunshot sound created successfully');
     } catch (error) {
-        console.error('Error creating fallback sound:', error);
+        console.warn('Error creating fallback sound:', error);
         gunshotSoundLoaded = false;
+    }
+}
+
+// Create middle eastern style walls
+function createMapWalls() {
+    const wallHeight = 20;
+    const mapSize = 500; // Match the ground size
+    const wallThickness = 2;
+    
+    // Create wall texture using canvas for detailed brick pattern
+    const wallTextureCanvas = document.createElement('canvas');
+    wallTextureCanvas.width = 512;
+    wallTextureCanvas.height = 512;
+    const ctx = wallTextureCanvas.getContext('2d');
+    
+    // Base tan color
+    ctx.fillStyle = '#D4BC8B';
+    ctx.fillRect(0, 0, 512, 512);
+    
+    // Draw brick pattern
+    ctx.fillStyle = '#C1A87C';
+    for (let y = 0; y < 512; y += 32) {
+        const offset = (y % 64 === 0) ? 0 : 32; // Offset alternate rows
+        for (let x = offset; x < 512; x += 64) {
+            ctx.fillRect(x, y, 60, 28);
+            // Add darker grout lines
+            ctx.fillStyle = '#A69372';
+            ctx.fillRect(x - 2, y - 2, 64, 4);
+            ctx.fillRect(x - 2, y - 2, 4, 32);
+            ctx.fillStyle = '#C1A87C';
+        }
+    }
+    
+    // Add noise for texture variation
+    const imageData = ctx.getImageData(0, 0, 512, 512);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 20;
+        data[i] += noise;     // r
+        data[i + 1] += noise; // g
+        data[i + 2] += noise; // b
+    }
+    ctx.putImageData(imageData, 0, 0);
+    
+    const wallTexture = new THREE.CanvasTexture(wallTextureCanvas);
+    wallTexture.wrapS = THREE.RepeatWrapping;
+    wallTexture.wrapT = THREE.RepeatWrapping;
+    wallTexture.repeat.set(8, 2); // Adjust for proper brick scaling
+    
+    // Create wall material with bump mapping for depth
+    const wallMaterial = new THREE.MeshPhongMaterial({
+        map: wallTexture,
+        bumpMap: wallTexture,
+        bumpScale: 0.2,
+        color: 0xffffff,
+        specular: 0x222222,
+        shininess: 5
+    });
+    
+    // Create decorative top piece geometry
+    const createTopDecoration = (length) => {
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(0, 2);
+        // Create crenellations
+        for (let i = 0; i < length; i += 4) {
+            shape.lineTo(i, 2);
+            shape.lineTo(i, 3);
+            shape.lineTo(i + 2, 3);
+            shape.lineTo(i + 2, 2);
+        }
+        shape.lineTo(length, 2);
+        shape.lineTo(length, 0);
+        return new THREE.ShapeGeometry(shape);
+    };
+    
+    // Create walls
+    const walls = [];
+    const wallPositions = [
+        { pos: [0, wallHeight/2, mapSize/2], rot: [0, 0, 0], size: [mapSize, wallHeight, wallThickness] },
+        { pos: [0, wallHeight/2, -mapSize/2], rot: [0, 0, 0], size: [mapSize, wallHeight, wallThickness] },
+        { pos: [mapSize/2, wallHeight/2, 0], rot: [0, Math.PI/2, 0], size: [mapSize, wallHeight, wallThickness] },
+        { pos: [-mapSize/2, wallHeight/2, 0], rot: [0, Math.PI/2, 0], size: [mapSize, wallHeight, wallThickness] }
+    ];
+    
+    wallPositions.forEach(wallData => {
+        // Main wall
+        const wallGeometry = new THREE.BoxGeometry(...wallData.size);
+        const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall.position.set(...wallData.pos);
+        wall.rotation.set(...wallData.rot);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+        walls.push(wall);
+        
+        // Top decoration
+        const topDecoration = new THREE.Mesh(
+            createTopDecoration(wallData.size[0]),
+            wallMaterial
+        );
+        topDecoration.position.set(
+            wallData.pos[0] - wallData.size[0]/2,
+            wallData.pos[1] + wallData.size[1]/2,
+            wallData.pos[2]
+        );
+        topDecoration.rotation.set(...wallData.rot);
+        scene.add(topDecoration);
+        
+        // Add arch details every 50 units
+        const archCount = Math.floor(wallData.size[0] / 50);
+        for (let i = 0; i < archCount; i++) {
+            const archDepth = 1;
+            const archWidth = 6;
+            const archHeight = 10;
+            
+            // Create arch shape
+            const archShape = new THREE.Shape();
+            archShape.moveTo(0, 0);
+            archShape.lineTo(0, archHeight - archWidth/2);
+            archShape.absarc(archWidth/2, archHeight - archWidth/2, archWidth/2, Math.PI, 0, true);
+            archShape.lineTo(archWidth, 0);
+            
+            const archGeometry = new THREE.ShapeGeometry(archShape);
+            const arch = new THREE.Mesh(archGeometry, wallMaterial);
+            
+            // Position arch along wall
+            const offset = -wallData.size[0]/2 + (i + 0.5) * (wallData.size[0]/archCount);
+            arch.position.set(
+                wallData.pos[0] + (wallData.rot[1] ? 0 : offset),
+                wallData.pos[1] - wallData.size[1]/2,
+                wallData.pos[2] + (wallData.rot[1] ? offset : 0)
+            );
+            arch.rotation.set(...wallData.rot);
+            
+            // Add depth to arch
+            const archExtrusion = new THREE.ExtrudeGeometry(archShape, {
+                depth: archDepth,
+                bevelEnabled: false
+            });
+            const archWithDepth = new THREE.Mesh(archExtrusion, wallMaterial);
+            archWithDepth.position.copy(arch.position);
+            archWithDepth.rotation.copy(arch.rotation);
+            
+            // Adjust position to align with wall
+            if (wallData.rot[1]) {
+                archWithDepth.position.z -= archDepth/2;
+            } else {
+                archWithDepth.position.x -= archDepth/2;
+            }
+            
+            scene.add(archWithDepth);
+        }
+    });
+}
+
+// Create all synthesized sounds
+function createSynthesizedSounds() {
+    createFallbackGunshotSound();
+    createSynthesizedRicochetSound();
+    createSynthesizedReloadSound();
+}
+
+// Create synthesized ricochet sound
+function createSynthesizedRicochetSound() {
+    try {
+        const context = audioListener.context;
+        const sampleRate = context.sampleRate;
+        const duration = 0.2;
+        const bufferSize = Math.floor(sampleRate * duration);
+        const buffer = context.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        // Generate a metallic ping sound
+        for (let i = 0; i < bufferSize; i++) {
+            const t = i / sampleRate;
+            const frequency = 2000 + Math.exp(-t * 20) * 3000;
+            let sample = Math.sin(t * frequency * Math.PI * 2);
+            sample *= Math.exp(-t * 15);
+            data[i] = sample * 0.5;
+        }
+        
+        ricochetSound = new THREE.Audio(audioListener);
+        ricochetSound.setBuffer(buffer);
+        ricochetSound.setVolume(0.4);
+    } catch (error) {
+        console.warn('Error creating ricochet sound:', error);
+    }
+}
+
+// Create synthesized reload sound
+function createSynthesizedReloadSound() {
+    try {
+        const context = audioListener.context;
+        const sampleRate = context.sampleRate;
+        const duration = 0.4;
+        const bufferSize = Math.floor(sampleRate * duration);
+        const buffer = context.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        // Generate a mechanical click sound
+        for (let i = 0; i < bufferSize; i++) {
+            const t = i / sampleRate;
+            let sample = 0;
+            
+            if (t < 0.1) {
+                // Initial click
+                sample = Math.random() * 2 - 1;
+                sample *= Math.exp(-t * 100);
+            } else if (t > 0.2 && t < 0.3) {
+                // Second mechanical sound
+                sample = Math.random() * 2 - 1;
+                sample *= Math.exp(-(t - 0.2) * 80);
+            }
+            
+            data[i] = sample * 0.6;
+        }
+        
+        reloadSound = new THREE.Audio(audioListener);
+        reloadSound.setBuffer(buffer);
+        reloadSound.setVolume(0.5);
+    } catch (error) {
+        console.warn('Error creating reload sound:', error);
     }
 } 
