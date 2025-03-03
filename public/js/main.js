@@ -1107,20 +1107,20 @@ function init() {
         createAtmosphericEffect();
         
         // Create player group
-        player = new THREE.Group();
+        player = new Player(scene, {
+            camera: camera,
+            debug: true
+        });
+        scene.add(player.model);
+        
         // Position player near the military base (280 units at 45 degrees)
-        const baseDistance = 260; // Slightly closer to the base
-        const baseAngle = Math.PI / 4; // 45 degrees
+        const baseDistance = 260;
+        const baseAngle = Math.PI / 4;
         player.position.set(
             Math.cos(baseAngle) * baseDistance,
             1,
             Math.sin(baseAngle) * baseDistance
         );
-        scene.add(player);
-        
-        // Create player body
-        playerBody = createHumanoidMesh();
-        player.add(playerBody);
         
         // Create the forest using the new system
         createForest();
@@ -1443,7 +1443,7 @@ function animate() {
     // Make camera look at player
     camera.lookAt(
         player.position.x,
-        player.position.y + 1.2 + mouseY * 0.5, // Add mouseY influence to vertical camera target
+        player.position.y + 1.2 + mouseY * 0.5,
         player.position.z
     );
     

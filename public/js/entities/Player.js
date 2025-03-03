@@ -17,7 +17,7 @@ export class Player {
         this.debug = options.debug || null;
         
         // Player state
-        this.position = new THREE.Vector3(0, 200, 0); // Start high in the air
+        this.position = new THREE.Vector3(0, 1, 0);
         this.velocity = new THREE.Vector3();
         this.rotation = new THREE.Euler();
         this.height = 1.8;
@@ -26,8 +26,13 @@ export class Player {
         this.jumpVelocity = 0;
         this.lastShootTime = 0;
         this.lastFootstepTime = 0;
-        this.footstepInterval = Constants.AUDIO.FOOTSTEP_INTERVAL;
+        this.footstepInterval = 0.5;
         this.isMoving = false;
+        
+        // Movement constants
+        this.MOVE_SPEED = 0.15;
+        this.GRAVITY = 0.01;
+        this.JUMP_FORCE = 0.3;
         
         // Parachute state
         this.hasParachute = true;
@@ -67,6 +72,9 @@ export class Player {
         
         // Initialize player
         this.init();
+        
+        // Setup event listeners
+        this.setupControls();
     }
     
     /**
@@ -75,7 +83,6 @@ export class Player {
     init() {
         this.createPlayerModel();
         this.createParachute();
-        this.setupControls();
     }
     
     /**
@@ -509,171 +516,25 @@ export class Player {
      * Set up player controls
      */
     setupControls() {
-        // Keyboard controls
         document.addEventListener('keydown', (event) => {
-            this.handleKeyDown(event.code);
+            switch(event.code) {
+                case 'KeyW': this.keys.forward = true; break;
+                case 'KeyS': this.keys.backward = true; break;
+                case 'KeyA': this.keys.left = true; break;
+                case 'KeyD': this.keys.right = true; break;
+                case 'Space': this.keys.jump = true; break;
+            }
         });
         
         document.addEventListener('keyup', (event) => {
-            this.handleKeyUp(event.code);
-        });
-        
-        // Mouse controls for looking
-        document.addEventListener('mousemove', (event) => {
-            this.handleMouseMove(event);
-        });
-        
-        // Mouse click for shooting
-        document.addEventListener('mousedown', (event) => {
-            if (event.button === 0) { // Left mouse button
-                this.keys.shoot = true;
-                this.shoot();
+            switch(event.code) {
+                case 'KeyW': this.keys.forward = false; break;
+                case 'KeyS': this.keys.backward = false; break;
+                case 'KeyA': this.keys.left = false; break;
+                case 'KeyD': this.keys.right = false; break;
+                case 'Space': this.keys.jump = false; break;
             }
         });
-        
-        document.addEventListener('mouseup', (event) => {
-            if (event.button === 0) { // Left mouse button
-                this.keys.shoot = false;
-            }
-        });
-        
-        // Pointer lock for mouse control
-        const gameContainer = document.getElementById('gameContainer');
-        if (gameContainer) {
-            gameContainer.addEventListener('click', () => {
-                gameContainer.requestPointerLock = gameContainer.requestPointerLock || 
-                                                  gameContainer.mozRequestPointerLock || 
-                                                  gameContainer.webkitRequestPointerLock;
-                gameContainer.requestPointerLock();
-            });
-        }
-    }
-    
-    /**
-     * Handle key down events
-     * @param {string} code - Key code
-     */
-    handleKeyDown(code) {
-        switch (code) {
-            case 'KeyW':
-                this.keys.forward = true;
-                break;
-            case 'KeyS':
-                this.keys.backward = true;
-                break;
-            case 'KeyA':
-                this.keys.left = true;
-                break;
-            case 'KeyD':
-                this.keys.right = true;
-                break;
-            case 'Space':
-                this.keys.jump = true;
-                if (!this.isJumping && !this.isFalling) {
-                    this.jump();
-                }
-                break;
-        }
-    }
-    
-    /**
-     * Handle key up events
-     * @param {string} code - Key code
-     */
-    handleKeyUp(code) {
-        switch (code) {
-            case 'KeyW':
-                this.keys.forward = false;
-                break;
-            case 'KeyS':
-                this.keys.backward = false;
-                break;
-            case 'KeyA':
-                this.keys.left = false;
-                break;
-            case 'KeyD':
-                this.keys.right = false;
-                break;
-            case 'Space':
-                this.keys.jump = false;
-                break;
-        }
-    }
-    
-    /**
-     * Handle mouse movement
-     * @param {MouseEvent} event - Mouse event
-     */
-    handleMouseMove(event) {
-        if (document.pointerLockElement) {
-            // Update horizontal rotation (turning left/right)
-            this.rotation.y -= event.movementX * Constants.PLAYER.TURN_SPEED;
-            
-            // Update vertical look (up/down) - only affects camera, not player model
-            const verticalLook = this.camera.rotation.x + event.movementY * Constants.PLAYER.TURN_SPEED;
-            
-            // Limit vertical look to prevent flipping
-            this.camera.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, verticalLook));
-        }
-    }
-    
-    /**
-     * Make the player shoot
-     */
-    shoot() {
-        const now = Date.now();
-        if (now - this.lastShootTime < Constants.PLAYER.SHOT_COOLDOWN) {
-            return;
-        }
-        
-        this.lastShootTime = now;
-        
-        // Visual effect for shooting - muzzle flash
-        if (this.rifle) {
-            // Create muzzle flash
-            const muzzleFlash = new THREE.PointLight(0xFFAA00, 1, 5);
-            muzzleFlash.position.set(0, 0, 1.2);
-            this.rifle.add(muzzleFlash);
-            
-            // Remove after a short delay
-            setTimeout(() => {
-                this.rifle.remove(muzzleFlash);
-            }, 100);
-        }
-        
-        // Create ray for bullet
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-        
-        // Get ray origin and direction
-        const rayOrigin = raycaster.ray.origin.clone();
-        const rayDirection = raycaster.ray.direction.clone();
-        
-        // Return ray data for collision detection
-        return {
-            origin: rayOrigin,
-            direction: rayDirection
-        };
-    }
-    
-    /**
-     * Make the player jump
-     */
-    jump() {
-        if (!this.isJumping && !this.isFalling) {
-            this.isJumping = true;
-            this.jumpVelocity = Constants.PLAYER.JUMP_SPEED;
-        }
-    }
-    
-    /**
-     * Create an impact effect at the specified position
-     * @param {THREE.Vector3} position - Position of the impact
-     * @param {THREE.Vector3} normal - Normal vector of the impact surface
-     */
-    createImpactEffect(position, normal) {
-        const effect = createImpactEffect(this.scene, position, normal);
-        this.impactEffects.push(effect);
     }
     
     /**
@@ -683,120 +544,67 @@ export class Player {
      * @param {Function} checkCollisions - Function to check collisions
      */
     update(deltaTime, getHeightAtPosition, checkCollisions) {
-        deltaTime = Math.min(deltaTime, Constants.GAME.MAX_DELTA_TIME);
+        if (!this.model) return;
         
-        if (this.hasParachute && this.isParachuteDeployed) {
-            this.updateParachute(deltaTime);
+        // Handle movement
+        const moveDirection = new THREE.Vector3(0, 0, 0);
+        
+        if (this.keys.forward) moveDirection.z -= 1;
+        if (this.keys.backward) moveDirection.z += 1;
+        if (this.keys.left) moveDirection.x -= 1;
+        if (this.keys.right) moveDirection.x += 1;
+        
+        if (moveDirection.length() > 0) {
+            moveDirection.normalize();
+            this.isMoving = true;
         } else {
-            // Normal movement when on ground
-            this.updateNormalMovement(deltaTime, getHeightAtPosition, checkCollisions);
+            this.isMoving = false;
         }
         
-        // Update camera
-        this.updateCamera();
+        // Apply movement direction
+        moveDirection.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
         
-        // Update rifle aim
-        if (this.rifle && this.camera) {
-            this.updateRifleAim();
-        }
+        // Update velocity
+        this.velocity.x = moveDirection.x * this.MOVE_SPEED;
+        this.velocity.z = moveDirection.z * this.MOVE_SPEED;
         
-        // Update impact effects
-        this.updateImpactEffects(deltaTime);
-    }
-    
-    /**
-     * Update the camera position
-     */
-    updateCamera() {
-        if (!this.camera) return;
-
-        if (this.hasParachute && this.isParachuteDeployed) {
-            // Higher and further back camera position during parachute descent
-            const cameraDistance = 15;
-            const cameraHeight = 8;
+        // Apply gravity and jumping
+        if (this.isJumping || this.isFalling) {
+            this.jumpVelocity -= this.GRAVITY;
+            this.position.y += this.jumpVelocity;
             
-            // Calculate camera position based on player rotation
-            this.camera.position.x = this.position.x - Math.sin(this.rotation.y) * cameraDistance;
-            this.camera.position.z = this.position.z - Math.cos(this.rotation.y) * cameraDistance;
-            this.camera.position.y = this.position.y + cameraHeight;
-            
-            // Add slight tilt based on movement
-            const tiltAngle = Math.atan2(this.velocity.x, this.velocity.z);
-            const tiltAmount = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z) * 0.1;
-            
-            // Look at point ahead of player based on movement
-            const lookAtPoint = this.position.clone();
-            lookAtPoint.x += this.velocity.x * 2;
-            lookAtPoint.z += this.velocity.z * 2;
-            lookAtPoint.y += this.height + this.velocity.y * 2;
-            
-            this.camera.lookAt(lookAtPoint);
-            this.camera.rotation.z = -tiltAmount * Math.sin(tiltAngle - this.rotation.y);
-        } else {
-            // Normal ground camera
-            const cameraOffset = new THREE.Vector3(0, 2, 5);
-            
-            this.camera.position.x = this.position.x - Math.sin(this.rotation.y) * cameraOffset.z;
-            this.camera.position.z = this.position.z - Math.cos(this.rotation.y) * cameraOffset.z;
-            this.camera.position.y = this.position.y + cameraOffset.y;
-            
-            // Look at point slightly above player's head
-            const lookAtPoint = new THREE.Vector3(
-                this.position.x,
-                this.position.y + this.height + 0.5,
-                this.position.z
-            );
-            this.camera.lookAt(lookAtPoint);
-        }
-    }
-    
-    /**
-     * Update the rifle aim to match camera direction
-     */
-    updateRifleAim() {
-        if (!this.rifle || !this.camera) return;
-        
-        // Get camera look direction
-        const lookDirection = new THREE.Vector3(0, 0, -1);
-        lookDirection.applyQuaternion(this.camera.quaternion);
-        
-        // Calculate a point in front of the camera
-        const lookTarget = new THREE.Vector3().copy(this.camera.position).add(
-            lookDirection.multiplyScalar(10)
-        );
-        
-        // Make rifle look at that point
-        const rifleWorldPos = new THREE.Vector3();
-        this.rifle.getWorldPosition(rifleWorldPos);
-        
-        // Calculate direction from rifle to look target
-        const direction = new THREE.Vector3().subVectors(lookTarget, rifleWorldPos);
-        
-        // Convert world direction to local direction
-        const localDirection = direction.clone();
-        this.model.worldToLocal(localDirection);
-        
-        // Update rifle rotation
-        this.rifle.lookAt(
-            this.rifle.position.clone().add(localDirection)
-        );
-    }
-    
-    /**
-     * Update impact effects
-     * @param {number} deltaTime - Time since last update in seconds
-     */
-    updateImpactEffects(deltaTime) {
-        for (let i = this.impactEffects.length - 1; i >= 0; i--) {
-            const isAlive = this.impactEffects[i].update(deltaTime);
-            
-            if (!isAlive) {
-                this.impactEffects[i].cleanup();
-                this.impactEffects.splice(i, 1);
+            const groundHeight = getHeightAtPosition(this.position);
+            if (this.position.y <= groundHeight) {
+                this.position.y = groundHeight;
+                this.isJumping = false;
+                this.isFalling = false;
+                this.jumpVelocity = 0;
             }
+        } else if (this.keys.jump) {
+            this.isJumping = true;
+            this.jumpVelocity = this.JUMP_FORCE;
+        }
+        
+        // Update position
+        const newPosition = this.position.clone();
+        newPosition.x += this.velocity.x;
+        newPosition.z += this.velocity.z;
+        
+        if (!checkCollisions(newPosition)) {
+            this.position.copy(newPosition);
+        }
+        
+        // Update model position and rotation
+        this.model.position.copy(this.position);
+        
+        // Animate legs while moving
+        if (this.isMoving) {
+            this.animateLegs(deltaTime);
+        } else {
+            this.resetLegs();
         }
     }
-
+    
     /**
      * Create the parachute model
      */
@@ -985,6 +793,38 @@ export class Player {
             this.model.position.y += this.height;
             this.model.rotation.y = this.rotation.y;
         }
+    }
+
+    animateLegs(deltaTime) {
+        if (!this.model) return;
+        
+        // Find leg groups (first two children of the model)
+        const leftLeg = this.model.children[0];
+        const rightLeg = this.model.children[1];
+        
+        if (!leftLeg || !rightLeg) return;
+        
+        // Update animation time based on movement speed
+        this.legAnimTime = (this.legAnimTime || 0) + deltaTime * 5;
+        
+        // Animate legs in opposite phases
+        const maxRotation = Math.PI / 4;
+        leftLeg.rotation.x = Math.sin(this.legAnimTime) * maxRotation;
+        rightLeg.rotation.x = Math.sin(this.legAnimTime + Math.PI) * maxRotation;
+    }
+    
+    resetLegs() {
+        if (!this.model) return;
+        
+        // Find leg groups
+        const leftLeg = this.model.children[0];
+        const rightLeg = this.model.children[1];
+        
+        if (!leftLeg || !rightLeg) return;
+        
+        // Reset leg rotations to standing position
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
     }
 }
 
