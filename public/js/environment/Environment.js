@@ -50,7 +50,7 @@ export class Environment {
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 32, 32);
         
         // Create ground material
-        const groundMaterial = new THREE.MeshStandardMaterial({
+        const groundMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.GROUND,
             roughness: 0.8,
             metalness: 0.2,
@@ -129,7 +129,7 @@ export class Environment {
         const hillGeometry = new THREE.CircleGeometry(hillSize / 2, 32);
         
         // Create hill material
-        const hillMaterial = new THREE.MeshStandardMaterial({
+        const hillMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.GROUND,
             roughness: 0.9,
             metalness: 0.1,
@@ -343,7 +343,7 @@ export class Environment {
         
         // Create trunk
         const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, treeHeight, 8);
-        const trunkMaterial = new THREE.MeshStandardMaterial({
+        const trunkMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.TREE_TRUNK,
             roughness: 0.9
         });
@@ -355,7 +355,7 @@ export class Environment {
         
         // Create foliage
         const foliageCount = 3;
-        const foliageMaterial = new THREE.MeshStandardMaterial({
+        const foliageMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.TREE_FOLIAGE,
             roughness: 0.8
         });
@@ -389,7 +389,7 @@ export class Environment {
         const logDiameter = 0.4;
         
         // Create log material
-        const logMaterial = new THREE.MeshStandardMaterial({
+        const logMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.TREE_TRUNK,
             roughness: 0.9
         });
@@ -406,7 +406,7 @@ export class Environment {
         
         // Create door
         const doorGeometry = new THREE.BoxGeometry(1.5, 2.2, 0.1);
-        const doorMaterial = new THREE.MeshStandardMaterial({
+        const doorMaterial = new THREE.MeshBasicMaterial({
             color: 0x8B4513,
             roughness: 0.8
         });
@@ -441,7 +441,7 @@ export class Environment {
         wall.rotation.y = rotation;
         
         // Create log material
-        const logMaterial = new THREE.MeshStandardMaterial({
+        const logMaterial = new THREE.MeshBasicMaterial({
             color: Constants.COLORS.TREE_TRUNK,
             roughness: 0.9
         });
@@ -477,7 +477,7 @@ export class Environment {
         
         // Create window frame
         const frameGeometry = new THREE.BoxGeometry(1, 1, 0.1);
-        const frameMaterial = new THREE.MeshStandardMaterial({
+        const frameMaterial = new THREE.MeshBasicMaterial({
             color: 0x8B4513,
             roughness: 0.8
         });
@@ -487,7 +487,7 @@ export class Environment {
         
         // Create window glass
         const glassGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.05);
-        const glassMaterial = new THREE.MeshStandardMaterial({
+        const glassMaterial = new THREE.MeshBasicMaterial({
             color: 0xADD8E6,
             transparent: true,
             opacity: 0.5,
@@ -534,7 +534,7 @@ export class Environment {
         roofGeometry.computeVertexNormals();
         
         // Create roof material
-        const roofMaterial = new THREE.MeshStandardMaterial({
+        const roofMaterial = new THREE.MeshBasicMaterial({
             color: 0x8B4513,
             roughness: 0.9,
             side: THREE.DoubleSide
@@ -704,10 +704,9 @@ export class Environment {
             const g = 100 + Math.random() * 60;
             const b = 30 + Math.random() * 30;
             
-            const stemMaterial = new THREE.MeshStandardMaterial({
+            const stemMaterial = new THREE.MeshBasicMaterial({
                 color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
-                side: THREE.DoubleSide,
-                roughness: 0.8
+                side: THREE.DoubleSide
             });
             
             const stem = new THREE.Mesh(stemGeometry, stemMaterial);
@@ -743,9 +742,8 @@ export class Environment {
                 stemRadius * 0.8, stemRadius, stemHeight, 8
             );
             
-            const stemMaterial = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(0xEEEEEE),
-                roughness: 0.7
+            const stemMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(0xEEEEEE)
             });
             
             const stem = new THREE.Mesh(stemGeometry, stemMaterial);
@@ -772,9 +770,8 @@ export class Environment {
                 capColor = new THREE.Color(0xDDDDDD);
             }
             
-            const capMaterial = new THREE.MeshStandardMaterial({
-                color: capColor,
-                roughness: 0.8
+            const capMaterial = new THREE.MeshBasicMaterial({
+                color: capColor
             });
             
             const cap = new THREE.Mesh(capGeometry, capMaterial);
@@ -826,10 +823,8 @@ export class Environment {
             (Math.random() * 0.1) - 0.05    // Lightness variation
         );
         
-        const logMaterial = new THREE.MeshStandardMaterial({
-            color: barkColor,
-            roughness: 0.9,
-            metalness: 0.0
+        const logMaterial = new THREE.MeshBasicMaterial({
+            color: barkColor
         });
         
         const log = new THREE.Mesh(logGeometry, logMaterial);
@@ -858,9 +853,8 @@ export class Environment {
                 (Math.random() * 0.1) - 0.05  // Lightness variation
             );
             
-            const mossMaterial = new THREE.MeshStandardMaterial({
-                color: mossColor,
-                roughness: 0.9
+            const mossMaterial = new THREE.MeshBasicMaterial({
+                color: mossColor
             });
             
             const moss = new THREE.Mesh(mossGeometry, mossMaterial);
@@ -925,10 +919,8 @@ export class Environment {
             (Math.random() * 0.2) - 0.1   // Lightness variation
         );
         
-        const rockMaterial = new THREE.MeshStandardMaterial({
-            color: rockColor,
-            roughness: 0.9,
-            metalness: 0.1
+        const rockMaterial = new THREE.MeshBasicMaterial({
+            color: rockColor
         });
         
         const rock = new THREE.Mesh(rockGeometry, rockMaterial);
@@ -962,12 +954,10 @@ export class Environment {
             const waterGeometry = new THREE.CircleGeometry(size, 24);
             
             // Pond material with water-like properties
-            const waterMaterial = new THREE.MeshStandardMaterial({
+            const waterMaterial = new THREE.MeshBasicMaterial({
                 color: 0x4A6FE3,
                 transparent: true,
-                opacity: 0.8,
-                metalness: 0.9,
-                roughness: 0.1
+                opacity: 0.8
             });
             
             const water = new THREE.Mesh(waterGeometry, waterMaterial);
@@ -1029,6 +1019,7 @@ export class Environment {
                 (Math.random() * 0.1) - 0.05    // Lightness variation
             );
             
+            // Changed to MeshBasicMaterial for better stability
             const stemMaterial = new THREE.MeshBasicMaterial({
                 color: stemColor
             });
