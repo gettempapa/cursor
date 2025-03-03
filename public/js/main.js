@@ -80,88 +80,185 @@ function createTree(x, z) {
     const tree = new THREE.Group();
     
     // Randomize tree characteristics for variety
-    const scale = 2.5 + Math.random() * 1.5; // Tree size (much larger)
+    const scale = 3.5 + Math.random() * 2.0; // Increased overall size
     const trunkHeight = 5 * scale;
     const trunkRadius = 0.4 * scale;
-    const foliageSize = 3.5 * scale;
+    const foliageSize = 4.0 * scale;
     
-    // Slight random rotation and tilt for natural look
+    // More pronounced random rotation and tilt for natural look
     const rotation = Math.random() * Math.PI * 2;
-    const tiltAmount = Math.random() * 0.05;
+    const tiltAmount = Math.random() * 0.1; // Increased tilt variation
     const tiltDirection = Math.random() * Math.PI * 2;
     
-    // Tree trunk (cylinder) with better materials
+    // Tree trunk with more realistic materials and more geometry segments
     const trunkGeometry = new THREE.CylinderGeometry(
         trunkRadius * 0.7, // Narrower at top
-        trunkRadius,       // Wider at base
+        trunkRadius * 1.2, // Wider at base with more flare
         trunkHeight,
-        8
+        12,              // More radial segments for better roundness
+        6,               // Height segments for bark detail variation
+        true             // Open-ended for branch connections
     );
-    const trunkMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x5D4037   // Rich brown
-    });
+    
+    // Use MeshStandardMaterial for better lighting effects if available
+    const trunkMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+        new THREE.MeshStandardMaterial({ 
+            color: 0x5D4037,   // Rich brown
+            roughness: 0.9,    // Very rough
+            metalness: 0.1,    // Slight shine for wet bark look
+            flatShading: true  // For more texture
+        }) : 
+        new THREE.MeshBasicMaterial({ color: 0x5D4037 });
+    
+    // Add subtle color variation to trunk
+    trunkMaterial.color.r += (Math.random() * 0.1) - 0.05;
+    trunkMaterial.color.g += (Math.random() * 0.05) - 0.025;
+    trunkMaterial.color.b += (Math.random() * 0.05) - 0.025;
+    
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.y = trunkHeight / 2; // Position based on trunk height
+    trunk.position.y = trunkHeight / 2;
     trunk.rotation.x = Math.sin(tiltDirection) * tiltAmount;
     trunk.rotation.z = Math.cos(tiltDirection) * tiltAmount;
+    
+    // Add subtle trunk deformation by scaling
+    trunk.scale.x *= 1 + (Math.random() * 0.1 - 0.05);
+    trunk.scale.z *= 1 + (Math.random() * 0.1 - 0.05);
+    
     tree.add(trunk);
     
     // Create multiple layers of foliage for a more realistic look
-    const foliageLayers = 3 + Math.floor(Math.random() * 2); // 3-4 layers
+    const foliageLayers = 4 + Math.floor(Math.random() * 3); // 4-6 layers for more fullness
+    
+    // Enhanced color palette with more variation
     const foliageColors = [
+        0x1B5E20, // Deep green
         0x2E7D32, // Dark green
         0x388E3C, // Medium green
         0x43A047, // Light green
-        0x4CAF50  // Bright green
+        0x4CAF50, // Bright green
+        0x66BB6A  // Pale green
     ];
     
+    // Create foliage layers with more variation and detail
     for (let i = 0; i < foliageLayers; i++) {
-        // Layer size decreases as we go up
-        const layerScale = 1 - (i * 0.2);
+        // Layer size decreases as we go up, more variation in scaling
+        const layerScale = 1 - (i * (0.15 + Math.random() * 0.1));
         const layerHeight = 3.5 * scale * layerScale;
-        const layerWidth = foliageSize * layerScale;
+        const layerWidth = foliageSize * layerScale * (0.9 + Math.random() * 0.2); // Width variation
         
-        // Randomize shape slightly - cone or hemisphere
+        // More shape variations
         let foliageGeometry;
         const shape = Math.random();
-        if (shape > 0.7) { // 30% chance of rounded top
-            foliageGeometry = new THREE.SphereGeometry(layerWidth, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
-        } else { // 70% chance of conical
-            foliageGeometry = new THREE.ConeGeometry(layerWidth, layerHeight, 8);
+        
+        if (shape > 0.8) { // 20% chance of rounded top
+            foliageGeometry = new THREE.SphereGeometry(
+                layerWidth, 
+                10, // More segments for smoother look
+                8, 
+                0, 
+                Math.PI * 2, 
+                0, 
+                Math.PI * (0.4 + Math.random() * 0.2) // Vary the slice amount
+            );
+        } else if (shape > 0.4) { // 40% chance of conical
+            foliageGeometry = new THREE.ConeGeometry(
+                layerWidth, 
+                layerHeight, 
+                10, // More segments 
+                4, // Height segments
+                true // Open ended
+            );
+        } else { // 40% chance of dodecahedron (for pine-like trees)
+            foliageGeometry = new THREE.DodecahedronGeometry(
+                layerWidth * 0.8,
+                0 // No subdivision for faceted look
+            );
+            // Scale to make it taller than wide
+            foliageGeometry.scale(1, 1.5, 1);
         }
         
-        // Choose a color with slight variation
+        // Choose a color with more variation
         const colorIndex = Math.floor(Math.random() * foliageColors.length);
         const baseColor = foliageColors[colorIndex];
-        // Add slight color variation
-        const color = new THREE.Color(baseColor);
-        color.r += (Math.random() * 0.1) - 0.05;
-        color.g += (Math.random() * 0.1) - 0.05;
-        color.b += (Math.random() * 0.1) - 0.05;
         
-        const foliageMaterial = new THREE.MeshBasicMaterial({ 
-            color: color
-        });
+        // Add more significant color variation for natural look
+        const color = new THREE.Color(baseColor);
+        color.r += (Math.random() * 0.15) - 0.075;
+        color.g += (Math.random() * 0.2) - 0.1; // More green variation
+        color.b += (Math.random() * 0.15) - 0.075;
+        
+        // Use StandardMaterial for better lighting if available
+        const foliageMaterial = (typeof THREE.MeshStandardMaterial !== 'undefined') ? 
+            new THREE.MeshStandardMaterial({ 
+                color: color,
+                roughness: 0.8,
+                metalness: 0.0,
+                flatShading: Math.random() > 0.5 // Random shading style
+            }) : 
+            new THREE.MeshBasicMaterial({ color: color });
         
         const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
         
-        // Position each layer
-        const layerPosition = trunkHeight * 0.65 + (i * 1.2 * scale);
+        // Position each layer with more variation
+        const heightVariation = (Math.random() * 0.4 - 0.2) * scale;
+        const layerPosition = trunkHeight * (0.65 + Math.random() * 0.1) + (i * 1.2 * scale) + heightVariation;
         foliage.position.y = layerPosition;
         
-        // Add slight offset for more natural appearance
-        foliage.position.x += (Math.random() - 0.5) * 0.5;
-        foliage.position.z += (Math.random() - 0.5) * 0.5;
+        // Add more pronounced offset for more natural appearance
+        foliage.position.x += (Math.random() - 0.5) * scale * 0.7;
+        foliage.position.z += (Math.random() - 0.5) * scale * 0.7;
         
-        // Add slight rotation for variety
+        // Add random rotation and slight scaling for variety
         foliage.rotation.y = Math.random() * Math.PI;
+        foliage.rotation.x = (Math.random() - 0.5) * 0.1;
+        foliage.rotation.z = (Math.random() - 0.5) * 0.1;
+        
+        // Random scaling for more natural variation
+        foliage.scale.x *= 0.9 + Math.random() * 0.2;
+        foliage.scale.z *= 0.9 + Math.random() * 0.2;
         
         tree.add(foliage);
     }
     
+    // Add random small branches for detail
+    const branchCount = Math.floor(Math.random() * 5) + 2; // 2-6 branches
+    
+    for (let i = 0; i < branchCount; i++) {
+        const branchHeight = trunkHeight * (0.3 + Math.random() * 0.6); // Vary height along trunk
+        const branchAngle = Math.random() * Math.PI * 2;
+        const branchTilt = Math.PI * 0.2 + Math.random() * Math.PI * 0.3; // Upward tilt
+        
+        const branchLength = scale * (1 + Math.random());
+        
+        // Create branch geometry
+        const branchGeometry = new THREE.CylinderGeometry(
+            scale * 0.1,  // Tip
+            scale * 0.2,  // Base
+            branchLength,
+            5,           // Lower detail for branches
+            1
+        );
+        
+        const branch = new THREE.Mesh(branchGeometry, trunkMaterial.clone());
+        
+        // Position and rotate branch
+        branch.position.y = branchHeight;
+        branch.position.x = Math.cos(branchAngle) * trunkRadius * 0.8;
+        branch.position.z = Math.sin(branchAngle) * trunkRadius * 0.8;
+        
+        // Rotate to point outward and upward
+        branch.rotation.z = branchTilt;
+        branch.rotation.y = branchAngle;
+        
+        // Move origin to end of cylinder for correct rotation
+        branch.geometry.translate(0, branchLength/2, 0);
+        
+        tree.add(branch);
+    }
+    
     // Set position with slight random offset
-    const posX = x + (Math.random() - 0.5) * 2;
-    const posZ = z + (Math.random() - 0.5) * 2;
+    const posX = x + (Math.random() - 0.5) * 3; // More position variation
+    const posZ = z + (Math.random() - 0.5) * 3;
     tree.position.set(posX, 0, posZ);
     tree.rotation.y = rotation;
     
@@ -745,12 +842,62 @@ function init() {
         playerBody = createHumanoidMesh();
         player.add(playerBody);
         
-        // Create a simpler forest (fewer trees for better performance)
-        const clearingRadius = 15;
-        const forestRadius = 80; // Smaller radius for better performance
-        const treeCount = 50; // Reduced number of trees
+        // Create a more visually appealing forest with better distribution
+        const clearingRadius = 18; // Larger clearing for bigger trees
+        const forestRadius = 100; // Expanded forest area
+        const treeCount = 70; // More trees for a denser forest
         
-        for (let i = 0; i < treeCount; i++) {
+        // Create a few distinct tree clusters for more natural appearance
+        const clusterCount = 5;
+        const clusterCenters = [];
+        
+        // Generate random cluster centers
+        for (let i = 0; i < clusterCount; i++) {
+            const angle = (i / clusterCount) * Math.PI * 2 + (Math.random() * 0.5 - 0.25);
+            const distance = clearingRadius + 15 + Math.random() * 20;
+            
+            clusterCenters.push({
+                x: Math.cos(angle) * distance,
+                z: Math.sin(angle) * distance,
+                radius: 10 + Math.random() * 15 // Cluster size
+            });
+        }
+        
+        // Larger trees for backdrop (furthest from player)
+        const backdropTreeCount = 15;
+        for (let i = 0; i < backdropTreeCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = forestRadius * 0.7 + Math.random() * (forestRadius * 0.3);
+            
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+            
+            // Create tree with explicit larger scale for backdrop effect
+            createTree(x, z);
+        }
+        
+        // Trees in clusters (medium distance)
+        const clusterTreeCount = 35;
+        for (let i = 0; i < clusterTreeCount; i++) {
+            // Pick a random cluster
+            const cluster = clusterCenters[Math.floor(Math.random() * clusterCenters.length)];
+            
+            // Random position within cluster
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * cluster.radius;
+            
+            const x = cluster.x + Math.cos(angle) * distance;
+            const z = cluster.z + Math.sin(angle) * distance;
+            
+            // Verify not in clearing
+            if (Math.sqrt(x * x + z * z) > clearingRadius) {
+                createTree(x, z);
+            }
+        }
+        
+        // Scattered trees (various distances)
+        const scatteredTreeCount = 20;
+        for (let i = 0; i < scatteredTreeCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
             
