@@ -58,6 +58,15 @@ const bulletHoles = [];
 const maxBulletHoles = 50; // Maximum number of bullet holes to keep
 const impactEffects = [];
 
+// Tree mesh instances and materials
+let treeMeshes = {
+    trunk: null,
+    foliageLow: null,
+    foliageHigh: null,
+    branchLow: null,
+    branchHigh: null
+};
+
 // Debug information for tracking script loading
 console.log('Script loaded:', document.currentScript?.src);
 console.log('Base URL:', window.location.href);
@@ -84,175 +93,187 @@ if (!checkWebGL()) {
     animate();
 }
 
-// Create a simple tree
+// Create tree templates for instancing
+function initTreeTemplates() {
+    // Create trunk template
+    const trunkGeometry = new THREE.CylinderGeometry(0.4, 0.5, 5, 8);
+    const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
+    treeMeshes.trunk = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, 1000);
+    
+    // Create high-detail foliage template
+    const foliageHighGeometry = new THREE.SphereGeometry(2, 12, 12);
+    const foliageHighMaterial = new THREE.MeshBasicMaterial({ color: 0x2E6E31 });
+    treeMeshes.foliageHigh = new THREE.InstancedMesh(foliageHighGeometry, foliageHighMaterial, 1000);
+    
+    // Create low-detail foliage template
+    const foliageLowGeometry = new THREE.SphereGeometry(2, 6, 6);
+    const foliageLowMaterial = new THREE.MeshBasicMaterial({ color: 0x2E6E31 });
+    treeMeshes.foliageLow = new THREE.InstancedMesh(foliageLowGeometry, foliageLowMaterial, 1000);
+    
+    // Create high-detail branch template
+    const branchHighGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 6);
+    const branchHighMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
+    treeMeshes.branchHigh = new THREE.InstancedMesh(branchHighGeometry, branchHighMaterial, 1000);
+    
+    // Create low-detail branch template
+    const branchLowGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 4);
+    const branchLowMaterial = new THREE.MeshBasicMaterial({ color: 0x614126 });
+    treeMeshes.branchLow = new THREE.InstancedMesh(branchLowGeometry, branchLowMaterial, 1000);
+    
+    // Add meshes to scene
+    Object.values(treeMeshes).forEach(mesh => scene.add(mesh));
+}
+
+// Create a tree using instanced meshes
 function createTree(x, z) {
-    // Create a tree group to hold all parts
-    const tree = new THREE.Group();
-    
-    // Randomize tree characteristics for variety
-    const scale = 3.5 + Math.random() * 2.0; // Increased overall size
-    const trunkHeight = 5 * scale;
-    const trunkRadius = 0.4 * scale;
-    const foliageSize = 4.0 * scale;
-    
-    // Determine tree type - adding more variety
-    const treeType = Math.floor(Math.random() * 4); // 0=oak, 1=pine, 2=birch, 3=willow
-    
-    // More pronounced random rotation and tilt for natural look
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3(x, 0, z);
+    const scale = 3.5 + Math.random() * 2.0;
     const rotation = Math.random() * Math.PI * 2;
-    const tiltAmount = Math.random() * 0.1; // Increased tilt variation
-    const tiltDirection = Math.random() * Math.PI * 2;
+    const treeType = Math.floor(Math.random() * 4);
     
-    // Create trunk with improved shape and color
-    const trunkSegments = 8; // More segments for better roundness
-    const trunkRadialSegments = 8; // More radial segments for detail
-    const trunkGeometry = new THREE.CylinderGeometry(
-        trunkRadius * 0.7, trunkRadius, trunkHeight, 
-        trunkSegments, trunkRadialSegments
-    );
+    // Calculate distance from camera for LOD
+    const distanceToCamera = position.distanceTo(camera.position);
+    const useHighDetail = distanceToCamera < 50;
     
-    // Different bark colors based on tree type
-    let barkColor;
-    switch (treeType) {
-        case 0: // Oak
-            barkColor = new THREE.Color(0x614126);
-            break;
-        case 1: // Pine
-            barkColor = new THREE.Color(0x483C32);
-            break;
-        case 2: // Birch
-            barkColor = new THREE.Color(0xD3CDBD);
-            break;
-        case 3: // Willow
-            barkColor = new THREE.Color(0x5A4D41);
-            break;
-    }
+    // Tree color variations
+    const colors = {
+        oak: { bark: 0x614126, leaves: 0x2E6E31 },
+        pine: { bark: 0x483C32, leaves: 0x2C5545 },
+        birch: { bark: 0xD3CDBD, leaves: 0x5DA130 },
+        willow: { bark: 0x5A4D41, leaves: 0x6A8D73 }
+    };
     
-    // Add some color variation to the bark
-    barkColor.offsetHSL(
-        (Math.random() * 0.05) - 0.025, // Small hue variation
-        (Math.random() * 0.1),          // Saturation variation
-        (Math.random() * 0.1) - 0.05    // Lightness variation
-    );
+    const treeColors = [colors.oak, colors.pine, colors.birch, colors.willow][treeType];
     
-    // Use MeshBasicMaterial for better compatibility
-    const trunkMaterial = new THREE.MeshBasicMaterial({ color: barkColor });
+    // Add color variation
+    const barkColor = new THREE.Color(treeColors.bark);
+    const leafColor = new THREE.Color(treeColors.leaves);
+    barkColor.offsetHSL((Math.random() * 0.05) - 0.025, Math.random() * 0.1, (Math.random() * 0.1) - 0.05);
+    leafColor.offsetHSL((Math.random() * 0.05) - 0.025, Math.random() * 0.2, Math.random() * 0.1);
     
-    // Create the trunk
-    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.castShadow = true;
-    trunk.position.y = trunkHeight / 2;
-    tree.add(trunk);
+    // Set trunk instance
+    matrix.makeRotationY(rotation);
+    matrix.setPosition(position);
+    matrix.scale(new THREE.Vector3(scale, scale, scale));
+    const trunkIndex = treeMeshes.trunk.count++;
+    treeMeshes.trunk.setMatrixAt(trunkIndex, matrix);
+    treeMeshes.trunk.setColorAt(trunkIndex, barkColor);
     
-    // Add trunk texture variations to simulate bark
-    // (omitted for performance)
+    // Add foliage instances
+    const foliageMesh = useHighDetail ? treeMeshes.foliageHigh : treeMeshes.foliageLow;
+    const branchMesh = useHighDetail ? treeMeshes.branchHigh : treeMeshes.branchLow;
     
-    // Add branches
-    const branchCount = 3 + Math.floor(Math.random() * 4); // More branches
-    
+    // Create branches with foliage
+    const branchCount = useHighDetail ? 5 : 3;
     for (let i = 0; i < branchCount; i++) {
-        const branchHeight = trunkHeight * (0.3 + Math.random() * 0.5);
-        const branchRadius = trunkRadius * (0.2 + Math.random() * 0.3);
         const branchAngle = (i / branchCount) * Math.PI * 2 + (Math.random() * 0.5);
-        const branchTilt = 0.3 + Math.random() * 0.3; // More pronounced random tilt
-        
-        const branchGeometry = new THREE.CylinderGeometry(
-            branchRadius * 0.6, branchRadius, branchHeight, 5
+        const branchHeight = scale * (2 + Math.random());
+        const branchPosition = new THREE.Vector3(
+            x + Math.cos(branchAngle) * scale * 0.5,
+            branchHeight,
+            z + Math.sin(branchAngle) * scale * 0.5
         );
         
-        // Use a slightly different color for branches
-        const branchColor = barkColor.clone();
-        branchColor.offsetHSL(0, 0, (Math.random() * 0.1) - 0.05);
+        // Set branch instance
+        matrix.makeRotationY(branchAngle);
+        matrix.setPosition(branchPosition);
+        matrix.scale(new THREE.Vector3(1, 1, 1));
+        const branchIndex = branchMesh.count++;
+        branchMesh.setMatrixAt(branchIndex, matrix);
+        branchMesh.setColorAt(branchIndex, barkColor);
         
-        const branchMaterial = new THREE.MeshBasicMaterial({ color: branchColor });
-        const branch = new THREE.Mesh(branchGeometry, branchMaterial);
+        // Add foliage at branch tips
+        const foliagePosition = new THREE.Vector3(
+            branchPosition.x + Math.cos(branchAngle) * scale * 0.7,
+            branchPosition.y + scale * 0.5,
+            branchPosition.z + Math.sin(branchAngle) * scale * 0.7
+        );
         
-        // Position and rotate the branch
-        branch.position.y = trunkHeight * (0.4 + Math.random() * 0.3);
-        branch.position.x = Math.cos(branchAngle) * (trunkRadius + branchHeight * 0.1);
-        branch.position.z = Math.sin(branchAngle) * (trunkRadius + branchHeight * 0.1);
+        matrix.makeRotationY(Math.random() * Math.PI * 2);
+        matrix.setPosition(foliagePosition);
+        const foliageScale = 0.8 + Math.random() * 0.4;
+        matrix.scale(new THREE.Vector3(foliageScale, foliageScale, foliageScale));
+        const foliageIndex = foliageMesh.count++;
+        foliageMesh.setMatrixAt(foliageIndex, matrix);
+        foliageMesh.setColorAt(foliageIndex, leafColor);
+    }
+    
+    // Update instance matrices
+    Object.values(treeMeshes).forEach(mesh => {
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    });
+    
+    return { position, scale, type: treeType };
+}
+
+// Create forest with improved clustering
+function createForest() {
+    initTreeTemplates();
+    
+    const clearingRadius = 18;
+    const forestRadius = 100;
+    
+    // Create natural clusters using Poisson disk sampling
+    const clusters = [];
+    const minClusterDistance = 20;
+    
+    // Generate cluster centers
+    for (let attempts = 0; attempts < 50; attempts++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
+        const x = Math.cos(angle) * distance;
+        const z = Math.sin(angle) * distance;
         
-        branch.rotation.z = branchTilt;
-        branch.rotation.y = branchAngle;
-        
-        branch.castShadow = true;
-        tree.add(branch);
-        
-        // Add leaf clusters at branch ends
-        const leafCount = 2 + Math.floor(Math.random() * 3);
-        const leafSize = foliageSize * 0.3;
-        for (let j = 0; j < leafCount; j++) {
-            // Use different foliage shapes based on tree type
-            let foliageGeometry;
-            if (treeType === 1) { // Pine
-                foliageGeometry = new THREE.ConeGeometry(leafSize * 0.7, leafSize * 1.5, 6);
-            } else if (treeType === 3) { // Willow
-                foliageGeometry = new THREE.SphereGeometry(leafSize * 0.8, 5, 4);
-            } else {
-                foliageGeometry = new THREE.SphereGeometry(leafSize, 6, 5);
+        // Check distance from other clusters
+        let tooClose = false;
+        for (const cluster of clusters) {
+            const dx = cluster.x - x;
+            const dz = cluster.z - z;
+            if (Math.sqrt(dx * dx + dz * dz) < minClusterDistance) {
+                tooClose = true;
+                break;
             }
-            
-            // Get base color for tree type
-            let foliageColor;
-            switch (treeType) {
-                case 0: // Oak - darker green
-                    foliageColor = new THREE.Color(0x2E6E31);
-                    break;
-                case 1: // Pine - blue-green
-                    foliageColor = new THREE.Color(0x2C5545);
-                    break;
-                case 2: // Birch - lighter green
-                    foliageColor = new THREE.Color(0x5DA130);
-                    break;
-                case 3: // Willow - grayish green
-                    foliageColor = new THREE.Color(0x6A8D73);
-                    break;
-            }
-            
-            // Add random color variation
-            foliageColor.offsetHSL(
-                (Math.random() * 0.05) - 0.025, // Hue variation
-                (Math.random() * 0.2),          // Saturation variation
-                (Math.random() * 0.1)           // Lightness variation
-            );
-            
-            // Use MeshBasicMaterial for better compatibility
-            const foliageMaterial = new THREE.MeshBasicMaterial({ color: foliageColor });
-            
-            const leafCluster = new THREE.Mesh(foliageGeometry, foliageMaterial);
-            
-            // Position at end of branch
-            const distance = branchHeight * 0.85;
-            leafCluster.position.set(0, 0, distance);
-            
-            // Random rotation and scale for variety
-            leafCluster.rotation.x = Math.random() * 0.5;
-            leafCluster.rotation.z = Math.random() * 0.5;
-            leafCluster.scale.set(
-                0.8 + Math.random() * 0.4,
-                0.8 + Math.random() * 0.4,
-                0.8 + Math.random() * 0.4
-            );
-            
-            branch.add(leafCluster);
+        }
+        
+        if (!tooClose) {
+            clusters.push({
+                x, z,
+                radius: 10 + Math.random() * 15,
+                density: 0.5 + Math.random() * 0.5
+            });
         }
     }
     
-    // Set position with slight random offset
-    const posX = x + (Math.random() - 0.5) * 3; // More position variation
-    const posZ = z + (Math.random() - 0.5) * 3;
-    tree.position.set(posX, 0, posZ);
-    tree.rotation.y = rotation;
+    // Create trees in clusters
+    clusters.forEach(cluster => {
+        const treeCount = Math.floor(cluster.radius * cluster.density * 2);
+        for (let i = 0; i < treeCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.pow(Math.random(), 0.5) * cluster.radius; // Square root for more natural distribution
+            const x = cluster.x + Math.cos(angle) * distance;
+            const z = cluster.z + Math.sin(angle) * distance;
+            
+            if (Math.sqrt(x * x + z * z) > clearingRadius) {
+                createTree(x, z);
+            }
+        }
+    });
     
-    // Add to scene and store in array
-    scene.add(tree);
-    trees.push(tree);
-    
-    return tree;
+    // Add scattered trees
+    const scatteredCount = 30;
+    for (let i = 0; i < scatteredCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
+        const x = Math.cos(angle) * distance;
+        const z = Math.sin(angle) * distance;
+        
+        if (Math.sqrt(x * x + z * z) > clearingRadius) {
+            createTree(x, z);
+        }
+    }
 }
-
-// Expose the createTree function globally
-window.createTree = createTree;
 
 // Create a simple humanoid figure
 function createHumanoidMesh() {
@@ -1147,72 +1168,8 @@ function init() {
         playerBody = createHumanoidMesh();
         player.add(playerBody);
         
-        // Create a more visually appealing forest with better distribution
-        const clearingRadius = 18; // Larger clearing for bigger trees
-        const forestRadius = 100; // Expanded forest area
-        const treeCount = 70; // More trees for a denser forest
-        
-        // Create a few distinct tree clusters for more natural appearance
-        const clusterCount = 5;
-        const clusterCenters = [];
-        
-        // Generate random cluster centers
-        for (let i = 0; i < clusterCount; i++) {
-            const angle = (i / clusterCount) * Math.PI * 2 + (Math.random() * 0.5 - 0.25);
-            const distance = clearingRadius + 15 + Math.random() * 20;
-            
-            clusterCenters.push({
-                x: Math.cos(angle) * distance,
-                z: Math.sin(angle) * distance,
-                radius: 10 + Math.random() * 15 // Cluster size
-            });
-        }
-        
-        // Larger trees for backdrop (furthest from player)
-        const backdropTreeCount = 15;
-        for (let i = 0; i < backdropTreeCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = forestRadius * 0.7 + Math.random() * (forestRadius * 0.3);
-            
-            const x = Math.cos(angle) * distance;
-            const z = Math.sin(angle) * distance;
-            
-            // Create tree with explicit larger scale for backdrop effect
-            createTree(x, z);
-        }
-        
-        // Trees in clusters (medium distance)
-        const clusterTreeCount = 35;
-        for (let i = 0; i < clusterTreeCount; i++) {
-            // Pick a random cluster
-            const cluster = clusterCenters[Math.floor(Math.random() * clusterCenters.length)];
-            
-            // Random position within cluster
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * cluster.radius;
-            
-            const x = cluster.x + Math.cos(angle) * distance;
-            const z = cluster.z + Math.sin(angle) * distance;
-            
-            // Verify not in clearing
-            if (Math.sqrt(x * x + z * z) > clearingRadius) {
-                createTree(x, z);
-            }
-        }
-        
-        // Scattered trees (various distances)
-        const scatteredTreeCount = 20;
-        for (let i = 0; i < scatteredTreeCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = clearingRadius + Math.random() * (forestRadius - clearingRadius);
-            
-            const x = Math.cos(angle) * distance;
-            const z = Math.sin(angle) * distance;
-            
-            if (Math.sqrt(x * x + z * z) > clearingRadius) {
-                createTree(x, z);
-            }
-        }
+        // Create the forest using the new system
+        createForest();
         
         // Handle window resizing
         window.addEventListener('resize', onWindowResize);
