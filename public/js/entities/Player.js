@@ -387,8 +387,8 @@ export class Player {
         // Create rifle group
         this.rifle = new THREE.Group();
         
-        // Create rifle body - more detailed
-        const rifleBodyGeometry = new THREE.BoxGeometry(0.08, 0.12, 1.2);
+        // Create rifle body - M16 style
+        const rifleBodyGeometry = new THREE.BoxGeometry(0.08, 0.15, 1.0);
         const rifleMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x111111,
             roughness: 0.5
@@ -397,77 +397,66 @@ export class Player {
         const rifleBody = new THREE.Mesh(rifleBodyGeometry, rifleMaterial);
         this.rifle.add(rifleBody);
         
-        // Create rifle stock - more tactical
-        const rifleStockGeometry = new THREE.BoxGeometry(0.08, 0.18, 0.4);
-        const rifleStockMaterial = new THREE.MeshStandardMaterial({ 
+        // Create M16 carry handle with integrated rear sight
+        const carryHandleGeometry = new THREE.BoxGeometry(0.06, 0.12, 0.3);
+        const carryHandle = new THREE.Mesh(carryHandleGeometry, rifleMaterial);
+        carryHandle.position.set(0, 0.12, 0.1);
+        this.rifle.add(carryHandle);
+        
+        // Create front sight post
+        const frontSightGeometry = new THREE.BoxGeometry(0.04, 0.08, 0.05);
+        const frontSight = new THREE.Mesh(frontSightGeometry, rifleMaterial);
+        frontSight.position.set(0, 0.11, 0.7);
+        this.rifle.add(frontSight);
+        
+        // Create M16 style barrel
+        const barrelGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.9, 12);
+        const barrel = new THREE.Mesh(barrelGeometry, rifleMaterial);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0, 0, 0.85);
+        this.rifle.add(barrel);
+        
+        // Create distinctive M16 flash hider
+        const flashHiderGeometry = new THREE.CylinderGeometry(0.025, 0.03, 0.1, 6);
+        const flashHider = new THREE.Mesh(flashHiderGeometry, rifleMaterial);
+        flashHider.rotation.x = Math.PI / 2;
+        flashHider.position.set(0, 0, 1.25);
+        this.rifle.add(flashHider);
+        
+        // Create M16 style stock
+        const stockGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.4);
+        const stockMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x222222,
             roughness: 0.7
         });
         
-        const rifleStock = new THREE.Mesh(rifleStockGeometry, rifleStockMaterial);
-        rifleStock.position.set(0, -0.03, -0.7);
-        this.rifle.add(rifleStock);
+        const stock = new THREE.Mesh(stockGeometry, stockMaterial);
+        stock.position.set(0, -0.02, -0.6);
+        this.rifle.add(stock);
         
-        // Create rifle barrel - more detailed
-        const rifleBarrelGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 12);
-        const rifleBarrel = new THREE.Mesh(rifleBarrelGeometry, rifleMaterial);
-        rifleBarrel.rotation.x = Math.PI / 2;
-        rifleBarrel.position.set(0, 0, 0.9);
-        this.rifle.add(rifleBarrel);
-        
-        // Create rifle scope - tactical optic
-        const scopeBaseGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.2);
-        const scopeBase = new THREE.Mesh(scopeBaseGeometry, rifleMaterial);
-        scopeBase.position.set(0, 0.09, 0.2);
-        this.rifle.add(scopeBase);
-        
-        const scopeGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.25, 12);
-        const scopeMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x111111,
-            roughness: 0.4
-        });
-        
-        const scope = new THREE.Mesh(scopeGeometry, scopeMaterial);
-        scope.rotation.x = Math.PI / 2;
-        scope.position.set(0, 0.15, 0.2);
-        this.rifle.add(scope);
-        
-        // Create scope lens
-        const lensGeometry = new THREE.CircleGeometry(0.03, 12);
-        const lensMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x88CCFF,
-            emissive: 0x225566,
-            roughness: 0.2
-        });
-        
-        const lens = new THREE.Mesh(lensGeometry, lensMaterial);
-        lens.position.set(0, 0, 0.13);
-        lens.rotation.y = Math.PI;
-        scope.add(lens);
-        
-        // Create tactical foregrip
-        const foregrip = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.03, 0.03, 0.15, 12),
-            rifleMaterial
-        );
-        foregrip.position.set(0, -0.12, 0.5);
-        this.rifle.add(foregrip);
-        
-        // Create tactical rail system
-        const railGeometry = new THREE.BoxGeometry(0.1, 0.03, 0.6);
-        const rail = new THREE.Mesh(railGeometry, rifleMaterial);
-        rail.position.set(0, 0.06, 0.5);
-        this.rifle.add(rail);
-        
-        // Create magazine
-        const magazineGeometry = new THREE.BoxGeometry(0.06, 0.2, 0.1);
-        const magazine = new THREE.Mesh(magazineGeometry, rifleMaterial);
-        magazine.position.set(0, -0.15, 0.2);
+        // Create M16 magazine
+        const magGeometry = new THREE.BoxGeometry(0.06, 0.25, 0.08);
+        const magazine = new THREE.Mesh(magGeometry, rifleMaterial);
+        magazine.position.set(0, -0.18, 0.1);
         this.rifle.add(magazine);
         
-        // Position the rifle in front of the player
-        this.rifle.position.set(0.3, 0.2, 0.5);
-        this.rifle.rotation.y = -Math.PI / 4;
+        // Create pistol grip
+        const gripGeometry = new THREE.BoxGeometry(0.06, 0.15, 0.1);
+        const grip = new THREE.Mesh(gripGeometry, rifleMaterial);
+        grip.position.set(0, -0.12, -0.15);
+        grip.rotation.x = Math.PI / 6;
+        this.rifle.add(grip);
+        
+        // Create handguard
+        const handguardGeometry = new THREE.CylinderGeometry(0.035, 0.035, 0.6, 8);
+        const handguard = new THREE.Mesh(handguardGeometry, stockMaterial);
+        handguard.rotation.x = Math.PI / 2;
+        handguard.position.set(0, 0, 0.5);
+        this.rifle.add(handguard);
+        
+        // Position the rifle in tactical stance
+        this.rifle.position.set(0.35, 0.1, 0.3);
+        this.rifle.rotation.set(0, -Math.PI / 12, 0); // Slight angle inward
         
         // Add to model
         this.model.add(this.rifle);
@@ -478,23 +467,42 @@ export class Player {
      * @param {THREE.Group} rifle - The rifle object
      */
     createTacticalHands(rifle) {
-        const handGeometry = new THREE.SphereGeometry(0.08, 12, 12);
+        const handGeometry = new THREE.SphereGeometry(0.06, 12, 12);
         const gloveMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x222222, // Tactical gloves
             roughness: 0.7
         });
         
-        // Create left hand (front grip)
+        // Create left hand (forward grip)
         const leftHand = new THREE.Mesh(handGeometry, gloveMaterial);
-        leftHand.position.set(0, -0.12, 0.5);
         leftHand.scale.set(1, 0.8, 1.2);
+        leftHand.position.set(0, 0, 0.45); // Hold the handguard
         rifle.add(leftHand);
         
-        // Create right hand (trigger)
+        // Create right hand (pistol grip)
         const rightHand = new THREE.Mesh(handGeometry, gloveMaterial);
-        rightHand.position.set(0, -0.1, -0.1);
         rightHand.scale.set(1, 0.8, 1.2);
+        rightHand.position.set(0, -0.12, -0.15); // Hold the pistol grip
         rifle.add(rightHand);
+        
+        // Create forearms to connect to the body
+        const forearmGeometry = new THREE.CapsuleGeometry(0.04, 0.2, 8, 8);
+        const forearmMaterial = new THREE.MeshStandardMaterial({
+            color: Constants.COLORS.CAMO[0],
+            roughness: 0.8
+        });
+        
+        // Left forearm
+        const leftForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
+        leftForearm.position.set(-0.1, 0, 0.3);
+        leftForearm.rotation.set(0, 0, -Math.PI / 6);
+        rifle.add(leftForearm);
+        
+        // Right forearm
+        const rightForearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
+        rightForearm.position.set(-0.1, -0.1, -0.1);
+        rightForearm.rotation.set(-Math.PI / 6, 0, -Math.PI / 6);
+        rifle.add(rightForearm);
     }
     
     /**
