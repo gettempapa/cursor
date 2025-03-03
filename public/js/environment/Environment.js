@@ -1464,32 +1464,34 @@ export class Environment {
             Math.sin(baseAngle) * baseDistance
         );
 
-        // Create main compound
+        // Create main compound - increased size to 50 feet (150 units)
         this.createCompoundWalls(baseGroup);
         this.createBarracks(baseGroup);
         this.createCommandCenter(baseGroup);
         this.createVehicleDepot(baseGroup);
         this.createWatchTowers(baseGroup);
         this.createMilitaryProps(baseGroup);
+        this.createFlagPole(baseGroup);
+        this.createRoofRamp(baseGroup);
 
         this.scene.add(baseGroup);
     }
     
     createCompoundWalls(baseGroup) {
         const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 }); // Military gray
-        const wallGeometry = new THREE.BoxGeometry(200, 8, 2);
+        const wallGeometry = new THREE.BoxGeometry(150, 12, 2); // Increased size
         
         // Create four walls
         for (let i = 0; i < 4; i++) {
             const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-            wall.position.y = 4;
+            wall.position.y = 6;
             wall.rotation.y = (Math.PI / 2) * i;
             
             if (i % 2 === 0) {
-                wall.position.z = i === 0 ? -100 : 100;
+                wall.position.z = i === 0 ? -75 : 75;
             } else {
-                wall.position.x = i === 1 ? 100 : -100;
-                wall.scale.x = 1; // Adjust for equal wall lengths
+                wall.position.x = i === 1 ? 75 : -75;
+                wall.scale.x = 1;
             }
             
             baseGroup.add(wall);
@@ -1498,12 +1500,12 @@ export class Environment {
             const barbedWireGeometry = new THREE.TorusGeometry(0.5, 0.1, 8, 16);
             const barbedWireMaterial = new THREE.MeshBasicMaterial({ color: 0x303030 });
             
-            for (let j = 0; j < 20; j++) {
+            for (let j = 0; j < 15; j++) {
                 const barbedWire = new THREE.Mesh(barbedWireGeometry, barbedWireMaterial);
                 barbedWire.position.copy(wall.position);
-                barbedWire.position.y += 4;
-                barbedWire.position.x += (i % 2 === 0) ? -95 + j * 10 : 0;
-                barbedWire.position.z += (i % 2 === 1) ? -95 + j * 10 : 0;
+                barbedWire.position.y += 6;
+                barbedWire.position.x += (i % 2 === 0) ? -70 + j * 10 : 0;
+                barbedWire.position.z += (i % 2 === 1) ? -70 + j * 10 : 0;
                 baseGroup.add(barbedWire);
             }
         }
@@ -1542,28 +1544,34 @@ export class Environment {
     createCommandCenter(baseGroup) {
         const centerGroup = new THREE.Group();
         
-        // Main building
-        const buildingGeometry = new THREE.BoxGeometry(30, 20, 30);
+        // Main building - increased size
+        const buildingGeometry = new THREE.BoxGeometry(50, 25, 50);
         const buildingMaterial = new THREE.MeshBasicMaterial({ color: 0x4A4A4A });
         const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-        building.position.set(0, 10, 0);
+        building.position.set(0, 12.5, 0);
+        
+        // Large satellite dish on roof
+        const dishGeometry = new THREE.CylinderGeometry(8, 8, 1, 32);
+        const dishMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
+        const dish = new THREE.Mesh(dishGeometry, dishMaterial);
+        dish.rotation.x = Math.PI / 4;
+        dish.position.set(15, 25, 15);
+        
+        // Satellite dish support structure
+        const supportGeometry = new THREE.CylinderGeometry(1, 1, 5, 8);
+        const support = new THREE.Mesh(supportGeometry, dishMaterial);
+        support.position.set(15, 22, 15);
         
         // Communication array
         const arrayGeometry = new THREE.CylinderGeometry(1, 1, 15, 8);
         const arrayMaterial = new THREE.MeshBasicMaterial({ color: 0x303030 });
         const array = new THREE.Mesh(arrayGeometry, arrayMaterial);
-        array.position.set(0, 25, 0);
-        
-        // Satellite dish
-        const dishGeometry = new THREE.CylinderGeometry(5, 5, 1, 32);
-        const dishMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
-        const dish = new THREE.Mesh(dishGeometry, dishMaterial);
-        dish.rotation.x = Math.PI / 4;
-        dish.position.set(10, 18, 10);
+        array.position.set(-15, 32, -15);
         
         centerGroup.add(building);
-        centerGroup.add(array);
         centerGroup.add(dish);
+        centerGroup.add(support);
+        centerGroup.add(array);
         baseGroup.add(centerGroup);
     }
     
@@ -1688,6 +1696,51 @@ export class Environment {
         const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
         antenna.position.set(40, 5, -40);
         baseGroup.add(antenna);
+    }
+
+    createFlagPole(baseGroup) {
+        // Flag pole
+        const poleGeometry = new THREE.CylinderGeometry(0.5, 0.5, 30, 8);
+        const poleMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(50, 15, 50);
+        baseGroup.add(pole);
+
+        // Flag
+        const flagGeometry = new THREE.PlaneGeometry(10, 6);
+        const flagMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00008B,
+            side: THREE.DoubleSide 
+        });
+        const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+        flag.position.set(45, 25, 50);
+        flag.rotation.y = Math.PI / 2;
+        baseGroup.add(flag);
+    }
+
+    createRoofRamp(baseGroup) {
+        // Ramp to roof
+        const rampGeometry = new THREE.BoxGeometry(10, 2, 35);
+        const rampMaterial = new THREE.MeshBasicMaterial({ color: 0x606060 });
+        const ramp = new THREE.Mesh(rampGeometry, rampMaterial);
+        
+        // Position and rotate the ramp
+        ramp.position.set(25, 12.5, 0);
+        ramp.rotation.z = Math.PI / 6; // Angle the ramp upward
+        
+        // Add ramp railings
+        const railingGeometry = new THREE.BoxGeometry(0.5, 2, 35);
+        const railingMaterial = new THREE.MeshBasicMaterial({ color: 0x404040 });
+        
+        const leftRailing = new THREE.Mesh(railingGeometry, railingMaterial);
+        leftRailing.position.set(-4.5, 1, 0);
+        ramp.add(leftRailing);
+        
+        const rightRailing = new THREE.Mesh(railingGeometry, railingMaterial);
+        rightRailing.position.set(4.5, 1, 0);
+        ramp.add(rightRailing);
+        
+        baseGroup.add(ramp);
     }
 }
 
