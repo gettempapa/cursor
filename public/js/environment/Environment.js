@@ -47,13 +47,32 @@ export class Environment {
     createGround() {
         // Create ground geometry
         const groundSize = Constants.GAME.GROUND_SIZE;
-        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 32, 32);
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 64, 64);
         
-        // Create ground material
+        // Add subtle terrain variations
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            const distanceFromCenter = Math.sqrt(x * x + z * z);
+            
+            if (distanceFromCenter < groundSize * 0.45) {
+                const xNoise = x * 0.02;
+                const zNoise = z * 0.02;
+                const noise = 
+                    Math.sin(xNoise) * Math.cos(zNoise) * 1.5 + 
+                    Math.sin(xNoise * 2.5) * Math.cos(zNoise * 2.5) * 0.8 +
+                    Math.sin(xNoise * 5) * Math.cos(zNoise * 5) * 0.4;
+                
+                vertices[i + 1] = noise * Math.max(0, 1 - distanceFromCenter / (groundSize * 0.45));
+            }
+        }
+        groundGeometry.attributes.position.needsUpdate = true;
+        groundGeometry.computeVertexNormals();
+        
+        // Create ground material with a more natural grass color
         const groundMaterial = new THREE.MeshBasicMaterial({
-            color: Constants.COLORS.GROUND,
-            roughness: 0.8,
-            metalness: 0.2,
+            color: new THREE.Color(0x2D5A27), // Richer grass green
             side: THREE.DoubleSide
         });
         
@@ -71,34 +90,224 @@ export class Environment {
         // Create grass texture
         const grassTexture = this.createGrassTexture();
         
-        // Create grass patches
-        const patchCount = 100;
+        // Create grass patches with higher density
+        const patchCount = 500; // Increased from 100
         const groundSize = Constants.GAME.GROUND_SIZE;
         
         for (let i = 0; i < patchCount; i++) {
-            // Random position within ground bounds
-            const position = getRandomPosition(groundSize / 2);
+            // Random position within ground bounds with clustering
+            const useCluster = Math.random() < 0.7; // 70% chance for clustered grass
+            let position;
             
-            // Create grass patch
-            const patchSize = 1 + Math.random() * 2;
+            if (useCluster) {
+                // Create denser clusters of grass
+                const clusterCount = 8;
+                const clusterIndex = Math.floor(Math.random() * clusterCount);
+                const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
+                const clusterDistance = 20 + Math.random() * 200;
+                const clusterX = Math.cos(clusterAngle) * clusterDistance;
+                const clusterZ = Math.sin(clusterAngle) * clusterDistance;
+                
+                // Position within cluster
+                const radius = 15 + Math.random() * 25;
+                const localAngle = Math.random() * Math.PI * 2;
+                const localDistance = Math.random() * radius;
+                
+                position = {
+                    x: clusterX + Math.cos(localAngle) * localDistance,
+                    z: clusterZ + Math.sin(localAngle) * localDistance
+                };
+            } else {
+                position = getRandomPosition(groundSize / 2);
+            }
+            
+            // Create grass patch with varied sizes
+            const patchSize = 1.5 + Math.random() * 2.5; // Increased size range
             const patchGeometry = new THREE.PlaneGeometry(patchSize, patchSize);
+            
+            // Randomize grass color slightly
+            const hueOffset = (Math.random() * 0.1) - 0.05;
+            const satOffset = Math.random() * 0.2;
+            const lightOffset = (Math.random() * 0.2) - 0.1;
+            
             const patchMaterial = new THREE.MeshBasicMaterial({
                 map: grassTexture,
                 transparent: true,
                 alphaTest: 0.5,
-                side: THREE.DoubleSide
+                side: THREE.DoubleSide,
+                color: new THREE.Color().setHSL(0.3 + hueOffset, 0.6 + satOffset, 0.4 + lightOffset)
             });
             
             const patch = new THREE.Mesh(patchGeometry, patchMaterial);
-            patch.position.set(position.x, 0.05, position.z);
+            patch.position.set(position.x, 0.05 + Math.random() * 0.1, position.z); // Varied height
             patch.rotation.x = -Math.PI / 2;
-            
-            // Random rotation
             patch.rotation.z = Math.random() * Math.PI * 2;
+            
+            // Add slight random tilt for more natural look
+            patch.rotation.y = (Math.random() * 0.2) - 0.1;
             
             this.scene.add(patch);
             this.grassPatches.push(patch);
         }
+        
+        // Add additional ground cover
+        this.addGroundCover();
+    }
+    
+    addGroundCover() {
+        const coverCount = 200;
+        const groundSize = Constants.GAME.GROUND_SIZE;
+        
+        for (let i = 0; i < coverCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 20 + Math.random() * (groundSize / 2 - 30);
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+            
+            // Randomly select ground cover type
+            const type = Math.random();
+            
+            if (type < 0.4) { // 40% chance for small grass clusters
+                this.createGrassCluster(x, z);
+            } else if (type < 0.7) { // 30% chance for flowers
+                this.createFlowerPatch(x, z);
+            } else { // 30% chance for small ferns
+                this.createSmallFern(x, z);
+            }
+        }
+    }
+    
+    createGrassCluster(x, z) {
+        const clusterGroup = new THREE.Group();
+        const bladeCount = 15 + Math.floor(Math.random() * 10);
+        
+        for (let i = 0; i < bladeCount; i++) {
+            const height = 0.3 + Math.random() * 0.4;
+            const width = 0.02 + Math.random() * 0.03;
+            
+            const bladeGeometry = new THREE.PlaneGeometry(width, height);
+            const r = 50 + Math.random() * 30;
+            const g = 100 + Math.random() * 50;
+            const b = 30 + Math.random() * 30;
+            
+            const bladeMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                side: THREE.DoubleSide
+            });
+            
+            const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 0.2;
+            blade.position.set(
+                Math.cos(angle) * distance,
+                height / 2,
+                Math.sin(angle) * distance
+            );
+            
+            blade.rotation.y = angle;
+            blade.rotation.x = (Math.random() * 0.3) - 0.15;
+            
+            clusterGroup.add(blade);
+        }
+        
+        clusterGroup.position.set(x, 0, z);
+        this.scene.add(clusterGroup);
+    }
+    
+    createFlowerPatch(x, z) {
+        const flowerGroup = new THREE.Group();
+        const flowerCount = 1 + Math.floor(Math.random() * 3);
+        
+        for (let i = 0; i < flowerCount; i++) {
+            const stemHeight = 0.3 + Math.random() * 0.4;
+            const stemGeometry = new THREE.CylinderGeometry(0.01, 0.01, stemHeight, 4);
+            const stemMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(0x2D5A27)
+            });
+            
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            stem.position.y = stemHeight / 2;
+            
+            // Flower head
+            const flowerGeometry = new THREE.CircleGeometry(0.1 + Math.random() * 0.1, 8);
+            
+            // Random flower color
+            let flowerColor;
+            const flowerType = Math.random();
+            if (flowerType < 0.3) {
+                flowerColor = new THREE.Color(0xFFFFFF); // White
+            } else if (flowerType < 0.6) {
+                flowerColor = new THREE.Color(0xFFF44F); // Yellow
+            } else {
+                flowerColor = new THREE.Color(0xFF69B4); // Pink
+            }
+            
+            const flowerMaterial = new THREE.MeshBasicMaterial({
+                color: flowerColor,
+                side: THREE.DoubleSide
+            });
+            
+            const flower = new THREE.Mesh(flowerGeometry, flowerMaterial);
+            flower.position.y = stemHeight;
+            flower.rotation.x = -Math.PI / 2;
+            
+            const flowerGroup = new THREE.Group();
+            flowerGroup.add(stem);
+            flowerGroup.add(flower);
+            
+            // Position within patch
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 0.2;
+            flowerGroup.position.set(
+                Math.cos(angle) * distance,
+                0,
+                Math.sin(angle) * distance
+            );
+            
+            // Random slight tilt
+            flowerGroup.rotation.x = (Math.random() * 0.2) - 0.1;
+            flowerGroup.rotation.z = (Math.random() * 0.2) - 0.1;
+            
+            flowerGroup.add(stem);
+            flowerGroup.add(flower);
+        }
+        
+        flowerGroup.position.set(x, 0, z);
+        this.scene.add(flowerGroup);
+    }
+    
+    createSmallFern(x, z) {
+        const fernGroup = new THREE.Group();
+        const leafCount = 4 + Math.floor(Math.random() * 4);
+        
+        for (let i = 0; i < leafCount; i++) {
+            const leafGeometry = new THREE.PlaneGeometry(
+                0.1 + Math.random() * 0.2,
+                0.3 + Math.random() * 0.3
+            );
+            
+            const r = 30 + Math.random() * 30;
+            const g = 90 + Math.random() * 40;
+            const b = 30 + Math.random() * 30;
+            
+            const leafMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                side: THREE.DoubleSide
+            });
+            
+            const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+            
+            const angle = (i / leafCount) * Math.PI * 2;
+            leaf.position.y = 0.15;
+            leaf.rotation.y = angle;
+            leaf.rotation.x = Math.PI / 4;
+            
+            fernGroup.add(leaf);
+        }
+        
+        fernGroup.position.set(x, 0, z);
+        this.scene.add(fernGroup);
     }
     
     /**
