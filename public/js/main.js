@@ -48,6 +48,11 @@ const aimSensitivity = 0.002; // How sensitive the aiming is
 const maxVerticalRotation = Math.PI / 3; // Limit up/down rotation
 let isPointerLocked = false;
 
+// Add leg animation variables after the movement parameters
+const LEG_SWING_SPEED = 8; // How fast the legs move
+const MAX_LEG_ROTATION = Math.PI / 4; // Maximum leg swing angle
+let legAnimationTime = 0; // Time tracker for leg animation
+
 // Debug information for tracking script loading
 console.log('Script loaded:', document.currentScript?.src);
 console.log('Base URL:', window.location.href);
