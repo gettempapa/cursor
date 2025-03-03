@@ -17,7 +17,7 @@ export class Player {
         this.debug = options.debug || null;
         
         // Player state
-        this.position = new THREE.Vector3(0, 0, 0);
+        this.position = new THREE.Vector3(0, 200, 0); // Start high in the air
         this.velocity = new THREE.Vector3();
         this.rotation = new THREE.Euler();
         this.height = 1.8;
@@ -28,6 +28,18 @@ export class Player {
         this.lastFootstepTime = 0;
         this.footstepInterval = Constants.AUDIO.FOOTSTEP_INTERVAL;
         this.isMoving = false;
+        
+        // Parachute state
+        this.hasParachute = true;
+        this.isParachuteDeployed = true;
+        this.parachuteModel = null;
+        this.parachuteRotation = new THREE.Euler();
+        this.parachuteTilt = new THREE.Vector2(0, 0);
+        this.fallSpeed = 0;
+        this.maxFallSpeed = 8;
+        this.minFallSpeed = 2;
+        this.horizontalSpeed = 0;
+        this.maxHorizontalSpeed = 5;
         
         // Player model
         this.model = null;
@@ -62,6 +74,7 @@ export class Player {
      */
     init() {
         this.createPlayerModel();
+        this.createParachute();
         this.setupControls();
     }
     
@@ -662,108 +675,21 @@ export class Player {
      * @param {Function} checkCollisions - Function to check collisions
      */
     update(deltaTime, getHeightAtPosition, checkCollisions) {
-        // Cap delta time to prevent large jumps
         deltaTime = Math.min(deltaTime, Constants.GAME.MAX_DELTA_TIME);
         
-        // Reset movement flag
-        this.isMoving = false;
-        
-        // Calculate movement direction
-        const moveDirection = new THREE.Vector3(0, 0, 0);
-        
-        if (this.keys.forward) {
-            moveDirection.z -= 1;
-            this.isMoving = true;
-        }
-        
-        if (this.keys.backward) {
-            moveDirection.z += 1;
-            this.isMoving = true;
-        }
-        
-        if (this.keys.left) {
-            moveDirection.x -= 1;
-            this.isMoving = true;
-        }
-        
-        if (this.keys.right) {
-            moveDirection.x += 1;
-            this.isMoving = true;
-        }
-        
-        // Normalize movement direction
-        if (moveDirection.length() > 0) {
-            moveDirection.normalize();
-        }
-        
-        // Apply rotation to movement direction
-        moveDirection.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
-        
-        // Calculate velocity
-        this.velocity.x = moveDirection.x * Constants.PLAYER.MOVE_SPEED;
-        this.velocity.z = moveDirection.z * Constants.PLAYER.MOVE_SPEED;
-        
-        // Apply jumping and gravity
-        if (this.isJumping || this.isFalling) {
-            // Apply gravity
-            this.jumpVelocity -= Constants.PLAYER.GRAVITY * deltaTime * 60;
-            
-            // Update position
-            this.position.y += this.jumpVelocity;
-            
-            // Check if we've landed
-            const groundHeight = getHeightAtPosition(this.position);
-            
-            if (this.position.y <= groundHeight) {
-                this.position.y = groundHeight;
-                this.isJumping = false;
-                this.isFalling = false;
-                this.jumpVelocity = 0;
-            }
+        if (this.hasParachute && this.isParachuteDeployed) {
+            this.updateParachute(deltaTime);
         } else {
-            // Check if we're falling
-            const groundHeight = getHeightAtPosition(this.position);
-            
-            if (this.position.y > groundHeight) {
-                this.isFalling = true;
-                this.jumpVelocity = 0;
-            } else {
-                this.position.y = groundHeight;
-            }
+            // Normal movement when on ground
+            this.updateNormalMovement(deltaTime, getHeightAtPosition, checkCollisions);
         }
         
-        // Update position
-        const newPosition = this.position.clone();
-        newPosition.x += this.velocity.x * deltaTime * 60;
-        newPosition.z += this.velocity.z * deltaTime * 60;
-        
-        // Check for collisions
-        if (!checkCollisions(newPosition)) {
-            this.position.copy(newPosition);
-        }
-        
-        // Update model position
-        if (this.model) {
-            this.model.position.copy(this.position);
-            this.model.position.y += this.height;
-            this.model.rotation.y = this.rotation.y;
-        }
-        
-        // Update camera position
+        // Update camera
         this.updateCamera();
         
         // Update rifle aim
         if (this.rifle && this.camera) {
             this.updateRifleAim();
-        }
-        
-        // Play footstep sound if moving
-        if (this.isMoving && !this.isJumping && !this.isFalling) {
-            const now = Date.now();
-            if (now - this.lastFootstepTime > this.footstepInterval) {
-                this.lastFootstepTime = now;
-                // Footstep sound would be played here
-            }
         }
         
         // Update impact effects
@@ -775,23 +701,45 @@ export class Player {
      */
     updateCamera() {
         if (!this.camera) return;
-        
-        // Calculate camera position - standard third-person offset
-        const cameraOffset = Constants.PLAYER.CAMERA_OFFSET.clone();
-        
-        // Apply player rotation to camera offset (only horizontal rotation)
-        const rotationY = new THREE.Euler(0, this.rotation.y, 0);
-        cameraOffset.applyEuler(rotationY);
-        
-        // Set camera position
-        this.camera.position.copy(this.position).add(cameraOffset);
-        
-        // Set camera horizontal rotation to match player
-        this.camera.rotation.y = this.rotation.y;
-        
-        // Vertical rotation was already set in handleMouseMove
-        // No roll rotation (this prevents the corkscrewing effect)
-        this.camera.rotation.z = 0;
+
+        if (this.hasParachute && this.isParachuteDeployed) {
+            // Higher and further back camera position during parachute descent
+            const cameraDistance = 15;
+            const cameraHeight = 8;
+            
+            // Calculate camera position based on player rotation
+            this.camera.position.x = this.position.x - Math.sin(this.rotation.y) * cameraDistance;
+            this.camera.position.z = this.position.z - Math.cos(this.rotation.y) * cameraDistance;
+            this.camera.position.y = this.position.y + cameraHeight;
+            
+            // Add slight tilt based on movement
+            const tiltAngle = Math.atan2(this.velocity.x, this.velocity.z);
+            const tiltAmount = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z) * 0.1;
+            
+            // Look at point ahead of player based on movement
+            const lookAtPoint = this.position.clone();
+            lookAtPoint.x += this.velocity.x * 2;
+            lookAtPoint.z += this.velocity.z * 2;
+            lookAtPoint.y += this.height + this.velocity.y * 2;
+            
+            this.camera.lookAt(lookAtPoint);
+            this.camera.rotation.z = -tiltAmount * Math.sin(tiltAngle - this.rotation.y);
+        } else {
+            // Normal ground camera
+            const cameraOffset = new THREE.Vector3(0, 2, 5);
+            
+            this.camera.position.x = this.position.x - Math.sin(this.rotation.y) * cameraOffset.z;
+            this.camera.position.z = this.position.z - Math.cos(this.rotation.y) * cameraOffset.z;
+            this.camera.position.y = this.position.y + cameraOffset.y;
+            
+            // Look at point slightly above player's head
+            const lookAtPoint = new THREE.Vector3(
+                this.position.x,
+                this.position.y + this.height + 0.5,
+                this.position.z
+            );
+            this.camera.lookAt(lookAtPoint);
+        }
     }
     
     /**
@@ -838,6 +786,196 @@ export class Player {
                 this.impactEffects[i].cleanup();
                 this.impactEffects.splice(i, 1);
             }
+        }
+    }
+
+    /**
+     * Create the parachute model
+     */
+    createParachute() {
+        const parachuteGroup = new THREE.Group();
+        
+        // Create parachute canopy
+        const canopyGeometry = new THREE.SphereGeometry(4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        const canopyMaterial = new THREE.MeshBasicMaterial({
+            color: 0x567d46, // Military green
+            side: THREE.DoubleSide
+        });
+        const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
+        canopy.position.y = 4;
+        parachuteGroup.add(canopy);
+        
+        // Create strings
+        const stringCount = 8;
+        const stringMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+        
+        for (let i = 0; i < stringCount; i++) {
+            const angle = (i / stringCount) * Math.PI * 2;
+            const stringGeometry = new THREE.BufferGeometry();
+            const points = [
+                new THREE.Vector3(Math.cos(angle) * 3, 4, Math.sin(angle) * 3),
+                new THREE.Vector3(0, 0, 0)
+            ];
+            stringGeometry.setFromPoints(points);
+            const string = new THREE.Line(stringGeometry, stringMaterial);
+            parachuteGroup.add(string);
+        }
+        
+        this.parachuteModel = parachuteGroup;
+        this.parachuteModel.position.y = 2;
+        this.model.add(this.parachuteModel);
+    }
+
+    /**
+     * Update parachute movement
+     */
+    updateParachute(deltaTime) {
+        // Calculate base fall speed
+        this.fallSpeed = this.minFallSpeed + 
+            (this.maxFallSpeed - this.minFallSpeed) * 
+            (1 - Math.max(0, Math.min(1, this.parachuteTilt.y + 0.5)));
+
+        // Update horizontal movement based on WASD controls
+        const moveDirection = new THREE.Vector3(0, 0, 0);
+        
+        if (this.keys.forward) {
+            moveDirection.z -= 1;
+            this.parachuteTilt.y = Math.min(this.parachuteTilt.y + 0.1, 0.5);
+        } else if (this.keys.backward) {
+            moveDirection.z += 1;
+            this.parachuteTilt.y = Math.max(this.parachuteTilt.y - 0.1, -0.5);
+        } else {
+            // Return tilt to neutral
+            this.parachuteTilt.y *= 0.95;
+        }
+        
+        if (this.keys.left) {
+            moveDirection.x -= 1;
+            this.parachuteTilt.x = Math.max(this.parachuteTilt.x - 0.1, -0.5);
+        } else if (this.keys.right) {
+            moveDirection.x += 1;
+            this.parachuteTilt.x = Math.min(this.parachuteTilt.x + 0.1, 0.5);
+        } else {
+            // Return tilt to neutral
+            this.parachuteTilt.x *= 0.95;
+        }
+
+        // Normalize movement direction
+        if (moveDirection.length() > 0) {
+            moveDirection.normalize();
+            // Apply rotation to movement direction
+            moveDirection.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
+        }
+
+        // Update horizontal velocity
+        this.horizontalSpeed = Math.min(this.horizontalSpeed + deltaTime * 2, this.maxHorizontalSpeed);
+        this.velocity.x = moveDirection.x * this.horizontalSpeed;
+        this.velocity.z = moveDirection.z * this.horizontalSpeed;
+        
+        // Apply vertical velocity
+        this.velocity.y = -this.fallSpeed;
+
+        // Update position
+        this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+
+        // Check for landing
+        if (this.position.y <= 1.8) {
+            this.position.y = 1.8;
+            this.hasParachute = false;
+            this.isParachuteDeployed = false;
+            // Remove parachute model
+            if (this.parachuteModel && this.model) {
+                this.model.remove(this.parachuteModel);
+            }
+        }
+
+        // Update parachute visuals
+        if (this.parachuteModel) {
+            this.parachuteModel.rotation.x = this.parachuteTilt.y;
+            this.parachuteModel.rotation.z = -this.parachuteTilt.x;
+        }
+
+        // Update model position
+        if (this.model) {
+            this.model.position.copy(this.position);
+            this.model.position.y += this.height;
+            this.model.rotation.y = this.rotation.y;
+        }
+    }
+
+    /**
+     * Update normal ground movement
+     */
+    updateNormalMovement(deltaTime, getHeightAtPosition, checkCollisions) {
+        // Original movement code
+        this.isMoving = false;
+        
+        const moveDirection = new THREE.Vector3(0, 0, 0);
+        
+        if (this.keys.forward) {
+            moveDirection.z -= 1;
+            this.isMoving = true;
+        }
+        
+        if (this.keys.backward) {
+            moveDirection.z += 1;
+            this.isMoving = true;
+        }
+        
+        if (this.keys.left) {
+            moveDirection.x -= 1;
+            this.isMoving = true;
+        }
+        
+        if (this.keys.right) {
+            moveDirection.x += 1;
+            this.isMoving = true;
+        }
+        
+        if (moveDirection.length() > 0) {
+            moveDirection.normalize();
+        }
+        
+        moveDirection.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
+        
+        this.velocity.x = moveDirection.x * Constants.PLAYER.MOVE_SPEED;
+        this.velocity.z = moveDirection.z * Constants.PLAYER.MOVE_SPEED;
+        
+        if (this.isJumping || this.isFalling) {
+            this.jumpVelocity -= Constants.PLAYER.GRAVITY * deltaTime * 60;
+            this.position.y += this.jumpVelocity;
+            
+            const groundHeight = getHeightAtPosition(this.position);
+            
+            if (this.position.y <= groundHeight) {
+                this.position.y = groundHeight;
+                this.isJumping = false;
+                this.isFalling = false;
+                this.jumpVelocity = 0;
+            }
+        } else {
+            const groundHeight = getHeightAtPosition(this.position);
+            
+            if (this.position.y > groundHeight) {
+                this.isFalling = true;
+                this.jumpVelocity = 0;
+            } else {
+                this.position.y = groundHeight;
+            }
+        }
+        
+        const newPosition = this.position.clone();
+        newPosition.x += this.velocity.x * deltaTime * 60;
+        newPosition.z += this.velocity.z * deltaTime * 60;
+        
+        if (!checkCollisions(newPosition)) {
+            this.position.copy(newPosition);
+        }
+        
+        if (this.model) {
+            this.model.position.copy(this.position);
+            this.model.position.y += this.height;
+            this.model.rotation.y = this.rotation.y;
         }
     }
 }
